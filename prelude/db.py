@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS watched (
   repo TEXT NOT NULL,
   number INTEGER NOT NULL,
   head_sha TEXT,                           -- last head seen
+  updated_at TEXT,                         -- PR's updated_at when last evaluated
   reviewed_sha TEXT,                       -- head of the last automatic review
   decision TEXT,                           -- review | skip
   reason TEXT,
@@ -128,6 +129,7 @@ class Store:
                 "github_review_id": "TEXT", "github_comment_id": "TEXT", "drafted_body": "TEXT",
                 "found_by": "INTEGER",
             })
+            _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
             _add_missing_columns(c, "reviews", {
                 "reviewers": "INTEGER NOT NULL DEFAULT 1", "reports": "TEXT", "changed_lines": "INTEGER",
                 "runner_pid": "INTEGER", "previous_review_id": "INTEGER", "body": "TEXT", "mode": "TEXT NOT NULL DEFAULT 'full'",

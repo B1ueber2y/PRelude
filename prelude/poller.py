@@ -86,10 +86,13 @@ class Poller:
             ref = PrRef(owner, repo, number)
             try:
                 seen = self.store.watched(owner, repo, number)
+                if seen and item.get("updated_at") and seen["updated_at"] == item["updated_at"]:
+                    continue  # unchanged since last check: no further API calls
                 pr, ok, reason = self.evaluate(owner, repo, number, item)
                 if seen and seen["head_sha"] == pr.head_sha:
+                    self.store.set_watched(owner, repo, number, updated_at=item.get("updated_at"))
                     continue  # nothing new since last time
-                self.store.set_watched(owner, repo, number, head_sha=pr.head_sha,
+                self.store.set_watched(owner, repo, number, head_sha=pr.head_sha, updated_at=item.get("updated_at"),
                                        decision="review" if ok else "skip", reason=reason)
                 if not ok:
                     continue

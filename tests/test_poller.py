@@ -17,9 +17,10 @@ class FakeReader:
     def search_prs(self, query):
         self.queries.append(query)
         return [{"owner": "B1ueber2y", "repo": "PRelude", "number": n, "author": p["author"], "draft": p["draft"],
-                 "created_at": p["created"]} for n, p in self.prs.items()]
+                 "created_at": p["created"], "updated_at": p["updated"]} for n, p in self.prs.items()]
 
     def pull_request(self, ref):
+        self.detail_calls = getattr(self, "detail_calls", 0) + 1
         p = self.prs[ref.number]
         return PullRequest(ref, "t", "", p["author"], "open", p["draft"], "main", "b", "f", p["head"], ref.url)
 
@@ -28,7 +29,9 @@ class FakeReader:
         return set(p["direct"]), set(p["team"])
 
     def add(self, number, author="alice", head="h1", draft=False, direct=(), team=(), created="2999-01-01T00:00:00Z"):
-        self.prs[number] = dict(author=author, head=head, draft=draft, direct=direct, team=team, created=created)
+        updated = f"u-{head}-{sorted(direct)}"
+        self.prs[number] = dict(author=author, head=head, draft=draft, direct=direct, team=team, created=created,
+                                updated=updated)
 
 
 @pytest.fixture
@@ -120,3 +123,12 @@ def test_own_prs_opened_before_watching_are_skipped(poller, reader, store):
     (rid,) = poller.poll_once()
     assert store.get_review(rid)["number"] == 2
     assert "opened before" in store.watched("B1ueber2y", "PRelude", 1)["reason"]
+
+
+def test_unchanged_prs_cost_no_extra_requests(poller, reader):
+    reader.add(1, direct=["bob"])
+    reader.add(2)
+    poller.poll_once()
+    calls = reader.detail_calls
+    poller.poll_once()
+    assert reader.detail_calls == calls  # nothing changed: only the searches ran
