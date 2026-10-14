@@ -26,4 +26,5 @@
 <div id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
   {% include "_review_rows.html" %}
 </div>
+<p class="build">styles {{ static('app.css').split('v=')[1] }}</p>
 {% endblock %}
