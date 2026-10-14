@@ -78,12 +78,13 @@ If you want to use PRelude for a team or at scale, check with Anthropic first.
   can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
 - **Built for the phone.** A small installable web app, served privately from your own
   machine, with notifications when a review is ready.
-- **Reviews on its own, while you let it.** Watch repos for new PRs or review requests
-  (`prelude start` … `prelude stop`); nothing runs unless you started it.
+- **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
+  default), PRelude watches your repos for new PRs and review requests whenever it's
+  running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
 
 Status: early, but in daily use. Reviews (single or panels), editing, discarding,
-discussing, memory, GitHub drafts (off until enabled in `config.yaml`), automatic review
-triggers and phone notifications (via ntfy) all work.
+discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
+`config.yaml`), and phone notifications (via ntfy) all work.
 
 ## Requirements
 
