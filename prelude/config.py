@@ -10,6 +10,9 @@ from typing import Any
 
 import yaml
 
+from .notify import NotifyConfig
+from .triggers import TriggerConfig
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_CONFIG = """\
@@ -45,6 +48,28 @@ max_inline_diff_chars: 150000
 github_drafts:
   enabled: false
   prefix: "AI review with PRelude:"
+
+# Automatic reviews while PRelude is running. Repo modes: all_prs | on_request | never;
+# patterns like my-org/* work, the most specific match wins.
+triggers:
+  enabled: false
+  poll_minutes: 10
+  default_mode: on_request        # for repos not listed
+  repos: {}
+  requesters:
+    always: []                    # their requests are reviewed in any repo
+    block: []                     # their requests and PRs are ignored
+  own_prs: true
+  team_requests: true
+  skip_draft_prs: true
+  max_reviews_per_day: 20
+  on_new_commits: notify          # notify | rereview | ignore
+
+# Phone notifications via the ntfy app. Run `prelude notify-setup` to create a topic.
+notify:
+  ntfy_topic: null
+  include_details: false          # repo and PR title in messages (ntfy.sh is a public server)
+  open_url: http://localhost:8787
 
 server:
   host: 127.0.0.1
@@ -102,6 +127,8 @@ class Config:
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     drafts: DraftsConfig = field(default_factory=DraftsConfig)
+    triggers: TriggerConfig = field(default_factory=TriggerConfig)
+    notify: NotifyConfig = field(default_factory=NotifyConfig)
     max_inline_diff_chars: int = 150_000
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -176,6 +203,13 @@ def load_config(data_dir: Path | None = None) -> Config:
         drafts=DraftsConfig(
             enabled=bool(drafts_raw.get("enabled", False)),
             prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
+        ),
+        triggers=TriggerConfig.from_raw(raw.get("triggers")),
+        notify=NotifyConfig(
+            ntfy_topic=(raw.get("notify") or {}).get("ntfy_topic") or None,
+            ntfy_server=str((raw.get("notify") or {}).get("ntfy_server", "https://ntfy.sh")),
+            include_details=bool((raw.get("notify") or {}).get("include_details", False)),
+            open_url=str((raw.get("notify") or {}).get("open_url", "http://localhost:8787")),
         ),
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,

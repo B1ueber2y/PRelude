@@ -1,0 +1,112 @@
+"""Which pull requests to review automatically (only while PRelude is running).
+
+Precedence: your own PR -> blocked people -> always-list requesters -> repo mode -> default mode.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
+from typing import Any
+
+MODES = ("all_prs", "on_request", "never")
+NEW_COMMITS = ("notify", "rereview", "ignore")
+
+
+class TriggerConfigError(ValueError):
+    pass
+
+
+@dataclass
+class TriggerConfig:
+    enabled: bool = False
+    poll_minutes: int = 10
+    default_mode: str = "on_request"
+    repos: dict[str, str] = field(default_factory=dict)
+    always: set[str] = field(default_factory=set)
+    block: set[str] = field(default_factory=set)
+    own_prs: bool = True
+    team_requests: bool = True
+    skip_draft_prs: bool = True
+    max_reviews_per_day: int = 20
+    on_new_commits: str = "notify"
+
+    @classmethod
+    def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
+        raw = raw or {}
+        people = raw.get("requesters") or {}
+        t = cls(
+            enabled=bool(raw.get("enabled", False)),
+            poll_minutes=max(2, int(raw.get("poll_minutes", 10))),
+            default_mode=str(raw.get("default_mode", "on_request")),
+            repos={str(k).lower(): str(v) for k, v in (raw.get("repos") or {}).items()},
+            always={str(x).lower() for x in people.get("always") or []},
+            block={str(x).lower() for x in people.get("block") or []},
+            own_prs=bool(raw.get("own_prs", True)),
+            team_requests=bool(raw.get("team_requests", True)),
+            skip_draft_prs=bool(raw.get("skip_draft_prs", True)),
+            max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
+            on_new_commits=str(raw.get("on_new_commits", "notify")),
+        )
+        t.validate()
+        return t
+
+    def validate(self) -> None:
+        for mode in (self.default_mode, *self.repos.values()):
+            if mode not in MODES:
+                raise TriggerConfigError(f"unknown repo mode {mode!r} (use one of {', '.join(MODES)})")
+        if both := self.always & self.block:
+            raise TriggerConfigError(f"on both the always and block lists: {', '.join(sorted(both))}")
+        if self.on_new_commits not in NEW_COMMITS:
+            raise TriggerConfigError(f"on_new_commits must be one of {', '.join(NEW_COMMITS)}")
+
+    def repo_mode(self, slug: str) -> str:
+        """Exact match wins, then the most specific wildcard, then the default."""
+        slug = slug.lower()
+        if slug in self.repos:
+            return self.repos[slug]
+        matches = [p for p in self.repos if fnmatchcase(slug, p)]
+        if matches:
+            return self.repos[max(matches, key=lambda p: len(p.replace("*", "")))]
+        return self.default_mode
+
+
+@dataclass
+class Candidate:
+    slug: str                                   # OWNER/REPO
+    number: int
+    author: str
+    draft: bool = False
+    direct_requesters: set[str] = field(default_factory=set)  # requested you personally
+    team_requesters: set[str] = field(default_factory=set)    # requested a team you're on
+
+
+def decide(t: TriggerConfig, me: str, c: Candidate) -> tuple[bool, str]:
+    """Whether to review `c` automatically, and why (shown on the review)."""
+    me, author = me.lower(), c.author.lower()
+    if t.skip_draft_prs and c.draft:
+        return False, "draft PR"
+    if author == me:
+        return (True, "your PR") if t.own_prs else (False, "your PR (own_prs off)")
+    if author in t.block:
+        return False, f"author {c.author} is blocked"
+
+    direct = {r.lower() for r in c.direct_requesters} - t.block
+    team = ({r.lower() for r in c.team_requesters} - t.block) if t.team_requests else set()
+    requesters = direct | team
+
+    if vip := sorted(requesters & t.always):
+        return True, f"requested by {vip[0]} (always list)"
+
+    mode = t.repo_mode(c.slug)
+    if mode == "never":
+        return False, f"{c.slug} is set to never"
+    if mode == "all_prs":
+        return True, f"new PR in {c.slug} (all_prs)"
+    if requesters:
+        who = sorted(direct)[0] if direct else sorted(team)[0]
+        via = "" if direct else " (team request)"
+        return True, f"requested by {who}{via}"
+    if (c.direct_requesters or c.team_requesters) and not requesters:
+        return False, "only blocked people requested you"
+    return False, "no review request"

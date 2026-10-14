@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
@@ -116,6 +117,40 @@ class GitHubReader:
             additions=int(data.get("additions") or 0),
             deletions=int(data.get("deletions") or 0),
         )
+
+    def search_prs(self, query: str, limit: int = 100) -> list[dict]:
+        """Open PRs matching a GitHub search query. Restricted to `only_repo` while it is set."""
+        if self.cfg.only_repo:
+            query += f" repo:{self.cfg.only_repo}"
+        q = urllib.parse.quote(f"is:pr is:open archived:false {query}")
+        data = self._request(f"/search/issues?q={q}&per_page={min(limit, 100)}&sort=updated")
+        assert isinstance(data, dict)
+        items = []
+        for item in data.get("items", []):
+            owner, repo = item["repository_url"].rsplit("/", 2)[-2:]
+            if self.cfg.only_repo and f"{owner}/{repo}".lower() != self.cfg.only_repo.lower():
+                continue
+            items.append({"owner": owner, "repo": repo, "number": item["number"],
+                          "author": item["user"]["login"], "draft": bool(item.get("draft"))})
+        return items
+
+    def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:
+        """Who asked for your review: (requested you directly, requested a team)."""
+        direct, team = set(), set()
+        for page in range(1, 4):
+            events = self._get(owner, repo, f"/issues/{number}/events?per_page=100&page={page}")
+            assert isinstance(events, list)
+            for e in events:
+                if e.get("event") != "review_requested":
+                    continue
+                actor = (e.get("actor") or {}).get("login") or "someone"
+                if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
+                    direct.add(actor)
+                elif e.get("requested_team"):
+                    team.add(actor)
+            if len(events) < 100:
+                break
+        return direct, team
 
     def viewer_login(self) -> str:
         data = self._request("/user")

@@ -10,7 +10,7 @@ import sys
 from . import claude
 from .config import load_config
 from .db import Store
-from .github import parse_pr
+from .github import PrRef, parse_pr
 from .guard import RepoNotAllowed, check_repo
 from .review import run_review, start_review
 
@@ -118,6 +118,59 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_notify_setup(_args: argparse.Namespace) -> int:
+    import re
+
+    from .notify import new_topic
+
+    cfg = load_config()
+    if cfg.notify.ntfy_topic:
+        print(f"Already set up. Subscribe to this topic in the ntfy app: {cfg.notify.ntfy_topic}")
+        return 0
+    topic = new_topic()
+    path = cfg.data_dir / "config.yaml"
+    text = path.read_text()
+    if re.search(r"^  ntfy_topic:.*$", text, flags=re.M):
+        text = re.sub(r"^  ntfy_topic:.*$", f"  ntfy_topic: {topic}", text, count=1, flags=re.M)
+    else:
+        text += f"\nnotify:\n  ntfy_topic: {topic}\n"
+    path.write_text(text)
+    print(f"In the ntfy app, tap + and subscribe to: {topic}\nThen run `prelude notify-test`.")
+    return 0
+
+
+def _cmd_notify_test(_args: argparse.Namespace) -> int:
+    from .notify import send
+
+    cfg = load_config()
+    if not cfg.notify.ntfy_topic:
+        print("No topic yet; run `prelude notify-setup` first.")
+        return 1
+    ok = send(cfg.notify, "PRelude", "Notifications work. Tap to open PRelude.", tags="tada")
+    print("Sent." if ok else "Sending failed; see the log above.")
+    return 0 if ok else 1
+
+
+def _cmd_check(_args: argparse.Namespace) -> int:
+    """Dry run of the triggers: what would be reviewed now, and why. Starts nothing."""
+    from .poller import Poller
+    from .triggers import Candidate, decide
+
+    cfg = load_config()
+    poller = Poller(Store(cfg.db_path), cfg)
+    me = poller.reader.viewer_login()
+    found = poller.candidates()
+    if not found:
+        print("No open PRs match your triggers right now.")
+    for (owner, repo, number), item in sorted(found.items()):
+        pr = poller.reader.pull_request(PrRef(owner, repo, number))
+        direct, team = poller.reader.review_requests(owner, repo, number, me)
+        ok, reason = decide(cfg.triggers, me, Candidate(f"{owner}/{repo}", number, item["author"], pr.draft,
+                                                         direct, team))
+        print(f"{'REVIEW' if ok else 'skip  '}  {owner}/{repo}#{number}  {reason}")
+    return 0
+
+
 def _cmd_url(_args: argparse.Namespace) -> int:
     cfg = load_config()
     print(f"http://{cfg.server.host}:{cfg.server.port}/?key={cfg.access_key()}")
@@ -153,6 +206,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--host", default=None)
     s.add_argument("--port", type=int, default=None)
     s.set_defaults(fn=_cmd_serve)
+
+    sub.add_parser("notify-setup", help="create an ntfy topic for phone notifications").set_defaults(
+        fn=_cmd_notify_setup)
+    sub.add_parser("notify-test", help="send a test notification").set_defaults(fn=_cmd_notify_test)
+    sub.add_parser("check", help="dry run: which open PRs the triggers would review, and why").set_defaults(
+        fn=_cmd_check)
 
     for name, help_text in (
         ("start", "run the web UI in the background until `prelude stop`"),

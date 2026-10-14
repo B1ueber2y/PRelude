@@ -31,6 +31,7 @@ MANIFEST = json.dumps({
 
 def create_app(
     cfg: Config, store: Store | None = None, *, review_runner=None, learner=None, writer: DraftWriter | None = None,
+    watch: bool = False,
 ) -> FastAPI:
     store = store or Store(cfg.db_path)
     store.fail_stale_reviews()
@@ -57,6 +58,12 @@ def create_app(
 
     for module in (reviews, findings, memory):
         app.include_router(module.router)
+
+    if watch and cfg.triggers.enabled:
+        from ..poller import Poller
+
+        app.state.poller = Poller(store, cfg, run=w.run_review)
+        app.state.poller.start()
     return app
 
 
@@ -67,6 +74,6 @@ def serve(cfg: Config, host: str | None = None, port: int | None = None) -> None
     port = port or cfg.server.port
     if host not in ("127.0.0.1", "localhost", "::1"):
         log.warning("Binding to %s: PRelude is meant to listen on localhost behind `tailscale serve`.", host)
-    app = create_app(cfg)
+    app = create_app(cfg, watch=True)
     print(f"PRelude on http://{host}:{port}  —  open once with: http://{host}:{port}/?key={cfg.access_key()}")
     uvicorn.run(app, host=host, port=port, log_level="info", proxy_headers=False)

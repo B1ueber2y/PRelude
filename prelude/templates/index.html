@@ -19,6 +19,9 @@
   {% if only_repo %}<p class="hint">Restricted to <strong>{{ only_repo }}</strong> while in development.</p>{% endif %}
 </form>
 
+{% if watching %}
+<p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
+{% endif %}
 <h2 class="section-title">Reviews</h2>
 <div id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
   {% include "_review_rows.html" %}

@@ -17,6 +17,7 @@ from .diffmap import parse_diff
 from .github import GitHubReader, PrRef, PullRequest
 from .guard import check_repo
 from .memory import Memory
+from .notify import review_finished
 from .prompts import MERGE_SCHEMA, REVIEW_SCHEMA, SEVERITIES, merge_prompt, review_prompt
 from .workspace import Checkout, prepare_checkout
 
@@ -161,3 +162,5 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
     except Exception as e:  # recorded for the UI; the server keeps running
         log.exception("review %s failed", review_id)
         store.update_review(review_id, status="failed", progress=None, error=f"{type(e).__name__}: {e}"[:4000])
+    final = store.get_review(review_id)
+    review_finished(cfg.notify, final, store.findings_for(review_id))

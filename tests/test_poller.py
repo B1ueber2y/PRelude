@@ -1,0 +1,103 @@
+import pytest
+
+from prelude.github import PullRequest
+from prelude.notify import review_finished, send
+from prelude.poller import Poller
+from prelude.triggers import TriggerConfig
+
+
+class FakeReader:
+    def __init__(self):
+        self.prs = {}          # number -> dict(author, head, draft, direct, team)
+        self.queries = []
+
+    def viewer_login(self):
+        return "me"
+
+    def search_prs(self, query):
+        self.queries.append(query)
+        return [{"owner": "B1ueber2y", "repo": "PRelude", "number": n, "author": p["author"], "draft": p["draft"]}
+                for n, p in self.prs.items()]
+
+    def pull_request(self, ref):
+        p = self.prs[ref.number]
+        return PullRequest(ref, "t", "", p["author"], "open", p["draft"], "main", "b", "f", p["head"], ref.url)
+
+    def review_requests(self, owner, repo, number, me):
+        p = self.prs[number]
+        return set(p["direct"]), set(p["team"])
+
+    def add(self, number, author="alice", head="h1", draft=False, direct=(), team=()):
+        self.prs[number] = dict(author=author, head=head, draft=draft, direct=direct, team=team)
+
+
+@pytest.fixture
+def reader():
+    return FakeReader()
+
+
+@pytest.fixture
+def sent():
+    return []
+
+
+@pytest.fixture
+def poller(cfg, store, reader, sent):
+    cfg.triggers = TriggerConfig.from_raw({"enabled": True, "default_mode": "on_request"})
+    cfg.notify.ntfy_topic = "t"
+    return Poller(store, cfg, reader=reader, run=lambda _id: None, sender=lambda *a: sent.append(a))
+
+
+def test_reviews_requested_prs_once(poller, reader, store):
+    reader.add(1, direct=["bob"])
+    reader.add(2)  # nobody asked
+    (rid,) = poller.poll_once()
+    assert store.get_review(rid)["trigger_reason"] == "auto: requested by bob"
+    assert poller.poll_once() == []  # same head: nothing new
+    assert store.watched("B1ueber2y", "PRelude", 2)["reason"] == "no review request"
+
+
+def test_new_commits_notify_by_default(poller, reader, sent):
+    reader.add(1, direct=["bob"])
+    poller.poll_once()
+    reader.add(1, direct=["bob"], head="h2")
+    assert poller.poll_once() == []
+    assert sent and sent[-1][2]["Title"] == "New commits"
+
+
+def test_new_commits_rereview(poller, reader, cfg, store):
+    cfg.triggers.on_new_commits = "rereview"
+    reader.add(1, direct=["bob"])
+    poller.poll_once()
+    reader.add(1, direct=["bob"], head="h2")
+    (rid,) = poller.poll_once()
+    assert store.get_review(rid)["trigger_reason"].endswith("; new commits")
+
+
+def test_daily_cap(poller, reader, cfg):
+    cfg.triggers.max_reviews_per_day = 1
+    reader.add(1, direct=["bob"])
+    reader.add(2, direct=["bob"])
+    assert len(poller.poll_once()) == 1
+
+
+def test_all_prs_repos_are_searched(poller, reader, cfg):
+    cfg.triggers.repos = {"b1ueber2y/prelude": "all_prs", "org/*": "all_prs"}
+    reader.add(1)
+    assert len(poller.poll_once()) == 1
+    assert "repo:b1ueber2y/prelude" in reader.queries and "user:org" in reader.queries
+
+
+def test_notifications_say_little_by_default(cfg, sent):
+    cfg.notify.ntfy_topic = "topic"
+    review = {"id": 3, "status": "done", "owner": "o", "repo": "secret-repo", "number": 1, "title": "Private"}
+    findings = [{"severity": "high"}, {"severity": "low"}]
+    review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
+    url, body, headers = sent[-1]
+    assert url == "https://ntfy.sh/topic" and body == b"2 findings (1 high)"
+    assert headers["Click"] == "http://localhost:8787/reviews/3"
+    cfg.notify.include_details = True
+    review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
+    assert b"secret-repo" in sent[-1][1]
+    cfg.notify.ntfy_topic = None
+    assert send(cfg.notify, "t", "m", sender=lambda *a: sent.append(a)) is False

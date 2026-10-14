@@ -11,6 +11,7 @@ from .. import drafting
 from ..drafts import DraftError
 from ..github import parse_pr
 from ..guard import RepoNotAllowed
+from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
 from .context import Web, WebDep
 
@@ -18,9 +19,14 @@ router = APIRouter()
 
 
 def _index(request: Request, w: Web, **extra) -> HTMLResponse:
+    last_poll = w.store.setting(LAST_POLL, "")
     return w.render(request, "index.html", {
         "reviews": w.store.list_reviews(), "only_repo": w.cfg.only_repo,
-        "default_reviewers": w.cfg.claude.reviewers, **extra,
+        "default_reviewers": w.cfg.claude.reviewers,
+        "watching": w.cfg.triggers.enabled and hasattr(request.app.state, "poller"),
+        "last_poll": float(last_poll) if last_poll else None,
+        "poll_error": w.store.setting(LAST_ERROR, ""),
+        **extra,
     })
 
 

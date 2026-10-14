@@ -91,6 +91,18 @@ CREATE TABLE IF NOT EXISTS memory_messages (
   created_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS watched (
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  head_sha TEXT,                           -- last head seen
+  reviewed_sha TEXT,                       -- head of the last automatic review
+  decision TEXT,                           -- review | skip
+  reason TEXT,
+  checked_at REAL,
+  PRIMARY KEY (owner, repo, number)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -141,6 +153,28 @@ class Store:
         with self.connect() as c:
             c.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
                       (key, value, value))
+
+    # ---- watched PRs (automatic triggers) ----------------------------------
+
+    def watched(self, owner: str, repo: str, number: int) -> sqlite3.Row | None:
+        with self.connect() as c:
+            return c.execute(
+                "SELECT * FROM watched WHERE owner = ? AND repo = ? AND number = ?", (owner, repo, number)
+            ).fetchone()
+
+    def set_watched(self, owner: str, repo: str, number: int, **fields: Any) -> None:
+        fields["checked_at"] = time.time()
+        with self.connect() as c:
+            c.execute("INSERT OR IGNORE INTO watched (owner, repo, number) VALUES (?, ?, ?)", (owner, repo, number))
+            cols = ", ".join(f"{k} = ?" for k in fields)
+            c.execute(f"UPDATE watched SET {cols} WHERE owner = ? AND repo = ? AND number = ?",
+                      (*fields.values(), owner, repo, number))
+
+    def auto_reviews_since(self, since: float) -> int:
+        with self.connect() as c:
+            return c.execute(
+                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND created_at >= ?", (since,)
+            ).fetchone()[0]
 
     # ---- reviews -----------------------------------------------------------
 
