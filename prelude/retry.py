@@ -10,36 +10,21 @@ from collections.abc import Callable
 
 log = logging.getLogger(__name__)
 
-_TRANSIENT_TEXT = (
-    "overloaded",
-    "529",
-    "internal server error",
-    "bad gateway",
-    "service unavailable",
-    "gateway timeout",
-    "econnreset",
-    "connection reset",
-    "could not resolve host",
-    "temporary failure in name resolution",
-    "early eof",
-    "rpc failed",
-    "the remote end hung up",
-    "operation timed out",
-)
-
 
 def is_transient(exc: BaseException) -> bool:
-    """True for failures worth trying again soon. Long Claude timeouts are not (they'd just repeat)."""
+    """True for failures worth trying again soon.
+
+    Errors that know (Claude, git) carry a `transient` flag decided where they're raised, from
+    structured information; nothing here guesses from free text.
+    """
+    flag = getattr(exc, "transient", None)
+    if flag is not None:
+        return bool(flag)
     if isinstance(exc, urllib.error.HTTPError):
         if exc.code in (429, 500, 502, 503, 504):
             return True
         return exc.code == 403 and "rate limit" in str(exc.reason).lower()
-    if isinstance(exc, urllib.error.URLError | ConnectionError | socket.timeout | TimeoutError):
-        return True
-    text = str(exc).lower()
-    if "timed out after" in text:  # our own Claude run timeout
-        return False
-    return any(marker in text for marker in _TRANSIENT_TEXT)
+    return isinstance(exc, urllib.error.URLError | ConnectionError | socket.timeout | TimeoutError)
 
 
 def retry[T](

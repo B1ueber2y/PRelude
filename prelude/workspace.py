@@ -19,7 +19,23 @@ _GIT_AUTH = ["-c", "credential.helper=", "-c", "credential.helper=!gh auth git-c
 
 
 class GitError(RuntimeError):
-    pass
+    def __init__(self, message: str, transient: bool = False):
+        super().__init__(message)
+        self.transient = transient
+
+
+_GIT_NETWORK = (
+    "could not resolve host",
+    "connection reset",
+    "connection timed out",
+    "operation timed out",
+    "early eof",
+    "rpc failed",
+    "the remote end hung up",
+    "502",
+    "503",
+    "504",
+)
 
 
 def _git(*args: str, cwd: Path | None = None, timeout: int = 600) -> str:
@@ -27,7 +43,9 @@ def _git(*args: str, cwd: Path | None = None, timeout: int = 600) -> str:
     env["GIT_TERMINAL_PROMPT"] = "0"
     out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     if out.returncode != 0:
-        raise GitError(f"git {' '.join(args[:3])}… failed: {out.stderr.strip()[-2000:]}")
+        err = out.stderr.strip()
+        network = "fetch" in args and any(m in err.lower() for m in _GIT_NETWORK)
+        raise GitError(f"git {' '.join(args[:3])}… failed: {err[-2000:]}", transient=network)
     return out.stdout
 
 

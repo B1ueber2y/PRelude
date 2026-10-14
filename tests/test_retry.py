@@ -12,7 +12,7 @@ def test_transient_errors_are_recognized():
     assert retry.is_transient(urllib.error.HTTPError("u", 403, "API rate limit exceeded", {}, None))
     assert not retry.is_transient(urllib.error.HTTPError("u", 404, "Not Found", {}, None))
     assert retry.is_transient(urllib.error.URLError("Temporary failure in name resolution"))
-    assert retry.is_transient(claude.ClaudeError("API Error: 529 Overloaded"))
+    assert retry.is_transient(claude.ClaudeError("x", transient=True))
     assert not retry.is_transient(claude.ClaudeError("Claude run timed out after 1500s"))
     assert not retry.is_transient(ValueError("bad config"))
 
@@ -63,3 +63,47 @@ def test_github_writes_are_never_retried(cfg):
     with pytest.raises(urllib.error.URLError):
         writer.review_state("B1ueber2y", "PRelude", "R")
     assert len(sent) == 3  # reads are retried
+
+
+@pytest.mark.parametrize(
+    "result, transient",
+    [
+        ({"subtype": "error_during_execution", "is_error": True, "result": "API Error: 529 Overloaded"}, True),
+        ({"subtype": "error_during_execution", "is_error": True, "result": "", "api_error_status": 503}, True),
+        # permanent failures that merely contain "529" or server-error words somewhere
+        ({"subtype": "error_max_turns", "is_error": True, "result": "", "duration_ms": 152934}, False),
+        (
+            {
+                "subtype": "error_during_execution",
+                "is_error": True,
+                "result": "",
+                "session_id": "a529b...",
+                "total_cost_usd": 0.0529,
+            },
+            False,
+        ),
+        (
+            {
+                "subtype": "success",
+                "is_error": True,
+                "result": "The handler returns an internal server error (500) when the token is missing.",
+            },
+            False,
+        ),
+    ],
+)
+def test_claude_failures_are_judged_from_status_not_text(result, transient):
+    with pytest.raises(claude.ClaudeError) as e:
+        claude._check(result)
+    assert e.value.transient is transient
+
+
+def test_git_network_errors_are_transient_but_others_not():
+    from prelude.workspace import GitError, _git
+
+    with pytest.raises(GitError) as e:
+        _git("fetch", "https://nonexistent.invalid/x.git", "main")
+    assert e.value.transient
+    with pytest.raises(GitError) as e:
+        _git("rev-parse", "no-such-ref-529")
+    assert not e.value.transient
