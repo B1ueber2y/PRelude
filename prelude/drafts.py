@@ -203,6 +203,17 @@ class DraftWriter:
             {"id": comment_id},
         )
 
+    def review_state(self, owner: str, repo: str, review_id: str) -> str | None:
+        """PENDING, COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED, or None if it was deleted."""
+        data = self._call(
+            owner,
+            repo,
+            """
+            query($id: ID!) { node(id: $id) { ... on PullRequestReview { state } } }""",
+            {"id": review_id},
+        )
+        return (data.get("node") or {}).get("state")
+
     def assert_pending(self, owner: str, repo: str, review_id: str) -> None:
         data = self._call(
             owner,

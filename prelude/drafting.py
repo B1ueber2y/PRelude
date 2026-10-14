@@ -100,3 +100,28 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
         except DraftError as e:
             failed.append(f"{f['title']}: {e}")
     return added, failed
+
+
+def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:
+    """Notice when the reviewer submitted (or deleted) their pending review on GitHub.
+
+    Submitted: drafted findings become 'posted'. Deleted: they go back to 'pending'. Returns changes.
+    """
+    drafted = [f for f in store.findings_for(review_id) if f["status"] == "drafted" and f["github_review_id"]]
+    if not drafted:
+        return 0
+    r = store.get_review(review_id)
+    changed = 0
+    for gh_review in {f["github_review_id"] for f in drafted}:
+        state = writer.review_state(r["owner"], r["repo"], gh_review)
+        if state == "PENDING":
+            continue
+        new = "pending" if state is None else "posted"
+        for f in drafted:
+            if f["github_review_id"] == gh_review:
+                fields = {"status": new}
+                if new == "pending":
+                    fields.update(github_review_id=None, github_comment_id=None, drafted_body=None)
+                store.update_finding(f["id"], **fields)
+                changed += 1
+    return changed

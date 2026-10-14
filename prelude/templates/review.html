@@ -87,6 +87,7 @@
 <nav class="tabs" hx-boost="true">
   <a class="{{ 'on' if show == 'pending' }}" href="?show=pending">To review <span>{{ counts.pending }}</span></a>
   <a class="{{ 'on' if show == 'drafted' }}" href="?show=drafted">In draft <span>{{ counts.drafted }}</span></a>
+  {% if counts.posted %}<a class="{{ 'on' if show == 'posted' }}" href="?show=posted">Posted <span>{{ counts.posted }}</span></a>{% endif %}
   <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
   <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
 </nav>

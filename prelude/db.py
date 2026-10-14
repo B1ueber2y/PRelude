@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | discarded
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded
   verdict TEXT,                            -- latest Claude verdict from discussion
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
@@ -273,6 +273,7 @@ class Store:
                 "SELECT r.*,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
+                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
                 " FROM reviews r ORDER BY r.id DESC LIMIT ?",
                 (limit,),
@@ -440,6 +441,10 @@ class Store:
                 (limit,),
             ).fetchall()
             return [(r[0], r[1]) for r in rows]
+
+    def reviews_with_drafts(self) -> list[int]:
+        with self.connect() as c:
+            return [r[0] for r in c.execute("SELECT DISTINCT review_id FROM findings WHERE status = 'drafted'")]
 
     def reviewed_repos(self) -> list[tuple[str, str]]:
         with self.connect() as c:

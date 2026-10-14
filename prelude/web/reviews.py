@@ -63,8 +63,12 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
 def review_page(w: WebDep, request: Request, review_id: int, show: str = "pending"):
     r = w.review_or_404(review_id)
+    try:
+        drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
+    except Exception:
+        log.warning("couldn't check GitHub review state for review %s", review_id, exc_info=True)
     findings = w.store.findings_for(review_id)
-    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "discarded")}
+    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)
     return w.render(
         request,

@@ -143,9 +143,22 @@ class Poller:
     def stop(self) -> None:
         self._stop.set()
 
+    def refresh_drafts(self) -> None:
+        """Pick up reviews you submitted (or deleted) on GitHub."""
+        from . import drafting
+        from .drafts import DraftWriter
+
+        writer = DraftWriter(self.cfg)
+        for review_id in self.store.reviews_with_drafts():
+            try:
+                drafting.refresh_submitted(self.store, self.cfg, writer, review_id)
+            except Exception:
+                log.warning("couldn't refresh drafts of review %s", review_id, exc_info=True)
+
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
             try:
+                self.refresh_drafts()
                 self.poll_once()
                 self.store.set_setting(LAST_ERROR, "")
             except Exception as e:
