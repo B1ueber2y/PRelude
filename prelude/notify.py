@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 class NotifyConfig:
     ntfy_topic: str | None = None
     ntfy_server: str = "https://ntfy.sh"
-    include_details: bool = False  # repo name and PR title in the message
+    details: str = "ref"  # none | ref (owner/repo#number) | full (also the PR title)
     open_url: str = "http://localhost:8787"
 
 
@@ -50,19 +50,24 @@ def send(
 
 def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None = None) -> bool:
     """`review` and `findings` are database rows."""
-    where = f" · {review['owner']}/{review['repo']}#{review['number']} {review['title'] or ''}".rstrip()
-    detail = where if cfg.include_details else ""
+    ref = f"{review['owner']}/{review['repo']}#{review['number']}"
+    prefix = ""
+    if cfg.details == "full":
+        prefix = f"{ref} {review['title'] or ''}".rstrip() + " · "
+    elif cfg.details == "ref":
+        prefix = ref + " · "
+    repo_tag = "" if cfg.details == "none" else f",{review['repo']}"
     if review["status"] == "done":
         high = sum(1 for f in findings if f["severity"] == "high")
         n = len(findings)
-        msg = f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "") + detail
-        return send(cfg, "Review ready", msg, path=f"/reviews/{review['id']}", tags="mag", sender=sender)
+        msg = prefix + f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "")
+        return send(cfg, "Review ready", msg, path=f"/reviews/{review['id']}", tags="mag" + repo_tag, sender=sender)
     why = (review["error"] or "").split(":", 1)[0] or "see PRelude for details"
     return send(
         cfg,
         "Review failed",
-        why + detail,
+        prefix + why,
         path=f"/reviews/{review['id']}",
-        tags="warning",
+        tags="warning" + repo_tag,
         sender=sender,
     )
