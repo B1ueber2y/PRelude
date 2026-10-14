@@ -14,7 +14,7 @@
         <div class="proposal-label">Suggested wording</div>
         <div class="comment">{{ m.proposal | text }}</div>
         {% if m.proposal != draft %}
-        <button class="btn small" hx-post="/messages/{{ m.id }}/use" hx-confirm="Replace your current comment with this wording?">Use this wording</button>
+        <button class="btn small" hx-post="/messages/{{ m.id }}/use">Use this wording</button>
         {% else %}
         <span class="tag accent">in use</span>
         {% endif %}
