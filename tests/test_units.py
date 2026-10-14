@@ -71,3 +71,22 @@ def test_render_text_bold_is_safe():
     assert "<strong>No crash.</strong>" in html
     assert "<strong>&lt;b&gt;x&lt;/b&gt;</strong>" in html
     assert "<code>**code**</code>" in html
+
+
+def test_upgrading_a_first_version_database_adds_every_column(tmp_path):
+    import sqlite3
+    from pathlib import Path
+
+    from prelude.db import Store
+
+    def columns(path):
+        with sqlite3.connect(path) as c:
+            tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+            return {t: {r[1] for r in c.execute(f"PRAGMA table_info({t})")} for t in tables}
+
+    old = tmp_path / "old.sqlite"
+    with sqlite3.connect(old) as c:
+        c.executescript((Path(__file__).parent / "schema_v1.sql").read_text())
+    Store(old)
+    Store(tmp_path / "fresh.sqlite")
+    assert columns(old) == columns(tmp_path / "fresh.sqlite")

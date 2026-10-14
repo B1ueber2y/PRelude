@@ -134,6 +134,7 @@ class Store:
                     "github_comment_id": "TEXT",
                     "drafted_body": "TEXT",
                     "found_by": "INTEGER",
+                    "added_later": "INTEGER NOT NULL DEFAULT 0",
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
