@@ -50,7 +50,9 @@ github_drafts:
   prefix: "AI review with PRelude:"
 
 # Automatic reviews while PRelude is running. Repo modes: all_prs | on_request | never;
-# patterns like my-org/* work, the most specific match wins.
+# patterns like my-org/* work, the most specific match wins. An all_prs repo only covers
+# PRs opened after PRelude started watching it, unless you give a date:
+#   my-org/web: {mode: all_prs, since: 2026-10-01}
 triggers:
   enabled: false
   poll_minutes: 10

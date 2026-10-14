@@ -23,6 +23,7 @@ class TriggerConfig:
     poll_minutes: int = 10
     default_mode: str = "on_request"
     repos: dict[str, str] = field(default_factory=dict)
+    since: dict[str, str] = field(default_factory=dict)  # pattern -> ISO date for all_prs repos
     always: set[str] = field(default_factory=set)
     block: set[str] = field(default_factory=set)
     own_prs: bool = True
@@ -35,11 +36,21 @@ class TriggerConfig:
     def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
         raw = raw or {}
         people = raw.get("requesters") or {}
+        repos, since = {}, {}
+        for pattern, value in (raw.get("repos") or {}).items():
+            key = str(pattern).lower()
+            if isinstance(value, dict):
+                repos[key] = str(value.get("mode", "on_request"))
+                if value.get("since"):
+                    since[key] = str(value["since"])
+            else:
+                repos[key] = str(value)
         t = cls(
             enabled=bool(raw.get("enabled", False)),
             poll_minutes=max(2, int(raw.get("poll_minutes", 10))),
             default_mode=str(raw.get("default_mode", "on_request")),
-            repos={str(k).lower(): str(v) for k, v in (raw.get("repos") or {}).items()},
+            repos=repos,
+            since=since,
             always={str(x).lower() for x in people.get("always") or []},
             block={str(x).lower() for x in people.get("block") or []},
             own_prs=bool(raw.get("own_prs", True)),
@@ -60,15 +71,17 @@ class TriggerConfig:
         if self.on_new_commits not in NEW_COMMITS:
             raise TriggerConfigError(f"on_new_commits must be one of {', '.join(NEW_COMMITS)}")
 
-    def repo_mode(self, slug: str) -> str:
-        """Exact match wins, then the most specific wildcard, then the default."""
+    def repo_pattern(self, slug: str) -> str | None:
+        """The configured pattern for a repo: exact match, else the most specific wildcard."""
         slug = slug.lower()
         if slug in self.repos:
-            return self.repos[slug]
+            return slug
         matches = [p for p in self.repos if fnmatchcase(slug, p)]
-        if matches:
-            return self.repos[max(matches, key=lambda p: len(p.replace("*", "")))]
-        return self.default_mode
+        return max(matches, key=lambda p: len(p.replace("*", ""))) if matches else None
+
+    def repo_mode(self, slug: str) -> str:
+        pattern = self.repo_pattern(slug)
+        return self.repos[pattern] if pattern else self.default_mode
 
 
 @dataclass
@@ -77,12 +90,16 @@ class Candidate:
     number: int
     author: str
     draft: bool = False
+    created_at: str = ""                        # ISO timestamp
     direct_requesters: set[str] = field(default_factory=set)  # requested you personally
     team_requesters: set[str] = field(default_factory=set)    # requested a team you're on
 
 
-def decide(t: TriggerConfig, me: str, c: Candidate) -> tuple[bool, str]:
-    """Whether to review `c` automatically, and why (shown on the review)."""
+def decide(t: TriggerConfig, me: str, c: Candidate, since: str | None = None) -> tuple[bool, str]:
+    """Whether to review `c` automatically, and why (shown on the review).
+
+    `since` (ISO date) limits all_prs repos to PRs opened from then on; requests still count.
+    """
     me, author = me.lower(), c.author.lower()
     if t.skip_draft_prs and c.draft:
         return False, "draft PR"
@@ -101,7 +118,7 @@ def decide(t: TriggerConfig, me: str, c: Candidate) -> tuple[bool, str]:
     mode = t.repo_mode(c.slug)
     if mode == "never":
         return False, f"{c.slug} is set to never"
-    if mode == "all_prs":
+    if mode == "all_prs" and not (since and c.created_at and c.created_at < since):
         return True, f"new PR in {c.slug} (all_prs)"
     if requesters:
         who = sorted(direct)[0] if direct else sorted(team)[0]
@@ -109,4 +126,6 @@ def decide(t: TriggerConfig, me: str, c: Candidate) -> tuple[bool, str]:
         return True, f"requested by {who}{via}"
     if (c.direct_requesters or c.team_requesters) and not requesters:
         return False, "only blocked people requested you"
+    if mode == "all_prs":
+        return False, f"opened before {since[:10]}, when watching {c.slug} started"
     return False, "no review request"

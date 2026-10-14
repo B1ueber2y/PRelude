@@ -10,7 +10,7 @@ import sys
 from . import claude
 from .config import load_config
 from .db import Store
-from .github import PrRef, parse_pr
+from .github import parse_pr
 from .guard import RepoNotAllowed, check_repo
 from .review import run_review, start_review
 
@@ -154,19 +154,14 @@ def _cmd_notify_test(_args: argparse.Namespace) -> int:
 def _cmd_check(_args: argparse.Namespace) -> int:
     """Dry run of the triggers: what would be reviewed now, and why. Starts nothing."""
     from .poller import Poller
-    from .triggers import Candidate, decide
 
     cfg = load_config()
     poller = Poller(Store(cfg.db_path), cfg)
-    me = poller.reader.viewer_login()
     found = poller.candidates()
     if not found:
         print("No open PRs match your triggers right now.")
     for (owner, repo, number), item in sorted(found.items()):
-        pr = poller.reader.pull_request(PrRef(owner, repo, number))
-        direct, team = poller.reader.review_requests(owner, repo, number, me)
-        ok, reason = decide(cfg.triggers, me, Candidate(f"{owner}/{repo}", number, item["author"], pr.draft,
-                                                         direct, team))
+        _pr, ok, reason = poller.evaluate(owner, repo, number, item)
         print(f"{'REVIEW' if ok else 'skip  '}  {owner}/{repo}#{number}  {reason}")
     return 0
 

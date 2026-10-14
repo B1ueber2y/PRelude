@@ -7,6 +7,7 @@ import queue
 import threading
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from . import notify
 from .config import Config
@@ -35,6 +36,17 @@ class Poller:
 
     # ---- one round -----------------------------------------------------------
 
+    def since(self, pattern: str) -> str:
+        """Start date for an all_prs pattern: configured, else when PRelude first watched it."""
+        if configured := self.cfg.triggers.since.get(pattern):
+            return configured
+        key = f"watch_since:{pattern}"
+        started = self.store.setting(key, "")
+        if not started:
+            started = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.store.set_setting(key, started)
+        return started
+
     def candidates(self) -> dict[tuple[str, str, int], dict]:
         t = self.cfg.triggers
         queries = ["review-requested:@me"]
@@ -43,30 +55,39 @@ class Poller:
         for pattern, mode in t.repos.items():
             if mode == "all_prs":
                 owner, _, repo = pattern.partition("/")
-                queries.append(f"repo:{pattern}" if repo != "*" else f"user:{owner}")
+                scope = f"repo:{pattern}" if repo != "*" else f"user:{owner}"
+                queries.append(f"{scope} created:>={self.since(pattern)[:10]}")
         found: dict[tuple[str, str, int], dict] = {}
         for q in queries:
             for item in self.reader.search_prs(q):
                 found[(item["owner"], item["repo"], item["number"])] = item
         return found
 
+    def evaluate(self, owner: str, repo: str, number: int, item: dict):
+        """(pull request, review?, reason) for one candidate."""
+        self._me = self._me or self.reader.viewer_login()
+        pr = self.reader.pull_request(PrRef(owner, repo, number))
+        direct, team = self.reader.review_requests(owner, repo, number, self._me)
+        t = self.cfg.triggers
+        pattern = t.repo_pattern(f"{owner}/{repo}")
+        since = self.since(pattern) if pattern and t.repos[pattern] == "all_prs" else None
+        ok, reason = decide(t, self._me, Candidate(
+            slug=f"{owner}/{repo}", number=number, author=item["author"], draft=pr.draft,
+            created_at=item.get("created_at", ""), direct_requesters=direct, team_requesters=team,
+        ), since=since)
+        return pr, ok, reason
+
     def poll_once(self) -> list[int]:
         """Check GitHub once; returns the ids of reviews queued."""
         t = self.cfg.triggers
-        self._me = self._me or self.reader.viewer_login()
         queued = []
         for (owner, repo, number), item in self.candidates().items():
             ref = PrRef(owner, repo, number)
             try:
-                pr = self.reader.pull_request(ref)
                 seen = self.store.watched(owner, repo, number)
+                pr, ok, reason = self.evaluate(owner, repo, number, item)
                 if seen and seen["head_sha"] == pr.head_sha:
                     continue  # nothing new since last time
-                direct, team = self.reader.review_requests(owner, repo, number, self._me)
-                ok, reason = decide(t, self._me, Candidate(
-                    slug=f"{owner}/{repo}", number=number, author=item["author"], draft=pr.draft,
-                    direct_requesters=direct, team_requesters=team,
-                ))
                 self.store.set_watched(owner, repo, number, head_sha=pr.head_sha,
                                        decision="review" if ok else "skip", reason=reason)
                 if not ok:
