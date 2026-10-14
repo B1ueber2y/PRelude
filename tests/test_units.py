@@ -64,3 +64,10 @@ def test_render_text_escapes_and_formats_code():
     assert "<code>x&lt;y&gt;</code>" in html
     assert '<pre class="snip">if (a &lt; b) {}</pre>' in html
     assert "&lt;b&gt;bold&lt;/b&gt;" in html
+
+
+def test_render_text_bold_is_safe():
+    html = str(render_text("- **No crash.** and **<b>x</b>** but `**code**`"))
+    assert "<strong>No crash.</strong>" in html
+    assert "<strong>&lt;b&gt;x&lt;/b&gt;</strong>" in html
+    assert "<code>**code**</code>" in html

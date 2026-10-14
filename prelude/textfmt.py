@@ -1,4 +1,4 @@
-"""Minimal, safe rendering of Claude's text: headings, fenced code blocks and inline code."""
+"""Minimal, safe rendering of Claude's text: headings, bold, fenced code blocks and inline code."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from markupsafe import Markup, escape
 _FENCE = re.compile(r"```[^\n`]*\n(.*?)(?:```|$)", re.DOTALL)
 _INLINE = re.compile(r"`([^`\n]+)`")
 _HEADING = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
 
 
 def _inline(text: str) -> str:
@@ -22,13 +23,17 @@ def _inline(text: str) -> str:
     return "".join(out)
 
 
+def _plain(text: str) -> str:
+    return _BOLD.sub(r"<strong>\1</strong>", str(escape(text)))
+
+
 def _code_spans(text: str) -> str:
     out, pos = [], 0
     for m in _INLINE.finditer(text):
-        out.append(str(escape(text[pos : m.start()])))
+        out.append(_plain(text[pos : m.start()]))
         out.append(f"<code>{escape(m.group(1))}</code>")
         pos = m.end()
-    out.append(str(escape(text[pos:])))
+    out.append(_plain(text[pos:]))
     return "".join(out)
 
 
