@@ -20,12 +20,12 @@
   {% if code %}{% include "_code.html" %}{% endif %}
 
   <details class="why">
-    <summary>Why</summary>
+    <summary>Why{% if edited %} · <span class="tag accent">your wording</span>{% endif %}</summary>
     <div class="prose">{{ f.assessment | text }}</div>
   </details>
 
   <div class="block" id="draft-{{ f.id }}">
-    {% include "_draft.html" %}
+    {% with compact=True %}{% include "_draft.html" %}{% endwith %}
   </div>
 
   <div class="card-actions">
@@ -38,8 +38,9 @@
     {% else %}
     <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
     {% endif %}
+    <button class="btn" hx-get="/findings/{{ f.id }}/draft/edit?compact=1" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">Edit</button>
     <button class="btn" hx-post="/findings/{{ f.id }}/discard" hx-target="#card-{{ f.id }}" hx-swap="outerHTML">Discard</button>
-    <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss ›</a>
+    <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss</a>
   </div>
   {% endif %}
 </article>

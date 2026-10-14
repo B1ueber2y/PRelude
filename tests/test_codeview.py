@@ -41,7 +41,7 @@ def test_expand_route(cfg, store, done_review):
     c.cookies.set(COOKIE, cfg.access_key())
     f = store.findings_for(done_review)[0]
     page = c.get(f"/findings/{f['id']}").text
-    assert "more lines" in page and "Show whole file (40 lines)" in page
+    assert "▼ " in page and "Whole file (40)" in page
     more = c.get(f"/findings/{f['id']}/code", params={"start": 1, "end": 29}).text
     assert "line 29" in more and "line 30" not in more
 

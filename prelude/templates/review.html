@@ -6,7 +6,7 @@
 <section class="review-head">
   <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
   <h1>{{ r.title or 'Pull request' }}</h1>
-  {% if r.summary %}<p class="summary">{{ r.summary | text }}</p>{% endif %}
+  {% if r.summary %}<details class="summary"><summary><span class="clamp">{{ r.summary | text }}</span></summary><div class="prose">{{ r.summary | text }}</div></details>{% endif %}
   {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}{% if r.reviewers > 1 %} · {{ r.reviewers }} reviewers + meta-review{% endif %}</div>{% endif %}
 </section>
 
@@ -43,17 +43,18 @@
   </label>
 </section>
 <details class="again" {{ 'open' if new_commits }}>
-  <summary>Review again{% if new_commits %} <span class="tag warn">new commits since this review</span>{% endif %}</summary>
+  <summary>More{% if new_commits %} <span class="tag warn">new commits since this review</span>{% endif %}</summary>
+  <div class="hint">Review again:</div>
   <div class="row-actions">
     <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this">Changes only</button>
     <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this">Full review</button>
   </div>
   <p class="hint">Changes only: just the commits since this review. Both skip findings you discarded.</p>
+  {% if r.status not in ('queued', 'running') %}
+  <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+          hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+  {% endif %}
 </details>
-{% if r.status not in ('queued', 'running') %}
-<button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
-        hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
-{% endif %}
 {% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
 
 <nav class="tabs" hx-boost="true">

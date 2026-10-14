@@ -6,7 +6,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache
 from html import escape
 from pathlib import Path
 from typing import Annotated
@@ -36,7 +36,7 @@ def ago(timestamp: float) -> str:
     return "just now"
 
 
-@lru_cache(maxsize=None)
+@cache
 def static_url(name: str) -> str:
     """Versioned URL so phones never keep a stale copy after an update."""
     path = PACKAGE / "static" / name

@@ -36,25 +36,25 @@ def code(w: WebDep, request: Request, finding_id: int, start: int, end: int):
 # ---- wording ---------------------------------------------------------------
 
 @router.get("/findings/{finding_id}/draft", response_class=HTMLResponse)
-def show_draft(w: WebDep, request: Request, finding_id: int):
-    return w.render(request, "_draft.html", w.finding_context(finding_id))
+def show_draft(w: WebDep, request: Request, finding_id: int, compact: bool = False):
+    return w.render(request, "_draft.html", w.finding_context(finding_id, compact=compact))
 
 
 @router.get("/findings/{finding_id}/draft/edit", response_class=HTMLResponse)
-def edit_draft(w: WebDep, request: Request, finding_id: int):
-    return w.render(request, "_draft_edit.html", w.finding_context(finding_id))
+def edit_draft(w: WebDep, request: Request, finding_id: int, compact: bool = False):
+    return w.render(request, "_draft_edit.html", w.finding_context(finding_id, compact=compact))
 
 
 @router.post("/findings/{finding_id}/draft", response_class=HTMLResponse)
-def save_draft(w: WebDep, request: Request, finding_id: int, text: str = Form(...)):
+def save_draft(w: WebDep, request: Request, finding_id: int, text: str = Form(...), compact: bool = False):
     error = w.set_draft(finding_id, text)
-    return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error))
+    return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error, compact=compact))
 
 
 @router.post("/findings/{finding_id}/draft/reset", response_class=HTMLResponse)
-def reset_draft(w: WebDep, request: Request, finding_id: int):
+def reset_draft(w: WebDep, request: Request, finding_id: int, compact: bool = False):
     error = w.set_draft(finding_id, None)
-    return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error))
+    return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error, compact=compact))
 
 
 @router.post("/messages/{message_id}/use")

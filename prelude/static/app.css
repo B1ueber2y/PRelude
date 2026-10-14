@@ -422,3 +422,54 @@ textarea { resize: none; line-height: 1.45; }
 .again summary { color: var(--accent); font-weight: 600; cursor: pointer; }
 .newer { display: block; color: var(--accent); font-weight: 600; }
 .btn.danger { color: var(--error); padding-left: 0; }
+
+/* ---- compact density -------------------------------------------------- */
+body { font-size: 15px; line-height: 1.45; }
+.page { padding: 12px 14px; }
+.topbar { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px; }
+h1 { font-size: 1.15rem; margin: 4px 0 2px; }
+h2 { font-size: 0.72rem; margin-bottom: 6px; }
+.section-title { margin-top: 16px; }
+.btn { min-height: 38px; padding: 0 12px; border-radius: 10px; font-size: 0.92rem; }
+.btn.small { min-height: 32px; padding: 0 10px; font-size: 0.85rem; }
+input, textarea { padding: 9px 10px; border-radius: 10px; }
+.list, .feed { gap: 10px; }
+.card { padding: 11px 12px; border-radius: 12px; }
+.finding-full { padding: 11px 12px; }
+.finding-full .card-title { font-size: 0.98rem; margin-top: 4px; line-height: 1.3; }
+.finding-full .code-wrap { margin: 8px -12px; }
+.finding-full .block { margin-top: 8px; }
+.card-actions { margin-top: 8px; gap: 6px; }
+.why { margin-top: 6px; }
+.code { font-size: 11.5px; line-height: 1.45; padding: 6px 0; }
+.code .no { width: 3em; }
+.expand { padding: 5px 12px; font-size: 0.78rem; }
+.comment { padding: 9px 11px; border-radius: 10px; font-size: 0.95rem; }
+.row-actions { margin-top: 6px; gap: 6px; }
+.tabs { margin: 10px 0 8px; gap: 5px; }
+.tabs a { padding: 5px 10px; font-size: 0.82rem; }
+.sev { font-size: 0.66rem; padding: 1px 7px; }
+.tag { font-size: 0.7rem; padding: 1px 7px; }
+.loc { font-size: 0.75rem; margin-top: 2px; }
+.draft-bar { margin-top: 10px; gap: 8px; }
+.again { margin-top: 8px; font-size: 0.9rem; }
+.review-head .meta { font-size: 0.78rem; }
+.summary { margin: 6px 0; }
+.summary > summary { list-style: none; cursor: pointer; }
+.summary > summary::-webkit-details-marker { display: none; }
+.summary .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.summary[open] > summary { display: none; }
+.summary .prose { font-size: 0.95rem; }
+.msg { padding: 8px 12px; border-radius: 14px; }
+.actionbar { padding: 8px 14px calc(8px + env(safe-area-inset-bottom)); gap: 6px; }
+body { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
+.reviewers { margin-top: 8px; gap: 6px; }
+.chip { padding: 3px 9px; font-size: 0.88rem; }
+.expand-bar { display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.expand-bar .expand { width: auto; border: 0; background: transparent; padding: 5px 12px; }
+.expand-bar .expand.subtle { margin-left: auto; color: var(--muted); }
+.expand-bar .expand.subtle + .expand.subtle { margin-left: 0; }
+.card-actions { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+.card-actions .btn { padding: 0 6px; }
+.again summary { font-size: 0.88rem; }
+.again .hint { margin-top: 6px; }
