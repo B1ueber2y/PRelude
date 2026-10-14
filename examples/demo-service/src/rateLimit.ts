@@ -1,7 +1,7 @@
 import type { Handler } from "./http.js";
 
 const WINDOW_MS = 60_000;
-const MAX_REQUESTS = 100;
+const MAX_REQUESTS = Number(process.env.RATE_LIMIT ?? 100);
 
 const hits = new Map<string, number[]>();
 
