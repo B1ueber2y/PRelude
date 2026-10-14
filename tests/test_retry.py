@@ -107,3 +107,19 @@ def test_git_network_errors_are_transient_but_others_not():
     with pytest.raises(GitError) as e:
         _git("rev-parse", "no-such-ref-529")
     assert not e.value.transient
+
+
+@pytest.mark.parametrize(
+    "stderr, transient",
+    [
+        ("fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 502", True),
+        ("error: RPC failed; HTTP 503 curl 22 The requested URL returned error: 503", True),
+        ("fatal: couldn't find remote ref refs/pull/1502/head", False),
+        ("fatal: couldn't find remote ref refs/heads/release-504", False),
+        ("error: Server does not allow request for unadvertised object 5f0a503c9e", False),
+    ],
+)
+def test_git_network_markers_ignore_numbers_in_refs_and_shas(stderr, transient):
+    from prelude.workspace import _GIT_NETWORK
+
+    assert bool(_GIT_NETWORK.search(stderr.lower())) is transient

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -24,17 +25,10 @@ class GitError(RuntimeError):
         self.transient = transient
 
 
-_GIT_NETWORK = (
-    "could not resolve host",
-    "connection reset",
-    "connection timed out",
-    "operation timed out",
-    "early eof",
-    "rpc failed",
-    "the remote end hung up",
-    "502",
-    "503",
-    "504",
+_GIT_NETWORK = re.compile(
+    r"could not resolve host|connection reset|connection timed out|operation timed out|early eof"
+    r"|rpc failed|the remote end hung up"
+    r"|(?:http|returned error:)\s*50[234]\b"  # git's own HTTP wording, not bare numbers in refs or SHAs
 )
 
 
@@ -44,7 +38,7 @@ def _git(*args: str, cwd: Path | None = None, timeout: int = 600) -> str:
     out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     if out.returncode != 0:
         err = out.stderr.strip()
-        network = "fetch" in args and any(m in err.lower() for m in _GIT_NETWORK)
+        network = "fetch" in args and bool(_GIT_NETWORK.search(err.lower()))
         raise GitError(f"git {' '.join(args[:3])}… failed: {err[-2000:]}", transient=network)
     return out.stdout
 
