@@ -1,6 +1,6 @@
 """Which pull requests to review automatically (only while PRelude is running).
 
-Precedence: your own PR -> blocked people -> always-list requesters -> repo mode -> default mode.
+Precedence: blocked people -> always-list requesters -> repo set to never -> your own PR -> repo mode.
 """
 
 from __future__ import annotations
@@ -103,12 +103,6 @@ def decide(
     me, author = me.lower(), c.author.lower()
     if t.skip_draft_prs and c.draft:
         return False, "draft PR"
-    if author == me:
-        if not t.own_prs:
-            return False, "your PR (own_prs off)"
-        if own_since and c.created_at and c.created_at < own_since:
-            return False, f"your PR, opened before {own_since[:10]}, when watching started"
-        return True, "your PR"
     if author in t.block:
         return False, f"author {c.author} is blocked"
 
@@ -123,6 +117,14 @@ def decide(
     mode = t.repo_mode(c.slug)
     if mode == "never":
         return False, f"{c.slug} is set to never"
+
+    if author == me:
+        if not t.own_prs:
+            return False, "your PR (own_prs off)"
+        if own_since and c.created_at and c.created_at < own_since:
+            return False, f"your PR, opened before {own_since[:10]}, when watching started"
+        return True, "your PR"
+
     if mode == "all_prs" and not (since and c.created_at and c.created_at < since):
         return True, f"new PR in {c.slug} (all_prs)"
     if requesters:

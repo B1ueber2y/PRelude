@@ -70,3 +70,9 @@ def test_requests_since_skips_old_requests():
     )
     assert decide(t, "me", pr(slug="org/web", direct_requesters={"bob"}, **new)) == (True, "requested by bob")
     assert decide(t, "me", pr(slug="org/app", direct_requesters={"boss"}, **old))[0] is False
+
+
+def test_never_repo_wins_over_own_prs():
+    t = cfg(repos={"me/tool": "never"}, requesters={"always": ["boss"]})
+    assert decide(t, "me", pr(author="me", slug="me/tool")) == (False, "me/tool is set to never")
+    assert decide(t, "me", pr(author="me", slug="me/other")) == (True, "your PR")
