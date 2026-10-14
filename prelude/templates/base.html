@@ -9,12 +9,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PRelude">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/static/icon-180.png">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="{{ static('icon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ static('icon-180.png') }}">
+  <link rel="stylesheet" href="{{ static('app.css') }}">
   <title>{% block title %}PRelude{% endblock %}</title>
-  <script src="/static/htmx.min.js" defer></script>
-  <script src="/static/app.js" defer></script>
+  <script src="{{ static('htmx.min.js') }}" defer></script>
+  <script src="{{ static('app.js') }}" defer></script>
 </head>
 <body hx-boost="true">
   <header class="topbar">

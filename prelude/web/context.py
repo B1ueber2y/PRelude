@@ -36,8 +36,17 @@ def ago(timestamp: float) -> str:
     return "just now"
 
 
+@lru_cache(maxsize=None)
+def static_url(name: str) -> str:
+    """Versioned URL so phones never keep a stale copy after an update."""
+    path = PACKAGE / "static" / name
+    version = int(path.stat().st_mtime) if path.exists() else 0
+    return f"/static/{name}?v={version}"
+
+
 def make_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=PACKAGE / "templates")
+    templates.env.globals["static"] = static_url
     templates.env.filters["fromjson"] = json.loads
     templates.env.filters["text"] = render_text
     templates.env.filters["size_label"] = size_label

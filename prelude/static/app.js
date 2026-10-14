@@ -38,7 +38,8 @@
       } else {
         text += chunk;
       }
-      if (live) live.textContent = text.replace(/```comment[\s\S]*?(```|$)/, "").replace(/\n?VERDICT:.*$/i, "");
+      // The suggested wording and verdict are shown properly once the reply is complete.
+      if (live) live.textContent = text.split("```comment")[0].replace(/\n?VERDICT:.*$/i, "").trim();
       if (activity) activity.textContent = "Claude is writing…";
     });
     source.addEventListener("activity", function (e) {
