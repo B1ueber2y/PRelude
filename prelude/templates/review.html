@@ -49,8 +49,7 @@
 {% else %}
 <section class="draft-bar">
   {% if drafts_enabled %}
-  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this"
-          hx-confirm="Add all {{ counts.pending }} remaining comments to your GitHub draft review?" {{ 'disabled' if not counts.pending }}>
+  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this" {{ 'disabled' if not counts.pending }}>
     Add all to draft
   </button>
   {% else %}
