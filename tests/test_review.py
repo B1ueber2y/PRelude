@@ -104,3 +104,37 @@ def test_restart_keeps_reviews_run_by_live_processes(store):
         assert store.get_review(dead)["status"] == "failed"
     finally:
         other.kill()
+
+
+def test_add_reviewers_merges_into_existing_review(cfg, store, done_review, fake_claude, monkeypatch):
+    store.update_review(done_review, head_sha="a" * 40, reviewers=3, merge_base="c" * 40)
+    first, second = store.findings_for(done_review)
+    store.update_finding(second["id"], status="discarded", user_draft="my words")
+    new = dict(FINDING, title="Brand new problem", line=2, found_by=2)
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED",
+        json.dumps(
+            {
+                "summary": "s",
+                "findings": [FINDING],  # what each new reviewer reports
+                "new_findings": [new],
+                "also_found": [{"id": first["id"], "count": 2}],  # the meta-reviewer's merge
+            }
+        ),
+    )
+    review.add_reviewers(store, cfg, done_review, 2, github=FakeReader())
+
+    r = store.get_review(done_review)
+    assert r["reviewers"] == 5 and r["progress"] is None and r["error"] is None
+    rows = {f["title"]: f for f in store.findings_for(done_review)}
+    assert rows["Missing token is accepted"]["found_by"] == 5  # 3 before + 2 new reviewers
+    assert rows["Brand new problem"]["added_later"] == 1
+    assert rows["Second finding"]["status"] == "discarded" and rows["Second finding"]["user_draft"] == "my words"
+    prompts = [c["prompt"] for c in runs(fake_claude)]
+    assert sum("Look especially hard" in p for p in prompts) == 2 and "[discarded]" in prompts[-1]
+
+
+def test_add_reviewers_refuses_after_new_commits(cfg, store, done_review, fake_claude):
+    review.add_reviewers(store, cfg, done_review, 1, github=FakeReader())  # fixture head "abc" != PR head
+    r = store.get_review(done_review)
+    assert "new commits" in r["error"] and r["reviewers"] == 1 and r["progress"] is None

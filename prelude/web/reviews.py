@@ -89,6 +89,17 @@ def _has_new_commits(w: Web, r) -> bool:
     return bool(seen and r["head_sha"] and seen["head_sha"] and seen["head_sha"] != r["head_sha"])
 
 
+@router.post("/reviews/{review_id}/more")
+def more_reviewers(w: WebDep, review_id: int, n: int = Form(1)):
+    r = w.review_or_404(review_id)
+    if r["status"] != "done" or r["progress"]:
+        return w.flash("This review is busy; try again when it's finished.")
+    n = max(1, min(5, n))
+    w.store.update_review(review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None)
+    threading.Thread(target=w.add_reviewers, args=(review_id, n), daemon=True, name=f"more-{review_id}").start()
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+
 @router.post("/reviews/{review_id}/again")
 def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
     r = w.review_or_404(review_id)
@@ -125,7 +136,7 @@ def delete_review(w: WebDep, review_id: int):
 @router.get("/reviews/{review_id}/status", response_class=HTMLResponse)
 def review_status(w: WebDep, request: Request, review_id: int):
     r = w.review_or_404(review_id)
-    if r["status"] in ("done", "failed"):
+    if r["status"] in ("done", "failed") and not r["progress"]:
         return Response(headers={"HX-Refresh": "true"})  # reload so the findings appear
     return w.render(request, "_review_status.html", {"r": r})
 

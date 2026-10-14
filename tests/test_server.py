@@ -149,3 +149,22 @@ def test_busy_endpoint(client, done_review, store):
     assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": False}
     store.try_lock_thread(f["id"])
     assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": True}
+
+
+def test_more_reviewers_button(cfg, store, done_review):
+    started = []
+    c = TestClient(
+        create_app(
+            cfg,
+            store,
+            review_runner=lambda _id: None,
+            learner=lambda *a: None,
+            more_runner=lambda rid, n: started.append((rid, n)),
+        )
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    assert "+3" in c.get(f"/reviews/{done_review}").text
+    c.post(f"/reviews/{done_review}/more", data={"n": "3"})
+    time.sleep(0.1)
+    assert started == [(done_review, 3)]
+    assert "Adding 3 reviewers" in c.get(f"/reviews/{done_review}").text

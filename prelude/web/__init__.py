@@ -13,7 +13,7 @@ from .. import memory_agent
 from ..config import Config
 from ..db import Store
 from ..drafts import DraftWriter
-from ..review import run_review
+from ..review import add_reviewers, run_review
 from . import auth, findings, memory, reviews
 from .auth import COOKIE
 from .context import PACKAGE, Web
@@ -40,6 +40,7 @@ def create_app(
     store: Store | None = None,
     *,
     review_runner=None,
+    more_runner=None,
     learner=None,
     writer: DraftWriter | None = None,
     watch: bool = False,
@@ -51,6 +52,7 @@ def create_app(
         store=store,
         writer=writer or DraftWriter(cfg),
         run_review=review_runner or (lambda review_id: run_review(store, cfg, review_id)),
+        add_reviewers=more_runner or (lambda review_id, n: add_reviewers(store, cfg, review_id, n)),
         learn=learner or (lambda finding_id, action: memory_agent.learn_async(store, cfg, finding_id, action)),
     )
 

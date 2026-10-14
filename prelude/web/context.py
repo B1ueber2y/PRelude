@@ -60,6 +60,7 @@ class Web:
     store: Store
     writer: DraftWriter
     run_review: Callable[[int], None]
+    add_reviewers: Callable[[int, int], None]
     learn: Callable[[int, str], object]
     broker: Broker = field(default_factory=Broker)
     templates: Jinja2Templates = field(default_factory=make_templates)

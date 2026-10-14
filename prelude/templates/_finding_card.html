@@ -11,6 +11,7 @@
   <div class="card-top">
     <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
     {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+    {% if f.added_later %}<span class="tag accent">new</span>{% endif %}
     {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
     {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
   </div>

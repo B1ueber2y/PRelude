@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS findings (
   github_comment_id TEXT,
   drafted_body TEXT,                       -- body as last written to GitHub
   found_by INTEGER,                        -- reviewers who raised it (multi-reviewer runs)
+  added_later INTEGER NOT NULL DEFAULT 0,  -- found by reviewers added after the first run
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -280,14 +281,16 @@ class Store:
 
     # ---- findings ----------------------------------------------------------
 
-    def add_findings(self, review_id: int, findings: list[dict[str, Any]]) -> None:
+    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> None:
         now = time.time()
         with self.connect() as c:
-            for i, f in enumerate(findings, start=1):
+            first = c.execute("SELECT COALESCE(MAX(ordinal), 0) FROM findings WHERE review_id = ?", (review_id,))
+            start = first.fetchone()[0] + 1
+            for i, f in enumerate(findings, start=start):
                 c.execute(
                     "INSERT INTO findings (review_id, ordinal, path, line, start_line, side, in_diff, severity,"
-                    " category, title, assessment, evidence, confidence, claude_comment, found_by, created_at,"
-                    " updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " category, title, assessment, evidence, confidence, claude_comment, found_by, added_later,"
+                    " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         review_id,
                         i,
@@ -304,6 +307,7 @@ class Store:
                         f.get("confidence"),
                         f["suggested_comment"],
                         f.get("found_by"),
+                        int(added_later),
                         now,
                         now,
                     ),
@@ -316,6 +320,14 @@ class Store:
                 " CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END, ordinal",
                 (review_id,),
             ).fetchall()
+
+    def bump_found_by(self, finding_id: int, extra: int, reviewers_before: int) -> None:
+        """Another `extra` reviewers raised this finding too."""
+        with self.connect() as c:
+            c.execute(
+                "UPDATE findings SET found_by = COALESCE(found_by, ?) + ? WHERE id = ?",
+                (reviewers_before, extra, finding_id),
+            )
 
     def get_finding(self, finding_id: int) -> sqlite3.Row | None:
         with self.connect() as c:

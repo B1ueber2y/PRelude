@@ -24,6 +24,14 @@
 <p class="hint">Re-review ({{ 'changes since' if r.mode == 'changes' else 'full, after' }} <a href="/reviews/{{ r.previous_review_id }}">the previous review</a>).</p>
 {% endif %}
 
+{% if r.status == 'done' and r.progress %}
+<div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% include "_review_status.html" %}
+</div>
+{% elif r.status == 'done' and r.error %}
+<p class="callout warn small">{{ r.error }}</p>
+{% endif %}
+
 {% if r.status in ('queued', 'running') %}
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}
@@ -55,6 +63,13 @@
           title="Only the commits since this review; skips findings you discarded">Changes only</button>
   <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
           title="The whole PR again; skips findings you discarded">Full</button>
+  {% if r.status == 'done' and not r.progress %}
+  <span class="again-label">· More reviewers</span>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": 1}' hx-disabled-elt="this"
+          title="One more independent reviewer; new findings are added here">+1</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": 3}' hx-disabled-elt="this"
+          title="Three more independent reviewers; new findings are added here">+3</button>
+  {% endif %}
   {% if r.status not in ('queued', 'running') %}
   <details class="more">
     <summary aria-label="More">⋯</summary>
