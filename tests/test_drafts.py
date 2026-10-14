@@ -223,6 +223,9 @@ def test_auto_drafts_count_as_undecided_until_touched(client, enabled, store, do
     assert [outcome(f) for f in store.findings_for(done_review)] == ["pending", "pending"]
     total = stats.overview(store)["total"]
     assert (total.kept, total.pending) == (0, 2)
+    store.update_finding(f2["id"], auto_drafted=0)  # as if added by hand
+    total = stats.overview(store)["total"]
+    assert (total.kept, total.pending) == (1, 1)
 
     client.post(f"/findings/{f1['id']}/draft", data={"text": "My words."})
     assert store.get_finding(f1["id"])["auto_drafted"] == 0 and outcome(store.get_finding(f1["id"])) == "drafted"

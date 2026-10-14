@@ -80,7 +80,7 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
             msg,
             path=f"/reviews/{review['id']}",
             tags="mag" + repo_tag,
-            link=f"{review['url']}/files",
+            link=f"{review['url']}/files" if drafted else None,  # otherwise they wait in PRelude
             sender=sender,
         )
     why = (review["error"] or "").split(":", 1)[0] or "see PRelude for details"

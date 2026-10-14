@@ -36,9 +36,9 @@ def _rows(store: Store, key_sql: str, where: str = "1=1") -> list[Row]:
     with store.connect() as c:
         query = (
             f"SELECT {key_sql} AS k, CASE WHEN f.status = 'drafted' AND f.auto_drafted THEN 'pending'"
-            " ELSE f.status END AS status, f.user_draft IS NOT NULL AS edited, COUNT(*) AS n"
+            " ELSE f.status END AS outcome, f.user_draft IS NOT NULL AS edited, COUNT(*) AS n"
             " FROM findings f JOIN reviews r ON r.id = f.review_id"
-            f" WHERE r.status = 'done' AND {where} GROUP BY k, f.status, edited"
+            f" WHERE r.status = 'done' AND {where} GROUP BY k, outcome, edited"
         )
         data = c.execute(query).fetchall()
     rows: dict[str, Row] = {}
