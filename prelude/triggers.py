@@ -29,6 +29,7 @@ class TriggerConfig:
     team_requests: bool = True
     skip_draft_prs: bool = True
     max_reviews_per_day: int = 20
+    requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
@@ -55,6 +56,7 @@ class TriggerConfig:
             team_requests=bool(raw.get("team_requests", True)),
             skip_draft_prs=bool(raw.get("skip_draft_prs", True)),
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
+            requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
         )
         t.validate()
         return t
@@ -112,7 +114,8 @@ def decide(
 
     direct = {r.lower() for r in c.direct_requesters} - t.block
     team = ({r.lower() for r in c.team_requesters} - t.block) if t.team_requests else set()
-    requesters = direct | team
+    stale_request = bool(t.requests_since and c.created_at and c.created_at < t.requests_since)
+    requesters = set() if stale_request else direct | team
 
     if vip := sorted(requesters & t.always):
         return True, f"requested by {vip[0]} (always list)"
@@ -126,6 +129,8 @@ def decide(
         who = sorted(direct)[0] if direct else sorted(team)[0]
         via = "" if direct else " (team request)"
         return True, f"requested by {who}{via}"
+    if stale_request and (direct or team):
+        return False, f"requested, but the PR was opened before {t.requests_since}"
     if (c.direct_requesters or c.team_requesters) and not requesters:
         return False, "only blocked people requested you"
     if mode == "all_prs":

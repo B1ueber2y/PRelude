@@ -58,3 +58,15 @@ def test_config_errors():
         cfg(requesters={"always": ["x"], "block": ["X"]})
     with pytest.raises(TriggerConfigError):
         cfg(repos={"org/app": "sometimes"})
+
+
+def test_requests_since_skips_old_requests():
+    t = cfg(requests_since="2026-10-10", repos={"org/app": "never"}, requesters={"always": ["boss"]})
+    old = dict(created_at="2026-04-01T00:00:00Z")
+    new = dict(created_at="2026-10-12T00:00:00Z")
+    assert decide(t, "me", pr(slug="org/web", direct_requesters={"bob"}, **old)) == (
+        False,
+        "requested, but the PR was opened before 2026-10-10",
+    )
+    assert decide(t, "me", pr(slug="org/web", direct_requesters={"bob"}, **new)) == (True, "requested by bob")
+    assert decide(t, "me", pr(slug="org/app", direct_requesters={"boss"}, **old))[0] is False
