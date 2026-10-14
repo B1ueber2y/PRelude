@@ -19,7 +19,7 @@
           {%- else -%}Failed{%- endif -%}
         </span>
       </div>
-      <div class="card-title">{{ r.title or 'Loading…' }}</div>
+      {% if r.title %}<div class="card-title">{{ r.title }}</div>{% endif %}
       <div class="meta">
         {%- if r.status == 'done' %}{{ r.total }} finding{{ '' if r.total == 1 else 's' }} · {% endif -%}
         {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% else %}Auto reviewers · {% endif -%}
