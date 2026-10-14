@@ -119,7 +119,7 @@ def _cmd_url(_args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(prog="prelude", description="Human-in-the-loop PR review")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")
 
     s = sub.add_parser("review", help="review a PR now and print the findings")
     s.add_argument("pr", help="PR link (https://github.com/OWNER/REPO/pull/N) or OWNER/REPO#N")
@@ -147,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(fn=_cmd_serve)
 
     args = p.parse_args(argv)
+    if args.cmd is None:  # plain `prelude` starts the web UI
+        args = p.parse_args(["serve", *(argv or [])])
     return int(args.fn(args) or 0)
 
 

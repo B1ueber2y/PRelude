@@ -71,7 +71,7 @@ to a single repository during development.
 ```bash
 .venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review from the terminal
 .venv/bin/prelude review -n 3 OWNER/REPO#123                     # 3 reviewers + meta-reviewer
-.venv/bin/prelude serve                                          # web UI on 127.0.0.1:8787
+.venv/bin/prelude                                                # start the web UI (127.0.0.1:8787); Ctrl+C stops it
 .venv/bin/prelude url                                            # link that unlocks the UI on a device
 .venv/bin/prelude style-init OWNER/REPO                          # learn your comment style
 ```
