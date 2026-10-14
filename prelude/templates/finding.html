@@ -60,12 +60,6 @@
 
 {% block bottombar %}
 <footer class="actionbar">
-  {% if f.status == 'discarded' %}
-  <button class="btn" hx-post="/findings/{{ f.id }}/restore">Restore</button>
-  {% else %}
-  <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
-  {% endif %}
-  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
   {% if f.status == 'drafted' %}
   <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
   {% elif f.status == 'discarded' %}
@@ -75,5 +69,13 @@
   {% else %}
   <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
   {% endif %}
+  <button class="btn" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML"
+          onclick="document.getElementById('draft-{{ f.id }}').scrollIntoView({behavior: 'smooth', block: 'center'})">Edit</button>
+  {% if f.status == 'discarded' %}
+  <button class="btn" hx-post="/findings/{{ f.id }}/restore">Restore</button>
+  {% else %}
+  <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
+  {% endif %}
+  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
 </footer>
 {% endblock %}

@@ -545,3 +545,8 @@ body { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
 .description { margin: 4px 0 6px; }
 .description > summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }
 .description .prose { margin-top: 6px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.92rem; max-height: 40vh; overflow: auto; }
+
+/* one compact row of actions: Add to draft · Edit · Discard · Discuss */
+.card-actions, .actionbar { display: grid; grid-template-columns: 1.45fr 1fr 1fr 1fr; gap: 6px; }
+.card-actions .btn, .actionbar .btn { min-height: 32px; padding: 0 4px; font-size: 0.8rem; border-radius: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 340px) { .card-actions .btn, .actionbar .btn { font-size: 0.74rem; } }
