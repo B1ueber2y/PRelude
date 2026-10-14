@@ -382,3 +382,4 @@ textarea { resize: none; line-height: 1.45; }
 .hint.inline { flex-basis: 100%; margin: 0; }
 .unlock { display: flex; gap: 8px; margin-top: 16px; }
 .unlock input { flex: 1; min-width: 0; }
+.review-card.is-older { opacity: 0.6; }

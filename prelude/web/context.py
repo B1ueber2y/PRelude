@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -26,11 +27,20 @@ from ..textfmt import render_text
 PACKAGE = Path(__file__).resolve().parent.parent
 
 
+def ago(timestamp: float) -> str:
+    seconds = max(0, time.time() - timestamp)
+    for unit, size in (("d", 86400), ("h", 3600), ("min", 60)):
+        if seconds >= size:
+            return f"{int(seconds // size)} {unit} ago"
+    return "just now"
+
+
 def make_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=PACKAGE / "templates")
     templates.env.filters["fromjson"] = json.loads
     templates.env.filters["text"] = render_text
     templates.env.filters["size_label"] = size_label
+    templates.env.filters["ago"] = ago
     return templates
 
 
