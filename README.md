@@ -42,6 +42,25 @@ supplies the prompts, the read-only sandbox and the workflow around the results:
 
 So review quality follows Claude Code's, and usage counts against your Claude plan.
 
+### Use within Anthropic's terms
+
+PRelude is an independent project, not made or endorsed by Anthropic, and this section is
+not legal advice. Read Anthropic's current terms yourself, in particular the
+[Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
+page and the terms for your plan. As of writing, that page:
+
+- allows an end user to sign in to the unmodified Claude Code binary with their own
+  subscription — the way PRelude is meant to be used: by you, on your machine, with your
+  own login;
+- says products or services built on Claude should use API key authentication, and that
+  subscription credentials may not be used on behalf of other users — so **don't host
+  PRelude for other people on your subscription**;
+- says Pro and Max usage limits assume ordinary, individual usage — automatic reviews of
+  many PRs or large reviewer panels may go beyond that, so keep usage modest (see
+  `max_reviews_per_day` and the reviewer settings).
+
+If you want to use PRelude for a team or at scale, check with Anthropic first.
+
 ## What it does
 
 - **Investigates, not just diffs.** Claude explores the repository around the change
