@@ -1,0 +1,69 @@
+import stat
+from pathlib import Path
+
+import pytest
+
+from prelude.config import load_config
+from prelude.db import Store
+
+FAKE = Path(__file__).with_name("fake_claude.py")
+
+
+@pytest.fixture
+def cfg(tmp_path):
+    return load_config(tmp_path / "data")
+
+
+@pytest.fixture
+def store(cfg):
+    return Store(cfg.db_path)
+
+
+@pytest.fixture
+def fake_claude(monkeypatch, tmp_path):
+    FAKE.chmod(FAKE.stat().st_mode | stat.S_IXUSR)
+    log = tmp_path / "claude-calls.jsonl"
+    monkeypatch.setenv("PRELUDE_CLAUDE_BIN", str(FAKE))
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
+    return log
+
+
+FINDING = {
+    "path": "src/auth.ts",
+    "line": 3,
+    "side": "RIGHT",
+    "in_diff": True,
+    "severity": "high",
+    "category": "security",
+    "title": "Missing token is accepted",
+    "assessment": "Requests without a token reach `next(req)`.",
+    "evidence": [{"path": "src/auth.ts", "line": 3, "note": "only checked when present"}],
+    "confidence": "high",
+    "suggested_comment": "Could we return 401 when the token is missing?",
+}
+
+DIFF = """diff --git a/src/auth.ts b/src/auth.ts
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -1,3 +1,4 @@
+ const a = 1;
+-const b = 2;
++const b = 3;
++if (token) {
+ export {};
+"""
+
+
+@pytest.fixture
+def done_review(store, tmp_path):
+    """A finished review with two findings and a (fake) Claude session."""
+    rid = store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    store.update_review(
+        rid, status="done", title="Add auth", author="someone", head_sha="abc", diff=DIFF,
+        summary="Adds auth.", claude_session_id="review-session", worktree=str(wt),
+    )
+    second = dict(FINDING, severity="low", title="Second finding", line=2)
+    store.add_findings(rid, [FINDING, second])
+    return rid
