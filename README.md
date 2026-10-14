@@ -1,6 +1,6 @@
 # PRelude
 
-**Review the review comments before they reach the author.**
+**Review the AI review comments before they reach the author.**
 
 AI reviewers are good at finding problems and bad at knowing which ones matter to *you*.
 Posting their output straight onto a pull request is noisy; pasting it into one long chat
