@@ -57,10 +57,11 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
         n = len(findings)
         msg = f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "") + detail
         return send(cfg, "Review ready", msg, path=f"/reviews/{review['id']}", tags="mag", sender=sender)
+    why = (review["error"] or "").split(":", 1)[0] or "see PRelude for details"
     return send(
         cfg,
         "Review failed",
-        "Open PRelude for details" + detail,
+        why + detail,
         path=f"/reviews/{review['id']}",
         tags="warning",
         sender=sender,

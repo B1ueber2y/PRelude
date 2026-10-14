@@ -17,6 +17,7 @@
     {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
     {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
         {% if f.status == 'drafted' %}<span class="tag accent">in GitHub draft</span>{% endif %}
+    {% if f.status == 'posted' %}<span class="tag accent">posted on GitHub</span>{% endif %}
   </div>
   <h1>{{ f.title }}</h1>
   <div class="loc">{{ f.path }}{% if f.line %}:{% if f.start_line %}{{ f.start_line }}–{% endif %}{{ f.line }}{% endif %}</div>
@@ -59,7 +60,11 @@
 {% endblock %}
 
 {% block bottombar %}
-<footer class="actionbar">
+<footer class="actionbar{{ ' posted' if f.status == 'posted' }}">
+  {% if f.status == 'posted' %}
+  <button class="btn" disabled>Posted ✓</button>
+  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% else %}
   {% if f.status == 'drafted' %}
   <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
   {% elif f.status == 'discarded' %}
@@ -77,5 +82,6 @@
   <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
   {% endif %}
   <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% endif %}
 </footer>
 {% endblock %}

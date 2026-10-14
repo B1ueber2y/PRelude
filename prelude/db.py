@@ -25,9 +25,12 @@ CREATE TABLE IF NOT EXISTS reviews (
   base_sha TEXT,
   head_sha TEXT,
   merge_base TEXT,
-  status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed
+  status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed | skipped
   progress TEXT,
   error TEXT,
+  error_detail TEXT,                       -- full trace for the "Technical details" view
+  pr_comments TEXT,                        -- JSON: the PR conversation the review saw
+  comment_status TEXT,                     -- JSON: per existing comment, addressed / open / unclear
   trigger_reason TEXT,
   summary TEXT,
   claude_session_id TEXT,
@@ -61,12 +64,13 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | discarded
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded
   verdict TEXT,                            -- latest Claude verdict from discussion
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
   drafted_body TEXT,                       -- body as last written to GitHub
   found_by INTEGER,                        -- reviewers who raised it (multi-reviewer runs)
+  added_later INTEGER NOT NULL DEFAULT 0,  -- found by reviewers added after the first run
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -133,6 +137,7 @@ class Store:
                     "github_comment_id": "TEXT",
                     "drafted_body": "TEXT",
                     "found_by": "INTEGER",
+                    "added_later": "INTEGER NOT NULL DEFAULT 0",
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
@@ -147,6 +152,9 @@ class Store:
                     "previous_review_id": "INTEGER",
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
+                    "error_detail": "TEXT",
+                    "pr_comments": "TEXT",
+                    "comment_status": "TEXT",
                 },
             )
 
@@ -197,7 +205,9 @@ class Store:
     def auto_reviews_since(self, since: float) -> int:
         with self.connect() as c:
             return c.execute(
-                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND created_at >= ?", (since,)
+                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND status != 'skipped'"
+                " AND created_at >= ?",
+                (since,),
             ).fetchone()[0]
 
     # ---- reviews -----------------------------------------------------------
@@ -234,6 +244,16 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone()
 
+    def try_mark_busy(self, review_id: int, progress: str) -> bool:
+        """Claim a finished review for extra work; False if it's already busy (atomic)."""
+        with self.connect() as c:
+            cur = c.execute(
+                "UPDATE reviews SET progress = ?, error = NULL, runner_pid = ?, updated_at = ?"
+                " WHERE id = ? AND status = 'done' AND progress IS NULL",
+                (progress, os.getpid(), time.time(), review_id),
+            )
+            return cur.rowcount == 1
+
     def delete_review(self, review_id: int) -> None:
         """Remove a review and its findings and discussions (GitHub is not touched)."""
         with self.connect() as c:
@@ -259,6 +279,7 @@ class Store:
                 "SELECT r.*,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
+                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
                 " FROM reviews r ORDER BY r.id DESC LIMIT ?",
                 (limit,),
@@ -269,6 +290,15 @@ class Store:
         with self.connect() as c:
             rows = c.execute("SELECT id, runner_pid FROM reviews WHERE status IN ('queued', 'running')").fetchall()
             stale = [r["id"] for r in rows if not _alive(r["runner_pid"])]
+            adding = c.execute(
+                "SELECT id, runner_pid FROM reviews WHERE status = 'done' AND progress IS NOT NULL"
+            ).fetchall()
+            for r in adding:
+                if not _alive(r["runner_pid"]):
+                    c.execute(
+                        "UPDATE reviews SET progress = NULL, error = ? WHERE id = ?",
+                        ("Adding reviewers was interrupted (PRelude restarted)", r["id"]),
+                    )
             for rid in stale:
                 c.execute(
                     "UPDATE reviews SET status = 'failed', error = 'interrupted (PRelude restarted)', updated_at = ?"
@@ -280,14 +310,16 @@ class Store:
 
     # ---- findings ----------------------------------------------------------
 
-    def add_findings(self, review_id: int, findings: list[dict[str, Any]]) -> None:
+    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> None:
         now = time.time()
         with self.connect() as c:
-            for i, f in enumerate(findings, start=1):
+            first = c.execute("SELECT COALESCE(MAX(ordinal), 0) FROM findings WHERE review_id = ?", (review_id,))
+            start = first.fetchone()[0] + 1
+            for i, f in enumerate(findings, start=start):
                 c.execute(
                     "INSERT INTO findings (review_id, ordinal, path, line, start_line, side, in_diff, severity,"
-                    " category, title, assessment, evidence, confidence, claude_comment, found_by, created_at,"
-                    " updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " category, title, assessment, evidence, confidence, claude_comment, found_by, added_later,"
+                    " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         review_id,
                         i,
@@ -304,6 +336,7 @@ class Store:
                         f.get("confidence"),
                         f["suggested_comment"],
                         f.get("found_by"),
+                        int(added_later),
                         now,
                         now,
                     ),
@@ -316,6 +349,14 @@ class Store:
                 " CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END, ordinal",
                 (review_id,),
             ).fetchall()
+
+    def bump_found_by(self, finding_id: int, extra: int, reviewers_before: int) -> None:
+        """Another `extra` reviewers raised this finding too."""
+        with self.connect() as c:
+            c.execute(
+                "UPDATE findings SET found_by = MIN(COALESCE(found_by, ?) + ?, ?) WHERE id = ?",
+                (reviewers_before, extra, reviewers_before + extra, finding_id),
+            )
 
     def get_finding(self, finding_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
@@ -406,6 +447,10 @@ class Store:
                 (limit,),
             ).fetchall()
             return [(r[0], r[1]) for r in rows]
+
+    def reviews_with_drafts(self) -> list[int]:
+        with self.connect() as c:
+            return [r[0] for r in c.execute("SELECT DISTINCT review_id FROM findings WHERE status = 'drafted'")]
 
     def reviewed_repos(self) -> list[tuple[str, str]]:
         with self.connect() as c:

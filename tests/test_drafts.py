@@ -38,7 +38,9 @@ class FakeGitHub:
             del self.comments[v["id"]]
             return {"data": {"deletePullRequestReviewComment": {"pullRequestReview": {"id": "R"}}}}
         if "on PullRequestReview { state }" in query:
-            return {"data": {"node": {"state": self.reviews.get(v["id"])} if v["id"] in self.reviews else None}}
+            if v["id"] not in self.reviews:  # what GitHub really answers for a deleted review
+                return {"data": {"node": None}, "errors": [{"type": "NOT_FOUND", "message": "Could not resolve"}]}
+            return {"data": {"node": {"state": self.reviews[v["id"]]}}}
         if "on PullRequestReviewComment { body }" in query:
             c = self.comments.get(v["id"])
             return {"data": {"node": {"body": c["body"]} if c else None}}
@@ -163,3 +165,22 @@ def test_using_claudes_wording_updates_the_draft(client, store, done_review, git
     client.post(f"/messages/{mid}/use")
     (comment,) = github.comments.values()
     assert comment["body"] == "AI review with PRelude: 401 if missing?"
+
+
+def test_submitted_review_marks_findings_posted(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    drafting.add(store, enabled, writer, f1["id"])
+    (rid,) = github.reviews
+    assert drafting.refresh_submitted(store, enabled, writer, done_review) == 0  # still pending
+    github.reviews[rid] = "COMMENTED"  # you clicked "Finish your review" on GitHub
+    assert drafting.refresh_submitted(store, enabled, writer, done_review) == 1
+    assert store.get_finding(f1["id"])["status"] == "posted"
+
+
+def test_deleted_pending_review_returns_findings_to_pending(enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    drafting.add(store, enabled, writer, f1["id"])
+    github.reviews.clear()  # you deleted the pending review on GitHub
+    drafting.refresh_submitted(store, enabled, writer, done_review)
+    row = store.get_finding(f1["id"])
+    assert row["status"] == "pending" and row["github_comment_id"] is None

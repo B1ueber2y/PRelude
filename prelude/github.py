@@ -64,6 +64,7 @@ class PullRequest:
     html_url: str
     additions: int = 0
     deletions: int = 0
+    merged: bool = False
 
     @property
     def changed_lines(self) -> int:
@@ -116,7 +117,68 @@ class GitHubReader:
             html_url=data["html_url"],
             additions=int(data.get("additions") or 0),
             deletions=int(data.get("deletions") or 0),
+            merged=bool(data.get("merged")),
         )
+
+    def _get_pages(self, owner: str, repo: str, path: str, max_pages: int = 5) -> list:
+        """All items of a paginated list (oldest first), up to max_pages * 100."""
+        items: list = []
+        for page in range(1, max_pages + 1):
+            batch = self._get(owner, repo, f"{path}?per_page=100&page={page}")
+            assert isinstance(batch, list)
+            items.extend(batch)
+            if len(batch) < 100:
+                break
+        return items
+
+    def pr_comments(self, ref: PrRef, limit: int = 80) -> list[dict]:
+        """What's already been said on the PR: inline review comments, review summaries, general comments."""
+
+        def short(text: str | None) -> str:
+            text = (text or "").strip()
+            return text if len(text) <= 700 else text[:700] + "…"
+
+        out: list[dict] = []
+        for c in self._get_pages(ref.owner, ref.repo, f"/pulls/{ref.number}/comments"):
+            out.append(
+                {
+                    "id": c["id"],
+                    "kind": "inline",
+                    "author": c["user"]["login"],
+                    "path": c.get("path"),
+                    "line": c.get("line") or c.get("original_line"),
+                    "reply_to": c.get("in_reply_to_id"),
+                    "body": short(c.get("body")),
+                    "url": c.get("html_url"),
+                    "at": c.get("created_at"),
+                }
+            )
+        for r in self._get_pages(ref.owner, ref.repo, f"/pulls/{ref.number}/reviews"):
+            if (r.get("body") or "").strip():
+                out.append(
+                    {
+                        "id": r["id"],
+                        "kind": "review",
+                        "author": r["user"]["login"],
+                        "state": r.get("state"),
+                        "body": short(r.get("body")),
+                        "url": r.get("html_url"),
+                        "at": r.get("submitted_at"),
+                    }
+                )
+        for c in self._get_pages(ref.owner, ref.repo, f"/issues/{ref.number}/comments"):
+            out.append(
+                {
+                    "id": c["id"],
+                    "kind": "general",
+                    "author": c["user"]["login"],
+                    "body": short(c.get("body")),
+                    "url": c.get("html_url"),
+                    "at": c.get("created_at"),
+                }
+            )
+        out.sort(key=lambda c: c.get("at") or "")
+        return out[-limit:]
 
     def search_prs(self, query: str, limit: int = 100) -> list[dict]:
         """Open PRs matching a GitHub search query. Restricted to `only_repo` while it is set."""

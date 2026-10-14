@@ -126,6 +126,7 @@ class Poller:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue
                 review_id = start_review(self.store, self.cfg, ref, trigger_reason=f"auto: {reason}")
+                self.store.update_review(review_id, title=pr.title, author=pr.author)  # shown while queued
                 self.store.set_watched(owner, repo, number, reviewed_sha=pr.head_sha)
                 self.queue.put(review_id)
                 queued.append(review_id)
@@ -142,9 +143,22 @@ class Poller:
     def stop(self) -> None:
         self._stop.set()
 
+    def refresh_drafts(self) -> None:
+        """Pick up reviews you submitted (or deleted) on GitHub."""
+        from . import drafting
+        from .drafts import DraftWriter
+
+        writer = DraftWriter(self.cfg)
+        for review_id in self.store.reviews_with_drafts():
+            try:
+                drafting.refresh_submitted(self.store, self.cfg, writer, review_id)
+            except Exception:
+                log.warning("couldn't refresh drafts of review %s", review_id, exc_info=True)
+
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
             try:
+                self.refresh_drafts()
                 self.poll_once()
                 self.store.set_setting(LAST_ERROR, "")
             except Exception as e:

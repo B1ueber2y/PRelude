@@ -11,7 +11,9 @@
   <div class="card-top">
     <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
     {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+    {% if f.added_later %}<span class="tag accent">new</span>{% endif %}
     {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
+    {% if f.status == 'posted' %}<span class="tag accent">posted</span>{% endif %}
     {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
   </div>
   <a class="card-title" href="/findings/{{ f.id }}">{{ f.title }}</a>
@@ -28,7 +30,11 @@
     {% with compact=True %}{% include "_draft.html" %}{% endwith %}
   </div>
 
-  <div class="card-actions">
+  <div class="card-actions{{ ' posted' if f.status == 'posted' }}">
+    {% if f.status == 'posted' %}
+    <button class="btn" disabled>Posted ✓</button>
+    <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss</a>
+    {% else %}
     {% if f.status == 'drafted' %}
     <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-target="#card-{{ f.id }}" hx-swap="outerHTML"
             hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
@@ -41,6 +47,7 @@
     <button class="btn" hx-get="/findings/{{ f.id }}/draft/edit?compact=1" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">Edit</button>
     <button class="btn" hx-post="/findings/{{ f.id }}/discard" hx-target="#card-{{ f.id }}" hx-swap="outerHTML">Discard</button>
     <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss</a>
+    {% endif %}
   </div>
   {% endif %}
 </article>

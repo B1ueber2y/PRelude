@@ -13,7 +13,8 @@
       <div class="proposal">
         <div class="proposal-label">Suggested wording</div>
         <div class="comment">{{ m.proposal | text }}</div>
-        {% if m.proposal != draft %}
+        {% if f.status == 'posted' %}
+        {% elif m.proposal != draft %}
         <button class="btn small" hx-post="/messages/{{ m.id }}/use">Use this wording</button>
         {% else %}
         <span class="tag accent">in use</span>

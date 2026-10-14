@@ -24,20 +24,57 @@
 <p class="hint">Re-review ({{ 'changes since' if r.mode == 'changes' else 'full, after' }} <a href="/reviews/{{ r.previous_review_id }}">the previous review</a>).</p>
 {% endif %}
 
+{% if r.status == 'done' and r.progress %}
+<div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% include "_review_status.html" %}
+</div>
+{% elif r.status == 'done' and r.error %}
+<div class="callout warn small">{{ r.error }}
+  {% if r.error_detail %}<details class="tech"><summary>Technical details</summary><pre>{{ r.error_detail }}</pre></details>{% endif %}
+</div>
+{% endif %}
+
+{% set pr_comments = (r.pr_comments or '[]') | fromjson %}
+{% if pr_comments %}
+{% set status = {} %}
+{% for c in (r.comment_status or '[]') | fromjson %}{% set _ = status.update({c.id: c}) %}{% endfor %}
+{% set threads = pr_comments | selectattr('kind', 'equalto', 'inline') | rejectattr('reply_to') | list %}
+{% set ns = namespace(open=0) %}
+{% for c in threads %}{% if c.id in status and status[c.id].status == 'open' %}{% set ns.open = ns.open + 1 %}{% endif %}{% endfor %}
+<details class="existing">
+  <summary>Existing comments ({{ pr_comments | length }}){% if status %} · {{ ns.open }} still open{% endif %}</summary>
+  <ul>
+  {% for c in pr_comments %}
+    <li class="{{ 'reply' if c.reply_to }}">
+      <div class="meta">
+        <strong>{{ c.author }}</strong>{% if c.path %} · {{ c.path }}{% if c.line %}:{{ c.line }}{% endif %}{% endif %}
+        {% if c.id in status %}<span class="tag cs-{{ status[c.id].status }}">{{ {'addressed': 'addressed ✓', 'open': 'still open', 'unclear': 'unclear'}[status[c.id].status] }}</span>{% endif %}
+        {% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noopener">↗</a>{% endif %}
+      </div>
+      <div class="prose">{{ c.body | text }}</div>
+      {% if c.id in status and status[c.id].note %}<div class="hint">{{ status[c.id].note }}</div>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
 {% if r.status in ('queued', 'running') %}
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}
 </div>
+{% elif r.status == 'skipped' %}
+<p class="callout small">{{ r.error }}</p>
 {% elif r.status == 'failed' %}
 <section class="callout error">
-  <strong>Review failed.</strong>
-  <p>{{ r.error }}</p>
+  <strong>Review failed: {{ (r.error or '').split(':', 1)[0] }}</strong>
+  {% if ':' in (r.error or '') %}<p>{{ (r.error or '').split(':', 1)[1] }}</p>{% endif %}
+  {% if r.error_detail %}<details class="tech"><summary>Technical details</summary><pre>{{ r.error_detail }}</pre></details>{% endif %}
 </section>
 {% else %}
 <section class="draft-bar">
   {% if drafts_enabled %}
-  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this"
-          hx-confirm="Add all {{ counts.pending }} remaining comments to your GitHub draft review?" {{ 'disabled' if not counts.pending }}>
+  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this" {{ 'disabled' if not counts.pending }}>
     Add all to draft
   </button>
   {% else %}
@@ -55,6 +92,13 @@
           title="Only the commits since this review; skips findings you discarded">Changes only</button>
   <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
           title="The whole PR again; skips findings you discarded">Full</button>
+  {% if r.status == 'done' and not r.progress %}
+  <span class="again-label">· More reviewers</span>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": 1}' hx-disabled-elt="this"
+          title="One more independent reviewer; new findings are added here">+1</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": 3}' hx-disabled-elt="this"
+          title="Three more independent reviewers; new findings are added here">+3</button>
+  {% endif %}
   {% if r.status not in ('queued', 'running') %}
   <details class="more">
     <summary aria-label="More">⋯</summary>
@@ -68,6 +112,7 @@
 <nav class="tabs" hx-boost="true">
   <a class="{{ 'on' if show == 'pending' }}" href="?show=pending">To review <span>{{ counts.pending }}</span></a>
   <a class="{{ 'on' if show == 'drafted' }}" href="?show=drafted">In draft <span>{{ counts.drafted }}</span></a>
+  {% if counts.posted %}<a class="{{ 'on' if show == 'posted' }}" href="?show=posted">Posted <span>{{ counts.posted }}</span></a>{% endif %}
   <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
   <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
 </nav>

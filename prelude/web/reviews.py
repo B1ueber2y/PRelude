@@ -63,8 +63,9 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
 def review_page(w: WebDep, request: Request, review_id: int, show: str = "pending"):
     r = w.review_or_404(review_id)
+    _refresh_in_background(w, review_id)
     findings = w.store.findings_for(review_id)
-    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "discarded")}
+    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)
     return w.render(
         request,
@@ -83,10 +84,32 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
     )
 
 
+def _refresh_in_background(w: Web, review_id: int) -> None:
+    """Notice drafts submitted on GitHub without making the page wait for GitHub."""
+
+    def run():
+        try:
+            drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
+        except Exception:
+            log.warning("couldn't check GitHub review state for review %s", review_id, exc_info=True)
+
+    threading.Thread(target=run, daemon=True, name=f"refresh-{review_id}").start()
+
+
 def _has_new_commits(w: Web, r) -> bool:
     """Known when PRelude is watching the PR (triggers on); otherwise unknown and not shown."""
     seen = w.store.watched(r["owner"], r["repo"], r["number"])
     return bool(seen and r["head_sha"] and seen["head_sha"] and seen["head_sha"] != r["head_sha"])
+
+
+@router.post("/reviews/{review_id}/more")
+def more_reviewers(w: WebDep, review_id: int, n: int = Form(1)):
+    w.review_or_404(review_id)
+    n = max(1, min(5, n))
+    if not w.store.try_mark_busy(review_id, f"Adding {n} reviewer{'s' if n > 1 else ''}"):
+        return w.flash("This review is busy; try again when it's finished.")
+    threading.Thread(target=w.add_reviewers, args=(review_id, n), daemon=True, name=f"more-{review_id}").start()
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
 @router.post("/reviews/{review_id}/again")
@@ -111,7 +134,7 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
 @router.post("/reviews/{review_id}/delete")
 def delete_review(w: WebDep, review_id: int):
     r = w.review_or_404(review_id)
-    if r["status"] in ("queued", "running"):
+    if r["status"] in ("queued", "running") or r["progress"]:
         return w.flash("This review is still running; delete it when it's finished.")
     w.store.delete_review(review_id)
     if r["worktree"] and not w.store.worktree_in_use(r["worktree"]):
@@ -125,7 +148,7 @@ def delete_review(w: WebDep, review_id: int):
 @router.get("/reviews/{review_id}/status", response_class=HTMLResponse)
 def review_status(w: WebDep, request: Request, review_id: int):
     r = w.review_or_404(review_id)
-    if r["status"] in ("done", "failed"):
+    if r["status"] in ("done", "failed", "skipped") and not r["progress"]:
         return Response(headers={"HX-Refresh": "true"})  # reload so the findings appear
     return w.render(request, "_review_status.html", {"r": r})
 

@@ -71,3 +71,97 @@ def test_render_text_bold_is_safe():
     assert "<strong>No crash.</strong>" in html
     assert "<strong>&lt;b&gt;x&lt;/b&gt;</strong>" in html
     assert "<code>**code**</code>" in html
+
+
+def test_upgrading_a_first_version_database_adds_every_column(tmp_path):
+    import sqlite3
+    from pathlib import Path
+
+    from prelude.db import Store
+
+    def columns(path):
+        with sqlite3.connect(path) as c:
+            tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+            return {t: {r[1] for r in c.execute(f"PRAGMA table_info({t})")} for t in tables}
+
+    old = tmp_path / "old.sqlite"
+    with sqlite3.connect(old) as c:
+        c.executescript((Path(__file__).parent / "schema_v1.sql").read_text())
+    Store(old)
+    Store(tmp_path / "fresh.sqlite")
+    assert columns(old) == columns(tmp_path / "fresh.sqlite")
+
+
+def test_found_by_never_exceeds_reviewers(store):
+    rid = store.create_review("o", "r", 1, "u", "t")
+    store.add_findings(
+        rid,
+        [{"path": "a", "severity": "low", "title": "t", "assessment": "a", "suggested_comment": "c", "found_by": 3}],
+    )
+    (f,) = store.findings_for(rid)
+    store.bump_found_by(f["id"], 2, 3)  # 3 reviewers before, 2 new
+    store.bump_found_by(f["id"], 2, 3)  # a confused second bump can't push it past 5
+    assert store.get_finding(f["id"])["found_by"] == 5
+
+
+def test_existing_checkout_of_same_commit_is_recognized(tmp_path):
+    import subprocess
+
+    from prelude.workspace import _is_checkout_of
+
+    repo = tmp_path / "r"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+        check=True,
+    )
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    assert _is_checkout_of(repo, sha)
+    assert not _is_checkout_of(repo, "0" * 40)
+    assert not _is_checkout_of(tmp_path / "missing", sha)
+
+
+def test_pr_comments_reads_every_page_and_keeps_the_newest(cfg):
+    from prelude.github import GitHubReader, PrRef
+
+    def comment(i):
+        return {
+            "id": i,
+            "user": {"login": "a"},
+            "body": f"c{i}",
+            "html_url": "u",
+            "created_at": f"2026-01-01T00:{i // 60:02}:{i % 60:02}Z",
+        }
+
+    pages = {"/pulls/1/comments": [comment(i) for i in range(130)], "/pulls/1/reviews": [], "/issues/1/comments": []}
+
+    def fake_get(owner, repo, path):
+        base, query = path.split("?")
+        page = int(dict(kv.split("=") for kv in query.split("&"))["page"])
+        return pages[base][(page - 1) * 100 : page * 100]
+
+    gh = GitHubReader(cfg, token="t")
+    gh._get = fake_get
+    out = gh.pr_comments(PrRef("o", "r", 1), limit=80)
+    assert len(out) == 80 and out[-1]["id"] == 129 and out[0]["id"] == 50
+
+
+def test_add_reviewers_prompt_does_not_ask_for_verdicts():
+    from prelude.prompts import comments_section
+
+    comments = [{"id": 1, "kind": "inline", "author": "a", "path": "p", "line": 1, "body": "b"}]
+    assert "existing_comments" in comments_section(comments)
+    assert "existing_comments" not in comments_section(comments, judge=False)

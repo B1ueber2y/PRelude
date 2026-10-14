@@ -6,19 +6,31 @@ from __future__ import annotations
 import json
 import logging
 import os
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from . import claude
+from . import claude, failures
 from .config import Config
 from .db import Store
 from .diffmap import parse_diff
 from .github import GitHubReader, PrRef, PullRequest
 from .guard import check_repo
 from .memory import Memory
-from .notify import review_finished
-from .prompts import MERGE_SCHEMA, REVIEW_SCHEMA, SEVERITIES, merge_prompt, previous_section, review_prompt
+from .notify import review_finished, send
+from .prompts import (
+    ADD_SCHEMA,
+    MERGE_SCHEMA,
+    REVIEW_SCHEMA,
+    SEVERITIES,
+    add_reviewers_prompt,
+    comments_section,
+    merge_prompt,
+    previous_section,
+    review_prompt,
+)
 from .workspace import Checkout, diff_between, prepare_checkout
 
 log = logging.getLogger(__name__)
@@ -86,6 +98,7 @@ class _Job:
     co: Checkout
     memory: str
     previous: str = ""
+    comments: str = ""
 
     @property
     def inline(self) -> bool:
@@ -117,6 +130,7 @@ class _Job:
             memory=self.memory,
             lens=lens,
             previous=self.previous,
+            comments=self.comments,
         )
 
 
@@ -126,14 +140,17 @@ def _single(job: _Job) -> tuple[dict, claude.RunResult, float]:
     return _structured(result), result, result.cost_usd or 0.0
 
 
-def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]]:
-    """N independent reviewers in parallel, then a meta-reviewer merges their reports."""
+def _run_reviewers(job: _Job, n: int, first_lens: int = 0) -> tuple[list[dict], float]:
+    """N independent reviewers in parallel, each with its own focus."""
     lenses = job.cfg.claude.lenses or [None]
     reports: list[dict] = []
     cost = 0.0
     job.progress(f"{n} reviewers are reviewing (0/{n} done)")
     with ThreadPoolExecutor(max_workers=n) as pool:
-        futures = [pool.submit(job.run, job.review_prompt(lenses[i % len(lenses)]), REVIEW_SCHEMA) for i in range(n)]
+        futures = [
+            pool.submit(job.run, job.review_prompt(lenses[(first_lens + i) % len(lenses)]), REVIEW_SCHEMA)
+            for i in range(n)
+        ]
         for done, fut in enumerate(as_completed(futures), start=1):
             try:
                 result = fut.result()
@@ -144,7 +161,12 @@ def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]
             job.progress(f"{n} reviewers are reviewing ({done}/{n} done)")
     if not reports:
         raise claude.ClaudeError(f"all {n} reviewers failed")
+    return reports, cost
 
+
+def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]]:
+    """N independent reviewers, then a meta-reviewer merges their reports."""
+    reports, cost = _run_reviewers(job, n)
     job.progress(f"Meta-reviewer is merging {len(reports)} reports")
     result = job.run(
         merge_prompt(
@@ -156,10 +178,19 @@ def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]
             diff_inlined=job.inline,
             memory=job.memory,
             previous=job.previous,
+            comments=job.comments,
         ),
         MERGE_SCHEMA,
     )
     return _structured(result), result, cost + (result.cost_usd or 0.0), reports
+
+
+def _read_comments(github, ref: PrRef) -> list[dict]:
+    try:
+        return github.pr_comments(ref)
+    except Exception:  # a review without the conversation is still useful
+        log.warning("couldn't read comments of %s", ref.slug, exc_info=True)
+        return []
 
 
 def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
@@ -171,6 +202,31 @@ def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
         changes = diff_between(cfg, row["owner"], row["repo"], prev["head_sha"], head_sha)
     findings = [dict(f) for f in store.findings_for(prev["id"])]
     return previous_section(mode=row["mode"], old_head=prev["head_sha"], findings=findings, changes=changes)
+
+
+def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: Exception, **fields) -> None:
+    """Mark the review failed even if writing the report itself fails."""
+    detail = "".join(traceback.format_exception(exc))[-8000:]
+    try:
+        row = store.get_review(review_id)
+        report = failures.save_report(
+            cfg,
+            what,
+            {
+                "review": review_id,
+                "pr": f"{row['owner']}/{row['repo']}#{row['number']}",
+                "head": row["head_sha"],
+                "reviewers": row["reviewers"],
+                "mode": row["mode"],
+            },
+            exc,
+        )
+        detail = f"Report: {report}\n\n{detail}"
+    except Exception:
+        log.warning("couldn't save the failure report for review %s", review_id, exc_info=True)
+    store.update_review(
+        review_id, progress=None, error=f"{failures.reason(exc)}: {exc}"[:2000], error_detail=detail, **fields
+    )
 
 
 def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader | None = None) -> None:
@@ -191,7 +247,17 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         claude.ensure_logged_in()
 
         store.update_review(review_id, progress="Reading the PR from GitHub")
-        pr = (github or GitHubReader(cfg)).pull_request(ref)
+        github = github or GitHubReader(cfg)
+        pr = github.pull_request(ref)
+        if pr.state != "open" and (row["trigger_reason"] or "").startswith("auto:"):
+            store.update_review(
+                review_id,
+                status="skipped",
+                progress=None,
+                title=pr.title,
+                error=f"The PR was {'merged' if pr.merged else 'closed'} before its review started.",
+            )
+            return
         n = row["reviewers"] or cfg.reviewers_for(pr.changed_lines)
         store.update_review(
             review_id,
@@ -205,6 +271,8 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             changed_lines=pr.changed_lines,
         )
 
+        pr_comments = _read_comments(github, ref)
+        store.update_review(review_id, pr_comments=json.dumps(pr_comments))
         store.update_review(review_id, progress="Checking out the PR")
         co = prepare_checkout(cfg, pr)
         store.update_review(review_id, worktree=str(co.worktree), merge_base=co.merge_base, diff=co.diff)
@@ -218,6 +286,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             co,
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
             previous=_previous(store, cfg, row, pr.head_sha),
+            comments=comments_section(pr_comments),
         )
         reports = None
         if n > 1:
@@ -233,12 +302,97 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             progress=None,
             error=None,
             summary=out.get("summary") or "",
+            comment_status=json.dumps(out.get("existing_comments") or []),
             claude_session_id=result.session_id,
             cost_usd=cost,
             reports=None if reports is None else json.dumps(reports),
         )
     except Exception as e:  # recorded for the UI; the server keeps running
         log.exception("review %s failed", review_id)
-        store.update_review(review_id, status="failed", progress=None, error=f"{type(e).__name__}: {e}"[:4000])
+        _record_failure(store, cfg, review_id, "review", e, status="failed")
     final = store.get_review(review_id)
+    if final["status"] == "skipped":
+        return
     review_finished(cfg.notify, final, store.findings_for(review_id))
+
+
+def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: GitHubReader | None = None) -> None:
+    """Ask `n` more independent reviewers and merge what they add into the existing review.
+
+    The reviewer's decisions (drafts, discards, edits, discussions) are kept. Errors are recorded.
+    """
+    row = store.get_review(review_id)
+    if row is None or row["status"] != "done":
+        raise ValueError("only a finished review can get more reviewers")
+    ref = PrRef(row["owner"], row["repo"], row["number"])
+    try:
+        check_repo(cfg, ref.owner, ref.repo)
+        if not row["progress"]:  # not claimed by the caller yet
+            store.update_review(
+                review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None, runner_pid=os.getpid()
+            )
+        claude.ensure_logged_in()
+        pr = (github or GitHubReader(cfg)).pull_request(ref)
+        if pr.head_sha != row["head_sha"]:
+            raise failures.PrMoved("the PR has new commits since this review; use Review again instead")
+        wt = Path(row["worktree"]) if row["worktree"] else None
+        if wt and wt.exists():
+            co = Checkout(wt, row["merge_base"], row["diff"] or "", list(parse_diff(row["diff"] or "")))
+        else:
+            co = prepare_checkout(cfg, pr)
+            store.update_review(review_id, worktree=str(co.worktree))
+        job = _Job(
+            store,
+            cfg,
+            review_id,
+            ref,
+            pr,
+            co,
+            memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
+            comments=comments_section(_read_comments(github or GitHubReader(cfg), ref), judge=False),
+            previous=_previous(store, cfg, row, pr.head_sha),
+        )
+        before = row["reviewers"] or 1
+        reports, cost = _run_reviewers(job, n, first_lens=before)
+
+        job.progress(f"Meta-reviewer is merging {len(reports)} new reports")
+        existing = [dict(f) for f in store.findings_for(review_id)]
+        result = job.run(
+            add_reviewers_prompt(
+                slug=ref.slug,
+                title=pr.title,
+                existing=existing,
+                reports=reports,
+                changed_files=co.changed_files,
+                diff=co.diff,
+                diff_inlined=job.inline,
+                memory=job.memory,
+                comments=job.comments,
+            ),
+            ADD_SCHEMA,
+        )
+        out = result.structured if isinstance(result.structured, dict) else {}
+        ids = {f["id"] for f in existing}
+        for hit in out.get("also_found") or []:
+            if hit.get("id") in ids and int(hit.get("count") or 0) > 0:
+                store.bump_found_by(hit["id"], min(int(hit["count"]), len(reports)), before)
+        files = parse_diff(co.diff)
+        new = [_normalize(f, files) for f in out.get("new_findings") or [] if isinstance(f, dict)]
+        store.add_findings(review_id, new, added_later=True)
+        store.update_review(
+            review_id,
+            progress=None,
+            reviewers=before + len(reports),
+            cost_usd=(row["cost_usd"] or 0) + cost + (result.cost_usd or 0),
+        )
+        send(
+            cfg.notify,
+            "More reviewers done",
+            f"{len(new)} new finding{'' if len(new) == 1 else 's'}",
+            path=f"/reviews/{review_id}",
+            tags="mag",
+        )
+    except Exception as e:
+        log.exception("adding reviewers to review %s failed", review_id)
+        _record_failure(store, cfg, review_id, "adding reviewers", e)
+        send(cfg.notify, "Adding reviewers failed", failures.reason(e), path=f"/reviews/{review_id}", tags="warning")

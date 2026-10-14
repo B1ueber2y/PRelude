@@ -149,3 +149,102 @@ def test_busy_endpoint(client, done_review, store):
     assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": False}
     store.try_lock_thread(f["id"])
     assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": True}
+
+
+def test_more_reviewers_button(cfg, store, done_review):
+    started = []
+    c = TestClient(
+        create_app(
+            cfg,
+            store,
+            review_runner=lambda _id: None,
+            learner=lambda *a: None,
+            more_runner=lambda rid, n: started.append((rid, n)),
+        )
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    assert "+3" in c.get(f"/reviews/{done_review}").text
+    c.post(f"/reviews/{done_review}/more", data={"n": "3"})
+    time.sleep(0.1)
+    assert started == [(done_review, 3)]
+    assert "Adding 3 reviewers" in c.get(f"/reviews/{done_review}").text
+
+
+def test_more_reviewers_claims_atomically_and_blocks_delete(cfg, store, done_review):
+    c = TestClient(
+        create_app(cfg, store, review_runner=lambda _id: None, learner=lambda *a: None, more_runner=lambda rid, n: None)
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    c.post(f"/reviews/{done_review}/more", data={"n": "1"})
+    assert "busy" in c.post(f"/reviews/{done_review}/more", data={"n": "3"}).text  # second tap refused
+    assert "still running" in c.post(f"/reviews/{done_review}/delete").text
+    assert store.get_review(done_review) is not None
+
+
+def test_restart_releases_interrupted_add_reviewers(store, done_review):
+    import subprocess
+
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    store.update_review(done_review, progress="Adding 1 reviewer", runner_pid=gone.pid)
+    store.fail_stale_reviews()
+    r = store.get_review(done_review)
+    assert r["progress"] is None and "interrupted" in r["error"] and r["status"] == "done"
+
+
+def test_skipped_review_stops_polling(client, done_review, store):
+    store.update_review(done_review, status="skipped")
+    assert client.get(f"/reviews/{done_review}/status").headers.get("HX-Refresh") == "true"
+
+
+def test_existing_comments_section(client, done_review, store):
+    comments = [
+        {
+            "id": 1,
+            "kind": "inline",
+            "author": "alice",
+            "path": "a.py",
+            "line": 3,
+            "reply_to": None,
+            "body": "Why?",
+            "url": "u",
+        },
+        {
+            "id": 2,
+            "kind": "inline",
+            "author": "bob",
+            "path": "a.py",
+            "line": 3,
+            "reply_to": 1,
+            "body": "Fixed.",
+            "url": "u",
+        },
+        {"id": 3, "kind": "general", "author": "carol", "body": "LGTM", "url": "u"},
+    ]
+    store.update_review(
+        done_review,
+        pr_comments=json.dumps(comments),
+        comment_status=json.dumps([{"id": 1, "status": "open", "note": "Still unchecked."}]),
+    )
+    page = client.get(f"/reviews/{done_review}").text
+    assert "Existing comments (3) · 1 still open" in page and "Still unchecked." in page and "LGTM" in page
+
+
+def test_posted_findings_are_read_only(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="posted")
+    card = client.get(f"/reviews/{done_review}?show=all").text
+    assert "Posted ✓" in card
+    for action in ("discard", "restore", "github/add", "github/remove"):
+        assert "already posted" in client.post(f"/findings/{f['id']}/{action}").text
+    client.post(f"/findings/{f['id']}/draft", data={"text": "sneaky edit"})
+    row = store.get_finding(f["id"])
+    assert row["status"] == "posted" and row["user_draft"] is None
+
+
+def test_use_this_wording_hidden_on_posted_findings(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.add_message(f["id"], "assistant", "Shorter:", proposal="401?")
+    assert "Use this wording" in client.get(f"/findings/{f['id']}").text
+    store.update_finding(f["id"], status="posted")
+    assert "Use this wording" not in client.get(f"/findings/{f['id']}").text

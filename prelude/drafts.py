@@ -76,14 +76,17 @@ class DraftWriter:
         self.cfg = cfg
         self._transport = transport
 
-    def _call(self, owner: str, repo: str, query: str, variables: dict) -> dict:
+    def _call(self, owner: str, repo: str, query: str, variables: dict, missing_ok: bool = False) -> dict:
         check_repo(self.cfg, owner, repo)
         check_query(query)
         if self._transport is None:
             self._transport = _http_transport(gh_token())
         out = self._transport(query, variables)
-        if out.get("errors"):
-            raise DraftError("; ".join(e.get("message", "?") for e in out["errors"])[:500])
+        errors = out.get("errors") or []
+        if missing_ok and errors and all(e.get("type") == "NOT_FOUND" for e in errors):
+            return out.get("data") or {}
+        if errors:
+            raise DraftError("; ".join(e.get("message", "?") for e in errors)[:500])
         return out["data"]
 
     def pending_review(self, owner: str, repo: str, number: int, commit: str) -> str:
@@ -203,6 +206,18 @@ class DraftWriter:
             {"id": comment_id},
         )
 
+    def review_state(self, owner: str, repo: str, review_id: str) -> str | None:
+        """PENDING, COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED, or None if it was deleted."""
+        data = self._call(
+            owner,
+            repo,
+            """
+            query($id: ID!) { node(id: $id) { ... on PullRequestReview { state } } }""",
+            {"id": review_id},
+            missing_ok=True,
+        )
+        return (data.get("node") or {}).get("state")
+
     def assert_pending(self, owner: str, repo: str, review_id: str) -> None:
         data = self._call(
             owner,
@@ -210,6 +225,7 @@ class DraftWriter:
             """
             query($id: ID!) { node(id: $id) { ... on PullRequestReview { state } } }""",
             {"id": review_id},
+            missing_ok=True,
         )
         state = (data.get("node") or {}).get("state")
         if state != "PENDING":
