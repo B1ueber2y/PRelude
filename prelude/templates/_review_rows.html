@@ -1,0 +1,20 @@
+{% if not reviews %}
+<p class="empty-line">No reviews yet.</p>
+{% endif %}
+<ul class="list">
+{% for r in reviews %}
+  <li>
+    <a class="card review-card" href="/reviews/{{ r.id }}">
+      <div class="card-top">
+        <span class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}</span>
+        <span class="status status-{{ r.status }}">
+          {%- if r.status == 'done' -%}{{ r.pending }} to go{%- else -%}{{ r.status }}{%- endif -%}
+        </span>
+      </div>
+      <div class="card-title">{{ r.title or 'Loading…' }}</div>
+      {% if r.status == 'done' %}<div class="meta">{{ r.total }} finding{{ '' if r.total == 1 else 's' }}{% if r.author %} · by {{ r.author }}{% endif %}</div>{% endif %}
+      {% if r.status == 'running' and r.progress %}<div class="meta">{{ r.progress }}…</div>{% endif %}
+    </a>
+  </li>
+{% endfor %}
+</ul>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<form class="new-review" method="post" action="/reviews">
+  <label for="pr">Review a pull request</label>
+  <div class="row">
+    <input id="pr" name="pr" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
+           placeholder="https://github.com/owner/repo/pull/123" value="{{ pr or '' }}" required>
+    <button class="btn primary" type="submit">Review</button>
+  </div>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if only_repo %}<p class="hint">Restricted to <strong>{{ only_repo }}</strong> while in development.</p>{% endif %}
+</form>
+
+<h2 class="section-title">Reviews</h2>
+<div id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
+  {% include "_review_rows.html" %}
+</div>
+{% endblock %}

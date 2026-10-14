@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ r.owner }}/{{ r.repo }}#{{ r.number }} · PRelude{% endblock %}
+{% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
+{% block topright %}<a class="ext" href="{{ r.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endblock %}
+{% block content %}
+<section class="review-head">
+  <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}</div>
+  <h1>{{ r.title or 'Pull request' }}</h1>
+  {% if r.summary %}<p class="summary">{{ r.summary | text }}</p>{% endif %}
+  {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}</div>{% endif %}
+</section>
+
+{% if r.status in ('queued', 'running') %}
+<div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% include "_review_status.html" %}
+</div>
+{% elif r.status == 'failed' %}
+<section class="callout error">
+  <strong>Review failed.</strong>
+  <p>{{ r.error }}</p>
+</section>
+{% else %}
+<nav class="tabs" hx-boost="true">
+  <a class="{{ 'on' if show == 'pending' }}" href="?show=pending">To review <span>{{ counts.pending }}</span></a>
+  <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
+  <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
+</nav>
+{% if not findings %}
+<p class="empty-line">
+  {% if show == 'pending' and counts.all %}All findings handled. Submit your review on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>.
+  {% elif counts.all == 0 %}Claude found nothing worth raising.
+  {% else %}Nothing here.{% endif %}
+</p>
+{% endif %}
+<ul class="list">
+{% for f in findings %}
+  <li>
+    <a class="card finding-card {{ 'is-discarded' if f.status == 'discarded' }}" href="/findings/{{ f.id }}">
+      <div class="card-top">
+        <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
+        {% if f.user_draft is not none %}<span class="tag">edited</span>{% endif %}
+        {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
+        {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
+      </div>
+      <div class="card-title">{{ f.title }}</div>
+      <div class="loc">{{ f.path }}{% if f.line %}:{{ f.line }}{% endif %}</div>
+    </a>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
