@@ -157,16 +157,23 @@ class Poller:
 
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
-            try:
-                self.poll_once()  # new PRs first; housekeeping can't delay them
-                self.refresh_drafts()
-                prstate.refresh(self.store, self.cfg, self.reader)
-                self.store.set_setting(LAST_ERROR, "")
-            except Exception as e:
-                log.warning("polling GitHub failed", exc_info=True)
-                self.store.set_setting(LAST_ERROR, f"{type(e).__name__}: {e}"[:300])
-            self.store.set_setting(LAST_POLL, str(time.time()))
+            self.round()
             self._stop.wait(self.cfg.triggers.poll_minutes * 60)
+
+    def round(self) -> None:
+        """One polling round. Each step has its own error handling, so one failing step can't skip the rest."""
+        try:
+            self.poll_once()  # new PRs first; housekeeping can't delay them
+            self.store.set_setting(LAST_ERROR, "")
+        except Exception as e:
+            log.warning("polling GitHub failed", exc_info=True)
+            self.store.set_setting(LAST_ERROR, f"{type(e).__name__}: {e}"[:300])
+        for step in (self.refresh_drafts, lambda: prstate.refresh(self.store, self.cfg, self.reader)):
+            try:
+                step()
+            except Exception:
+                log.warning("housekeeping step failed", exc_info=True)
+        self.store.set_setting(LAST_POLL, str(time.time()))
 
     def _review_loop(self) -> None:
         """Automatic reviews run one at a time."""

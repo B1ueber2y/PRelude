@@ -36,9 +36,11 @@ def refresh(
         try:
             state = state_of(reader.pull_request(PrRef(owner, repo, number)))
         except RepoNotAllowed:
+            store.mark_pr_checked(owner, repo, number)
             continue
         except Exception as e:
             log.warning("couldn't read state of %s/%s#%s: %s", owner, repo, number, e)
+            store.mark_pr_checked(owner, repo, number)  # so one bad PR can't stay first forever
             if is_transient(e):
                 break
             continue

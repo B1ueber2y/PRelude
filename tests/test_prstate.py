@@ -113,3 +113,30 @@ def test_dropped_findings_are_read_only(cfg, store, done_review):
     for action in ("discard", "restore", "github/add"):
         assert "closed before" in c.post(f"/findings/{f['id']}/{action}").text
     assert store.get_finding(f["id"])["status"] == "dropped" and learned == []
+
+
+def test_failing_pr_moves_to_the_back(cfg, store):
+    review(store, 1)
+    review(store, 2)
+    reader = Reader({1: urllib.error.URLError("down"), 2: "closed"})
+    prstate.refresh(store, cfg, reader)
+    reader.calls.clear()
+    prstate.refresh(store, cfg, reader)
+    assert reader.calls[0] == 2  # the PR that failed last time no longer goes first
+
+
+def test_clear_leftovers_reports_github_trouble(cfg, store, done_review):
+    store.update_review(done_review, pr_state="closed")
+    c = client(cfg, store, DraftWriter(cfg, transport=FakeGitHub()), Reader({1: urllib.error.URLError("down")}), [])
+    assert "reach GitHub; nothing was cleared." in c.post(f"/reviews/{done_review}/clear-leftovers").text
+
+
+def test_a_failing_search_doesnt_skip_housekeeping(cfg, store):
+    from prelude.poller import Poller
+
+    ran = []
+    p = Poller(store, cfg, reader=Reader({}), run=lambda _id: None)
+    p.poll_once = lambda: (_ for _ in ()).throw(RuntimeError("search broke"))
+    p.refresh_drafts = lambda: ran.append("drafts")
+    p.round()
+    assert ran == ["drafts"] and "search broke" in store.setting("poll_error", "")

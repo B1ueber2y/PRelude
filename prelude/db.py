@@ -475,6 +475,14 @@ class Store:
             ).fetchall()
             return [(r[0], r[1], r[2]) for r in rows]
 
+    def mark_pr_checked(self, owner: str, repo: str, number: int) -> None:
+        """Move a PR to the back of the re-check queue, even if reading it failed."""
+        with self.connect() as c:
+            c.execute(
+                "UPDATE reviews SET pr_checked_at = ? WHERE owner = ? AND repo = ? AND number = ?",
+                (time.time(), owner, repo, number),
+            )
+
     def set_pr_state(self, owner: str, repo: str, number: int, state: str) -> int:
         """Store the PR's state on all its reviews; returns 1 if it changed."""
         with self.connect() as c:

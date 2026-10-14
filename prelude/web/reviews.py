@@ -154,6 +154,9 @@ def clear_leftovers(w: WebDep, review_id: int):
         return w.flash(str(e))
     except DraftError as e:
         return w.flash(f"Couldn't remove a draft comment: {e}")
+    except Exception:
+        log.warning("clear leftovers of review %s failed", review_id, exc_info=True)
+        return w.flash("Couldn't reach GitHub; nothing was cleared.")
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
