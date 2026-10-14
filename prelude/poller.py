@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from . import notify
+from . import notify, prstate
 from .config import Config
 from .db import Store
 from .github import GitHubReader, PrRef
@@ -159,6 +159,7 @@ class Poller:
         while not self._stop.is_set():
             try:
                 self.refresh_drafts()
+                prstate.refresh(self.store, self.cfg, self.reader)
                 self.poll_once()
                 self.store.set_setting(LAST_ERROR, "")
             except Exception as e:

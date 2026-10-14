@@ -9,9 +9,9 @@ from pathlib import Path
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from .. import drafting, stats
+from .. import drafting, prstate, stats
 from ..drafts import DraftError
-from ..github import PrRef, parse_pr
+from ..github import GitHubReader, PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
@@ -88,6 +88,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
             "prefix": w.cfg.drafts.prefix,
             "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
             "new_commits": _has_new_commits(w, r),
+            "leftovers": prstate.leftovers(findings),
         },
     )
 
@@ -98,8 +99,11 @@ def _refresh_in_background(w: Web, review_id: int) -> None:
     def run():
         try:
             drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
+            r = w.store.get_review(review_id)
+            if r and (r["pr_state"] or "open") == "open":
+                prstate.refresh(w.store, w.cfg, GitHubReader(w.cfg), [(r["owner"], r["repo"], r["number"])])
         except Exception:
-            log.warning("couldn't check GitHub review state for review %s", review_id, exc_info=True)
+            log.warning("couldn't refresh review %s from GitHub", review_id, exc_info=True)
 
     threading.Thread(target=run, daemon=True, name=f"refresh-{review_id}").start()
 
@@ -137,6 +141,18 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
         return w.flash(str(e))
     threading.Thread(target=w.run_review, args=(new_id,), daemon=True, name=f"review-{new_id}").start()
     return Response(status_code=204, headers={"HX-Redirect": f"/reviews/{new_id}"})
+
+
+@router.post("/reviews/{review_id}/clear-leftovers")
+def clear_leftovers(w: WebDep, review_id: int):
+    r = w.review_or_404(review_id)
+    if (r["pr_state"] or "open") == "open":
+        return w.flash("This PR is still open.")
+    try:
+        prstate.clear_leftovers(w.store, w.cfg, w.writer, review_id)
+    except DraftError as e:
+        return w.flash(f"Couldn't remove a draft comment: {e}")
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
 @router.post("/reviews/{review_id}/delete")
