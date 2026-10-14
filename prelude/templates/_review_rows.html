@@ -12,10 +12,15 @@
       <div class="card-top">
         <span class="repo">{{ pr_key }}</span>
         {% if older %}<span class="tag">older</span>{% endif %}
-        <span class="status status-{{ r.status }}">
-          {%- if r.status == 'done' -%}{% if r.pending %}{{ r.pending }} to go{% else %}{{ r.drafted }} in draft{% endif %}
+        <span class="status status-{{ r.status }}{{ ' status-clean' if r.status == 'done' and r.total == 0 }}">
+          {%- if r.status == 'done' -%}
+            {%- if r.total == 0 -%}Clean ✓
+            {%- elif r.pending -%}{{ r.pending }} to go
+            {%- elif r.drafted -%}{{ r.drafted }} in draft
+            {%- else -%}Done{%- endif -%}
           {%- elif r.status == 'running' -%}Reviewing…
           {%- elif r.status == 'queued' -%}In line
+          {%- elif r.status == 'skipped' -%}Skipped
           {%- else -%}Failed{%- endif -%}
         </span>
       </div>

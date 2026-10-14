@@ -10,8 +10,9 @@ from .conftest import DIFF, FINDING
 
 
 class FakeReader:
-    def __init__(self, additions=10):
+    def __init__(self, additions=10, state="open"):
         self.additions = additions
+        self.state = state
 
     def pull_request(self, ref):
         return PullRequest(
@@ -19,7 +20,7 @@ class FakeReader:
             "Add auth",
             "body",
             "someone",
-            "open",
+            self.state,
             False,
             "main",
             "b" * 40,
@@ -138,3 +139,14 @@ def test_add_reviewers_refuses_after_new_commits(cfg, store, done_review, fake_c
     review.add_reviewers(store, cfg, done_review, 1, github=FakeReader())  # fixture head "abc" != PR head
     r = store.get_review(done_review)
     assert "new commits" in r["error"] and r["reviewers"] == 1 and r["progress"] is None
+
+
+def test_auto_review_skips_pr_closed_while_waiting(cfg, store, checkout, fake_claude, monkeypatch):
+    auto = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), trigger_reason="auto: new PR")
+    review.run_review(store, cfg, auto, github=FakeReader(state="closed"))
+    assert store.get_review(auto)["status"] == "skipped" and runs(fake_claude) == []
+
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": []}))
+    manual = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), trigger_reason="manual (phone)")
+    review.run_review(store, cfg, manual, github=FakeReader(state="closed"))
+    assert store.get_review(manual)["status"] == "done"  # you asked for it explicitly

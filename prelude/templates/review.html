@@ -36,6 +36,8 @@
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}
 </div>
+{% elif r.status == 'skipped' %}
+<p class="callout small">{{ r.error }}</p>
 {% elif r.status == 'failed' %}
 <section class="callout error">
   <strong>Review failed.</strong>

@@ -64,6 +64,7 @@ class PullRequest:
     html_url: str
     additions: int = 0
     deletions: int = 0
+    merged: bool = False
 
     @property
     def changed_lines(self) -> int:
@@ -116,6 +117,7 @@ class GitHubReader:
             html_url=data["html_url"],
             additions=int(data.get("additions") or 0),
             deletions=int(data.get("deletions") or 0),
+            merged=bool(data.get("merged")),
         )
 
     def search_prs(self, query: str, limit: int = 100) -> list[dict]:

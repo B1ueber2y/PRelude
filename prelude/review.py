@@ -210,6 +210,15 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
 
         store.update_review(review_id, progress="Reading the PR from GitHub")
         pr = (github or GitHubReader(cfg)).pull_request(ref)
+        if pr.state != "open" and (row["trigger_reason"] or "").startswith("auto:"):
+            store.update_review(
+                review_id,
+                status="skipped",
+                progress=None,
+                title=pr.title,
+                error=f"The PR was {'merged' if pr.merged else 'closed'} before its review started.",
+            )
+            return
         n = row["reviewers"] or cfg.reviewers_for(pr.changed_lines)
         store.update_review(
             review_id,
@@ -259,6 +268,8 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         log.exception("review %s failed", review_id)
         store.update_review(review_id, status="failed", progress=None, error=f"{type(e).__name__}: {e}"[:4000])
     final = store.get_review(review_id)
+    if final["status"] == "skipped":
+        return
     review_finished(cfg.notify, final, store.findings_for(review_id))
 
 

@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   base_sha TEXT,
   head_sha TEXT,
   merge_base TEXT,
-  status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed
+  status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed | skipped
   progress TEXT,
   error TEXT,
   trigger_reason TEXT,
