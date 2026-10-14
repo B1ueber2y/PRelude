@@ -159,3 +159,11 @@ def test_failure_notification_says_what_broke_without_details(cfg, sent):
     }
     review_finished(cfg.notify, review, [], sender=lambda *a: sent.append(a))
     assert sent[-1][1] == b"Couldn't check out the PR"
+
+
+def test_skipped_reviews_dont_use_up_the_daily_cap(poller, reader, cfg, store):
+    cfg.triggers.max_reviews_per_day = 1
+    skipped = store.create_review("B1ueber2y", "PRelude", 9, "u", "auto: new PR")
+    store.update_review(skipped, status="skipped")
+    reader.add(1, direct=["bob"])
+    assert len(poller.poll_once()) == 1

@@ -63,10 +63,7 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
 def review_page(w: WebDep, request: Request, review_id: int, show: str = "pending"):
     r = w.review_or_404(review_id)
-    try:
-        drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
-    except Exception:
-        log.warning("couldn't check GitHub review state for review %s", review_id, exc_info=True)
+    _refresh_in_background(w, review_id)
     findings = w.store.findings_for(review_id)
     counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)
@@ -85,6 +82,18 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
             "new_commits": _has_new_commits(w, r),
         },
     )
+
+
+def _refresh_in_background(w: Web, review_id: int) -> None:
+    """Notice drafts submitted on GitHub without making the page wait for GitHub."""
+
+    def run():
+        try:
+            drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
+        except Exception:
+            log.warning("couldn't check GitHub review state for review %s", review_id, exc_info=True)
+
+    threading.Thread(target=run, daemon=True, name=f"refresh-{review_id}").start()
 
 
 def _has_new_commits(w: Web, r) -> bool:

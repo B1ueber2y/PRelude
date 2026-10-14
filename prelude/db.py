@@ -205,7 +205,9 @@ class Store:
     def auto_reviews_since(self, since: float) -> int:
         with self.connect() as c:
             return c.execute(
-                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND created_at >= ?", (since,)
+                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND status != 'skipped'"
+                " AND created_at >= ?",
+                (since,),
             ).fetchone()[0]
 
     # ---- reviews -----------------------------------------------------------

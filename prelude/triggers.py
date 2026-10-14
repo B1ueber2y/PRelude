@@ -105,7 +105,7 @@ def decide(
     """Whether to review `c` automatically, and why (shown on the review).
 
     `since` / `own_since` (ISO dates) limit all_prs repos and your own PRs to PRs opened from
-    then on; review requests always count.
+    then on; `requests_since` does the same for review requests (including the always list).
     """
     me, author = me.lower(), c.author.lower()
     if t.skip_draft_prs and c.draft:

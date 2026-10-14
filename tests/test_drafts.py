@@ -38,7 +38,9 @@ class FakeGitHub:
             del self.comments[v["id"]]
             return {"data": {"deletePullRequestReviewComment": {"pullRequestReview": {"id": "R"}}}}
         if "on PullRequestReview { state }" in query:
-            return {"data": {"node": {"state": self.reviews.get(v["id"])} if v["id"] in self.reviews else None}}
+            if v["id"] not in self.reviews:  # what GitHub really answers for a deleted review
+                return {"data": {"node": None}, "errors": [{"type": "NOT_FOUND", "message": "Could not resolve"}]}
+            return {"data": {"node": {"state": self.reviews[v["id"]]}}}
         if "on PullRequestReviewComment { body }" in query:
             c = self.comments.get(v["id"])
             return {"data": {"node": {"body": c["body"]} if c else None}}
