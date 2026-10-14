@@ -563,3 +563,11 @@ p.summary { font-size: 0.92rem; }
 .tech { margin-top: 8px; width: 100%; }
 .tech summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }
 .tech pre { margin: 6px 0 0; padding: 8px; max-height: 40vh; overflow: auto; background: var(--surface-2); border-radius: 8px; font: 11px/1.4 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.existing { margin: 8px 0; }
+.existing > summary { color: var(--muted); font-size: 0.88rem; cursor: pointer; }
+.existing ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.existing li { padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; }
+.existing li.reply { margin-left: 16px; }
+.existing .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cs-addressed { color: #2f9e5b; background: color-mix(in srgb, #2f9e5b 14%, transparent); }
+.cs-open { color: var(--medium); background: var(--medium-bg); }

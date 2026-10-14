@@ -91,6 +91,21 @@ REVIEW_SCHEMA = {
 }
 
 
+REVIEW_SCHEMA["properties"]["existing_comments"] = {
+    "type": "array",
+    "description": "For each existing inline review comment that starts a thread: is it addressed by the code now?",
+    "items": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["id", "status", "note"],
+        "properties": {
+            "id": {"type": "integer"},
+            "status": {"type": "string", "enum": ["addressed", "open", "unclear"]},
+            "note": {"type": "string", "description": "One short sentence."},
+        },
+    },
+}
+
 MERGE_SCHEMA = copy.deepcopy(REVIEW_SCHEMA)
 _merged_item = MERGE_SCHEMA["properties"]["findings"]["items"]
 _merged_item["properties"]["found_by"] = {
@@ -110,6 +125,7 @@ def merge_prompt(
     diff_inlined: bool,
     memory: str = "",
     previous: str = "",
+    comments: str = "",
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     blocks = "\n\n".join(
@@ -129,6 +145,8 @@ Changed files:
 
 {blocks}
 
+{comments}
+
 {previous}
 
 {memory}
@@ -142,7 +160,8 @@ How to merge:
 4. Pick the best anchor (a line the PR changed), a calibrated severity and confidence, a
    clear assessment, and the best-worded `suggested_comment` (rewrite if needed, keeping
    it minimal and never mentioning AI, tools or this process).
-5. At most 15 findings, most important first. `summary`: 2-3 short sentences (at most ~40 words)
+5. Combine the reviewers' `existing_comments` judgements into one (verify where they disagree).
+6. At most 15 findings, most important first. `summary`: 2-3 short sentences (at most ~40 words)
    on what the PR does and the main risks.
 
 Return the result in the required JSON format."""
@@ -150,6 +169,7 @@ Return the result in the required JSON format."""
 
 OUTCOMES = {
     "drafted": "the reviewer kept it (added to their GitHub review)",
+    "posted": "the reviewer posted it on the PR",
     "discarded": "the reviewer DISMISSED it",
     "pending": "not handled yet",
 }
@@ -216,6 +236,7 @@ def add_reviewers_prompt(
     diff: str,
     diff_inlined: bool,
     memory: str = "",
+    comments: str = "",
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     shown = (
@@ -243,6 +264,8 @@ reviewer dismissed it):
 
 {blocks}
 
+{comments}
+
 {memory}
 
 Return:
@@ -252,6 +275,28 @@ Return:
   finding. Same quality bar as a normal review: anchored to changed lines, calibrated
   severity, minimal `suggested_comment` that never mentions AI or this process; `found_by` is
   the number of new reviewers who raised it. An empty list is a fine answer."""
+
+
+def comments_section(comments: list[dict]) -> str:
+    """The PR conversation so far, so the review builds on it instead of repeating it."""
+    if not comments:
+        return ""
+    lines = []
+    for c in comments:
+        where = f" on {c['path']}:{c['line']}" if c.get("path") else ""
+        reply = f" (reply to {c['reply_to']})" if c.get("reply_to") else ""
+        state = f" [{c['state']}]" if c.get("state") else ""
+        lines.append(
+            f'<comment id="{c["id"]}" kind="{c["kind"]}" author="{c["author"]}"{state}>'
+            f"{where}{reply}\n{c['body']}\n</comment>"
+        )
+    return (
+        "Comments already on this PR (from the author, other reviewers, or the reviewer you work for):\n"
+        + "\n".join(lines)
+        + "\n\nDon't raise anything these comments already raise, even in different words. In "
+        "`existing_comments`, say for each inline comment that starts a thread whether the current code "
+        "addresses it."
+    )
 
 
 def diff_section(diff: str, inlined: bool) -> str:
@@ -277,6 +322,7 @@ def review_prompt(
     memory: str = "",
     lens: str | None = None,
     previous: str = "",
+    comments: str = "",
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     return f"""You are reviewing pull request {slug} on behalf of a human reviewer.
@@ -300,6 +346,8 @@ Changed files:
 {files}
 
 {diff_section(diff, diff_inlined)}
+
+{comments}
 
 {previous}
 

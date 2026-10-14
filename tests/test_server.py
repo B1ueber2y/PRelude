@@ -195,3 +195,36 @@ def test_restart_releases_interrupted_add_reviewers(store, done_review):
 def test_skipped_review_stops_polling(client, done_review, store):
     store.update_review(done_review, status="skipped")
     assert client.get(f"/reviews/{done_review}/status").headers.get("HX-Refresh") == "true"
+
+
+def test_existing_comments_section(client, done_review, store):
+    comments = [
+        {
+            "id": 1,
+            "kind": "inline",
+            "author": "alice",
+            "path": "a.py",
+            "line": 3,
+            "reply_to": None,
+            "body": "Why?",
+            "url": "u",
+        },
+        {
+            "id": 2,
+            "kind": "inline",
+            "author": "bob",
+            "path": "a.py",
+            "line": 3,
+            "reply_to": 1,
+            "body": "Fixed.",
+            "url": "u",
+        },
+        {"id": 3, "kind": "general", "author": "carol", "body": "LGTM", "url": "u"},
+    ]
+    store.update_review(
+        done_review,
+        pr_comments=json.dumps(comments),
+        comment_status=json.dumps([{"id": 1, "status": "open", "note": "Still unchecked."}]),
+    )
+    page = client.get(f"/reviews/{done_review}").text
+    assert "Existing comments (3) · 1 still open" in page and "Still unchecked." in page and "LGTM" in page

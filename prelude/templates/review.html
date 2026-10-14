@@ -34,6 +34,31 @@
 </div>
 {% endif %}
 
+{% set pr_comments = (r.pr_comments or '[]') | fromjson %}
+{% if pr_comments %}
+{% set status = {} %}
+{% for c in (r.comment_status or '[]') | fromjson %}{% set _ = status.update({c.id: c}) %}{% endfor %}
+{% set threads = pr_comments | selectattr('kind', 'equalto', 'inline') | rejectattr('reply_to') | list %}
+{% set ns = namespace(open=0) %}
+{% for c in threads %}{% if c.id in status and status[c.id].status == 'open' %}{% set ns.open = ns.open + 1 %}{% endif %}{% endfor %}
+<details class="existing">
+  <summary>Existing comments ({{ pr_comments | length }}){% if status %} · {{ ns.open }} still open{% endif %}</summary>
+  <ul>
+  {% for c in pr_comments %}
+    <li class="{{ 'reply' if c.reply_to }}">
+      <div class="meta">
+        <strong>{{ c.author }}</strong>{% if c.path %} · {{ c.path }}{% if c.line %}:{{ c.line }}{% endif %}{% endif %}
+        {% if c.id in status %}<span class="tag cs-{{ status[c.id].status }}">{{ {'addressed': 'addressed ✓', 'open': 'still open', 'unclear': 'unclear'}[status[c.id].status] }}</span>{% endif %}
+        {% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noopener">↗</a>{% endif %}
+      </div>
+      <div class="prose">{{ c.body | text }}</div>
+      {% if c.id in status and status[c.id].note %}<div class="hint">{{ status[c.id].note }}</div>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
 {% if r.status in ('queued', 'running') %}
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}

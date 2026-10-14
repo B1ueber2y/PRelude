@@ -120,6 +120,55 @@ class GitHubReader:
             merged=bool(data.get("merged")),
         )
 
+    def pr_comments(self, ref: PrRef, limit: int = 80) -> list[dict]:
+        """What's already been said on the PR: inline review comments, review summaries, general comments."""
+
+        def short(text: str | None) -> str:
+            text = (text or "").strip()
+            return text if len(text) <= 700 else text[:700] + "…"
+
+        out: list[dict] = []
+        for c in self._get(ref.owner, ref.repo, f"/pulls/{ref.number}/comments?per_page=100") or []:
+            out.append(
+                {
+                    "id": c["id"],
+                    "kind": "inline",
+                    "author": c["user"]["login"],
+                    "path": c.get("path"),
+                    "line": c.get("line") or c.get("original_line"),
+                    "reply_to": c.get("in_reply_to_id"),
+                    "body": short(c.get("body")),
+                    "url": c.get("html_url"),
+                    "at": c.get("created_at"),
+                }
+            )
+        for r in self._get(ref.owner, ref.repo, f"/pulls/{ref.number}/reviews?per_page=100") or []:
+            if (r.get("body") or "").strip():
+                out.append(
+                    {
+                        "id": r["id"],
+                        "kind": "review",
+                        "author": r["user"]["login"],
+                        "state": r.get("state"),
+                        "body": short(r.get("body")),
+                        "url": r.get("html_url"),
+                        "at": r.get("submitted_at"),
+                    }
+                )
+        for c in self._get(ref.owner, ref.repo, f"/issues/{ref.number}/comments?per_page=100") or []:
+            out.append(
+                {
+                    "id": c["id"],
+                    "kind": "general",
+                    "author": c["user"]["login"],
+                    "body": short(c.get("body")),
+                    "url": c.get("html_url"),
+                    "at": c.get("created_at"),
+                }
+            )
+        out.sort(key=lambda c: c.get("at") or "")
+        return out[-limit:]
+
     def search_prs(self, query: str, limit: int = 100) -> list[dict]:
         """Open PRs matching a GitHub search query. Restricted to `only_repo` while it is set."""
         if self.cfg.only_repo:

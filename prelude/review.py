@@ -26,6 +26,7 @@ from .prompts import (
     REVIEW_SCHEMA,
     SEVERITIES,
     add_reviewers_prompt,
+    comments_section,
     merge_prompt,
     previous_section,
     review_prompt,
@@ -97,6 +98,7 @@ class _Job:
     co: Checkout
     memory: str
     previous: str = ""
+    comments: str = ""
 
     @property
     def inline(self) -> bool:
@@ -128,6 +130,7 @@ class _Job:
             memory=self.memory,
             lens=lens,
             previous=self.previous,
+            comments=self.comments,
         )
 
 
@@ -175,10 +178,19 @@ def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]
             diff_inlined=job.inline,
             memory=job.memory,
             previous=job.previous,
+            comments=job.comments,
         ),
         MERGE_SCHEMA,
     )
     return _structured(result), result, cost + (result.cost_usd or 0.0), reports
+
+
+def _read_comments(github, ref: PrRef) -> list[dict]:
+    try:
+        return github.pr_comments(ref)
+    except Exception:  # a review without the conversation is still useful
+        log.warning("couldn't read comments of %s", ref.slug, exc_info=True)
+        return []
 
 
 def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
@@ -233,7 +245,8 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         claude.ensure_logged_in()
 
         store.update_review(review_id, progress="Reading the PR from GitHub")
-        pr = (github or GitHubReader(cfg)).pull_request(ref)
+        github = github or GitHubReader(cfg)
+        pr = github.pull_request(ref)
         if pr.state != "open" and (row["trigger_reason"] or "").startswith("auto:"):
             store.update_review(
                 review_id,
@@ -256,6 +269,8 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             changed_lines=pr.changed_lines,
         )
 
+        pr_comments = _read_comments(github, ref)
+        store.update_review(review_id, pr_comments=json.dumps(pr_comments))
         store.update_review(review_id, progress="Checking out the PR")
         co = prepare_checkout(cfg, pr)
         store.update_review(review_id, worktree=str(co.worktree), merge_base=co.merge_base, diff=co.diff)
@@ -269,6 +284,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             co,
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
             previous=_previous(store, cfg, row, pr.head_sha),
+            comments=comments_section(pr_comments),
         )
         reports = None
         if n > 1:
@@ -284,6 +300,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             progress=None,
             error=None,
             summary=out.get("summary") or "",
+            comment_status=json.dumps(out.get("existing_comments") or []),
             claude_session_id=result.session_id,
             cost_usd=cost,
             reports=None if reports is None else json.dumps(reports),
@@ -330,6 +347,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
             pr,
             co,
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
+            comments=comments_section(_read_comments(github or GitHubReader(cfg), ref)),
         )
         before = row["reviewers"] or 1
         reports, cost = _run_reviewers(job, n, first_lens=before)
@@ -346,6 +364,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
                 diff=co.diff,
                 diff_inlined=job.inline,
                 memory=job.memory,
+                comments=job.comments,
             ),
             ADD_SCHEMA,
         )

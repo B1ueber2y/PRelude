@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   progress TEXT,
   error TEXT,
   error_detail TEXT,                       -- full trace for the "Technical details" view
+  pr_comments TEXT,                        -- JSON: the PR conversation the review saw
+  comment_status TEXT,                     -- JSON: per existing comment, addressed / open / unclear
   trigger_reason TEXT,
   summary TEXT,
   claude_session_id TEXT,
@@ -151,6 +153,8 @@ class Store:
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
                     "error_detail": "TEXT",
+                    "pr_comments": "TEXT",
+                    "comment_status": "TEXT",
                 },
             )
 

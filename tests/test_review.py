@@ -10,9 +10,13 @@ from .conftest import DIFF, FINDING
 
 
 class FakeReader:
-    def __init__(self, additions=10, state="open"):
+    def __init__(self, additions=10, state="open", comments=()):
         self.additions = additions
         self.state = state
+        self.comments = list(comments)
+
+    def pr_comments(self, ref):
+        return self.comments
 
     def pull_request(self, ref):
         return PullRequest(
@@ -173,3 +177,34 @@ def test_reviewer_count_only_counts_reviewers_that_delivered(cfg, store, done_re
     )
     review.add_reviewers(store, cfg, done_review, 3, github=FakeReader())
     assert store.get_review(done_review)["reviewers"] == 3  # 1 + the 2 that delivered
+
+
+def test_reviews_see_existing_comments_and_judge_them(cfg, store, checkout, fake_claude, monkeypatch):
+    comment = {
+        "id": 77,
+        "kind": "inline",
+        "author": "alice",
+        "path": "src/auth.ts",
+        "line": 3,
+        "reply_to": None,
+        "body": "Missing token check here?",
+        "url": "u",
+        "at": "2026-10-14",
+    }
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED",
+        json.dumps(
+            {
+                "summary": "s",
+                "findings": [],
+                "existing_comments": [{"id": 77, "status": "addressed", "note": "Now returns 401."}],
+            }
+        ),
+    )
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader(comments=[comment]))
+    prompt = runs(fake_claude)[-1]["prompt"]
+    assert "Missing token check here?" in prompt and "Don't raise anything these comments already raise" in prompt
+    r = store.get_review(rid)
+    assert json.loads(r["pr_comments"])[0]["id"] == 77
+    assert json.loads(r["comment_status"]) == [{"id": 77, "status": "addressed", "note": "Now returns 401."}]
