@@ -13,16 +13,19 @@
         <span class="repo">{{ pr_key }}</span>
         {% if older %}<span class="tag">older</span>{% endif %}
         <span class="status status-{{ r.status }}">
-          {%- if r.status == 'done' -%}{% if r.pending %}{{ r.pending }} to go{% else %}{{ r.drafted }} in draft{% endif %}{%- else -%}{{ r.status }}{%- endif -%}
+          {%- if r.status == 'done' -%}{% if r.pending %}{{ r.pending }} to go{% else %}{{ r.drafted }} in draft{% endif %}
+          {%- elif r.status == 'running' -%}Reviewing…
+          {%- elif r.status == 'queued' -%}In line
+          {%- else -%}Failed{%- endif -%}
         </span>
       </div>
       <div class="card-title">{{ r.title or 'Loading…' }}</div>
       <div class="meta">
         {%- if r.status == 'done' %}{{ r.total }} finding{{ '' if r.total == 1 else 's' }} · {% endif -%}
-        {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% endif -%}
+        {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% else %}Auto reviewers · {% endif -%}
         {{ r.created_at | ago }}
       </div>
-      {% if r.status == 'running' and r.progress %}<div class="meta">{{ r.progress }}…</div>{% endif %}
+      {% if r.status == 'running' and r.progress %}<div class="meta progress-line">{{ r.progress }}…</div>{% endif %}
     </a>
   </li>
 {% endfor %}
