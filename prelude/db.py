@@ -352,8 +352,8 @@ class Store:
         """Another `extra` reviewers raised this finding too."""
         with self.connect() as c:
             c.execute(
-                "UPDATE findings SET found_by = COALESCE(found_by, ?) + ? WHERE id = ?",
-                (reviewers_before, extra, finding_id),
+                "UPDATE findings SET found_by = MIN(COALESCE(found_by, ?) + ?, ?) WHERE id = ?",
+                (reviewers_before, extra, reviewers_before + extra, finding_id),
             )
 
     def get_finding(self, finding_id: int) -> sqlite3.Row | None:

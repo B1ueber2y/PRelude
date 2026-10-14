@@ -90,3 +90,45 @@ def test_upgrading_a_first_version_database_adds_every_column(tmp_path):
     Store(old)
     Store(tmp_path / "fresh.sqlite")
     assert columns(old) == columns(tmp_path / "fresh.sqlite")
+
+
+def test_found_by_never_exceeds_reviewers(store):
+    rid = store.create_review("o", "r", 1, "u", "t")
+    store.add_findings(
+        rid,
+        [{"path": "a", "severity": "low", "title": "t", "assessment": "a", "suggested_comment": "c", "found_by": 3}],
+    )
+    (f,) = store.findings_for(rid)
+    store.bump_found_by(f["id"], 2, 3)  # 3 reviewers before, 2 new
+    store.bump_found_by(f["id"], 2, 3)  # a confused second bump can't push it past 5
+    assert store.get_finding(f["id"])["found_by"] == 5
+
+
+def test_existing_checkout_of_same_commit_is_recognized(tmp_path):
+    import subprocess
+
+    from prelude.workspace import _is_checkout_of
+
+    repo = tmp_path / "r"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+        check=True,
+    )
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    assert _is_checkout_of(repo, sha)
+    assert not _is_checkout_of(repo, "0" * 40)
+    assert not _is_checkout_of(tmp_path / "missing", sha)

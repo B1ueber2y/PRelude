@@ -208,3 +208,34 @@ def test_reviews_see_existing_comments_and_judge_them(cfg, store, checkout, fake
     r = store.get_review(rid)
     assert json.loads(r["pr_comments"])[0]["id"] == 77
     assert json.loads(r["comment_status"]) == [{"id": 77, "status": "addressed", "note": "Now returns 401."}]
+
+
+def test_failure_is_recorded_even_if_the_report_cannot_be_saved(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude import failures
+
+    def broken(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(failures, "save_report", broken)
+    monkeypatch.setenv("FAKE_CLAUDE_AUTH", "none")
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader())
+    r = store.get_review(rid)
+    assert r["status"] == "failed" and "Traceback" in r["error_detail"]
+
+
+def test_extra_reviewers_get_previous_review_context(cfg, store, done_review, fake_claude, monkeypatch):
+    prev = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(prev, status="done", head_sha="b" * 40)
+    store.update_review(done_review, head_sha="a" * 40, merge_base="c" * 40, previous_review_id=prev, mode="full")
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [], "new_findings": [], "also_found": []})
+    )
+    review.add_reviewers(store, cfg, done_review, 1, github=FakeReader())
+    reviewers = [c["prompt"] for c in runs(fake_claude) if "Look especially hard" in c["prompt"]]
+    assert reviewers and all("This PR was reviewed before" in p for p in reviewers)
+
+
+def test_new_commits_refusal_has_a_clear_reason(cfg, store, done_review, fake_claude):
+    review.add_reviewers(store, cfg, done_review, 1, github=FakeReader())
+    assert store.get_review(done_review)["error"].startswith("The PR has new commits; use Review again")

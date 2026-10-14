@@ -75,6 +75,15 @@ def _make_writable(root: Path) -> None:
                 pass
 
 
+def _is_checkout_of(wt: Path, sha: str) -> bool:
+    if not (wt / ".git").exists():
+        return False
+    try:
+        return _git("-C", str(wt), "rev-parse", "HEAD").strip() == sha
+    except GitError:
+        return False
+
+
 def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     owner, repo, number = pr.ref.owner, pr.ref.repo, pr.ref.number
     check_repo(cfg, owner, repo)
@@ -102,11 +111,13 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     merge_base = _git(*gd, "merge-base", pr.base_sha, pr.head_sha).strip()
 
     wt = cfg.worktrees_dir / f"{owner}__{repo}__{number}__{pr.head_sha[:12]}"
-    if wt.exists():
-        remove_checkout(cfg, owner, repo, wt)
-    wt.parent.mkdir(parents=True, exist_ok=True)
-    _git(*_GIT_AUTH, *gd, "worktree", "add", "--quiet", "--detach", str(wt), pr.head_sha, timeout=1800)
-    _make_read_only(wt)
+    if not _is_checkout_of(wt, pr.head_sha):
+        if wt.exists():
+            remove_checkout(cfg, owner, repo, wt)
+        wt.parent.mkdir(parents=True, exist_ok=True)
+        _git(*_GIT_AUTH, *gd, "worktree", "add", "--quiet", "--detach", str(wt), pr.head_sha, timeout=1800)
+        _make_read_only(wt)
+    # else: reuse it; other reviews and discussions of this commit may be using it right now
 
     diff = _git(*gd, "diff", "--no-color", "--no-ext-diff", "-M", f"{merge_base}..{pr.head_sha}")
     names = _git(*gd, "diff", "--name-only", "-M", f"{merge_base}..{pr.head_sha}").split()

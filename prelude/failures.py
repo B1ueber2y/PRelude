@@ -14,8 +14,14 @@ from .config import REPO_ROOT, Config
 from .workspace import GitError
 
 
+class PrMoved(Exception):
+    """The PR changed since the review this operation builds on."""
+
+
 def reason(exc: BaseException) -> str:
     """What broke, in words that are safe to send through a public notification relay."""
+    if isinstance(exc, PrMoved):
+        return "The PR has new commits; use Review again"
     if isinstance(exc, claude.ClaudeNotLoggedIn):
         return "Claude login needed"
     if isinstance(exc, claude.ClaudeError):

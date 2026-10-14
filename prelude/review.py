@@ -205,25 +205,27 @@ def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
 
 
 def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: Exception, **fields) -> None:
-    row = store.get_review(review_id)
-    report = failures.save_report(
-        cfg,
-        what,
-        {
-            "review": review_id,
-            "pr": f"{row['owner']}/{row['repo']}#{row['number']}",
-            "head": row["head_sha"],
-            "reviewers": row["reviewers"],
-            "mode": row["mode"],
-        },
-        exc,
-    )
+    """Mark the review failed even if writing the report itself fails."""
+    detail = "".join(traceback.format_exception(exc))[-8000:]
+    try:
+        row = store.get_review(review_id)
+        report = failures.save_report(
+            cfg,
+            what,
+            {
+                "review": review_id,
+                "pr": f"{row['owner']}/{row['repo']}#{row['number']}",
+                "head": row["head_sha"],
+                "reviewers": row["reviewers"],
+                "mode": row["mode"],
+            },
+            exc,
+        )
+        detail = f"Report: {report}\n\n{detail}"
+    except Exception:
+        log.warning("couldn't save the failure report for review %s", review_id, exc_info=True)
     store.update_review(
-        review_id,
-        progress=None,
-        error=f"{failures.reason(exc)}: {exc}"[:2000],
-        error_detail=f"Report: {report}\n\n" + "".join(traceback.format_exception(exc))[-8000:],
-        **fields,
+        review_id, progress=None, error=f"{failures.reason(exc)}: {exc}"[:2000], error_detail=detail, **fields
     )
 
 
@@ -332,7 +334,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
         claude.ensure_logged_in()
         pr = (github or GitHubReader(cfg)).pull_request(ref)
         if pr.head_sha != row["head_sha"]:
-            raise ValueError("the PR has new commits since this review; use Review again instead")
+            raise failures.PrMoved("the PR has new commits since this review; use Review again instead")
         wt = Path(row["worktree"]) if row["worktree"] else None
         if wt and wt.exists():
             co = Checkout(wt, row["merge_base"], row["diff"] or "", list(parse_diff(row["diff"] or "")))
@@ -348,6 +350,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
             co,
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
             comments=comments_section(_read_comments(github or GitHubReader(cfg), ref)),
+            previous=_previous(store, cfg, row, pr.head_sha),
         )
         before = row["reviewers"] or 1
         reports, cost = _run_reviewers(job, n, first_lens=before)
@@ -372,7 +375,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
         ids = {f["id"] for f in existing}
         for hit in out.get("also_found") or []:
             if hit.get("id") in ids and int(hit.get("count") or 0) > 0:
-                store.bump_found_by(hit["id"], min(int(hit["count"]), n), before)
+                store.bump_found_by(hit["id"], min(int(hit["count"]), len(reports)), before)
         files = parse_diff(co.diff)
         new = [_normalize(f, files) for f in out.get("new_findings") or [] if isinstance(f, dict)]
         store.add_findings(review_id, new, added_later=True)
