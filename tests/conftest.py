@@ -10,6 +10,17 @@ FAKE = Path(__file__).with_name("fake_claude.py")
 
 
 @pytest.fixture(autouse=True)
+def never_real_github(monkeypatch):
+    """No test may reach the real GitHub (the gh login is what every real call starts from)."""
+    from prelude import github
+
+    def blocked():
+        raise RuntimeError("tests must not call the real GitHub")
+
+    monkeypatch.setattr(github, "gh_token", blocked)
+
+
+@pytest.fixture(autouse=True)
 def no_retry_waits(monkeypatch):
     """Retries happen instantly in tests."""
     from prelude import retry

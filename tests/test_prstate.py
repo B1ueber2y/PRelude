@@ -1,36 +1,73 @@
+import urllib.error
+
 from fastapi.testclient import TestClient
 
-from prelude import prstate
+from prelude import drafting, prstate
+from prelude.drafts import DraftWriter
 from prelude.web import COOKIE, create_app
 
 from .test_drafts import FakeGitHub
 from .test_review import FakeReader
 
 
-def test_merged_pr_is_recorded_and_sorted_last(cfg, store, done_review):
-    open_rid = store.create_review("o", "r", 9, "u", "t")
-    store.update_review(open_rid, status="done")
-    reader = FakeReader(state="closed")
-    reader_state = {"o/r#9": "open"}
+class Reader(FakeReader):
+    """PR states by number; counts calls."""
 
-    class Reader(FakeReader):
-        def pull_request(self, ref):
-            pr = super().pull_request(ref)
-            pr.state = reader_state.get(f"{ref.owner}/{ref.repo}#{ref.number}", "closed")
-            pr.merged = pr.state == "closed"
-            return pr
+    def __init__(self, states):
+        super().__init__()
+        self.states, self.calls = states, []
 
-    assert prstate.refresh(store, cfg, Reader()) == 1
-    assert store.get_review(done_review)["pr_state"] == "merged"
-    assert store.get_review(open_rid)["pr_state"] is None
-    assert [r["id"] for r in store.list_reviews()][-1] == done_review  # closed PRs go last
-    assert prstate.refresh(store, cfg, reader) == 1  # the merged one isn't checked again
+    def pull_request(self, ref):
+        self.calls.append(ref.number)
+        state = self.states[ref.number]
+        if isinstance(state, Exception):
+            raise state
+        pr = super().pull_request(ref)
+        pr.state, pr.merged = ("open", False) if state == "open" else ("closed", state == "merged")
+        return pr
 
 
-def test_clear_leftovers_removes_drafts_and_drops_the_rest(cfg, store, done_review):
-    from prelude import drafting
-    from prelude.drafts import DraftWriter
+def review(store, number, **fields):
+    rid = store.create_review("o", "r", number, "u", "t")
+    store.update_review(rid, status="done", **fields)
+    return rid
 
+
+def test_closed_prs_are_rechecked_and_can_reopen_but_merged_is_final(cfg, store):
+    a, b = review(store, 1), review(store, 2)
+    reader = Reader({1: "merged", 2: "closed"})
+    assert prstate.refresh(store, cfg, reader) == 2
+    reader.states[2] = "open"  # reopened
+    reader.calls.clear()
+    assert prstate.refresh(store, cfg, reader) == 1
+    assert reader.calls == [2]  # the merged PR isn't fetched again
+    assert store.get_review(b)["pr_state"] == "open" and store.get_review(a)["pr_state"] == "merged"
+
+
+def test_refresh_stops_at_first_temporary_failure(cfg, store):
+    for n in (1, 2, 3):
+        review(store, n)
+    reader = Reader({1: urllib.error.URLError("down"), 2: "closed", 3: "closed"})
+    prstate.refresh(store, cfg, reader)
+    assert reader.calls == [1]  # an outage doesn't burn through every PR
+
+
+def client(cfg, store, writer, reader, learned):
+    c = TestClient(
+        create_app(
+            cfg,
+            store,
+            review_runner=lambda _id: None,
+            learner=lambda *a: learned.append(a),
+            writer=writer,
+            reader=reader,
+        )
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    return c
+
+
+def test_clear_leftovers(cfg, store, done_review):
     cfg.drafts.enabled = True
     github = FakeGitHub()
     writer = DraftWriter(cfg, transport=github)
@@ -38,14 +75,41 @@ def test_clear_leftovers_removes_drafts_and_drops_the_rest(cfg, store, done_revi
     drafting.add(store, cfg, writer, f1["id"])
     store.update_review(done_review, pr_state="merged")
     learned = []
-    c = TestClient(
-        create_app(cfg, store, review_runner=lambda _id: None, learner=lambda *a: learned.append(a), writer=writer)
-    )
-    c.cookies.set(COOKIE, cfg.access_key())
+    c = client(cfg, store, writer, Reader({1: "merged"}), learned)
     page = c.get(f"/reviews/{done_review}").text
     assert "This PR was merged" in page and "<strong>1</strong> comment still in your GitHub draft" in page
     c.post(f"/reviews/{done_review}/clear-leftovers")
     assert github.comments == {}
     assert {f["status"] for f in store.findings_for(done_review)} == {"dropped"}
     assert learned == []  # closing a PR teaches memory nothing
-    assert "not posted (PR closed)" in c.get(f"/reviews/{done_review}?show=all").text
+
+
+def test_clear_leftovers_refuses_a_reopened_pr(cfg, store, done_review):
+    store.update_review(done_review, pr_state="closed")
+    c = client(cfg, store, DraftWriter(cfg, transport=FakeGitHub()), Reader({1: "open"}), [])
+    assert "open again" in c.post(f"/reviews/{done_review}/clear-leftovers").text
+    assert {f["status"] for f in store.findings_for(done_review)} == {"pending"}
+
+
+def test_clear_leftovers_keeps_drafts_you_just_submitted(cfg, store, done_review):
+    cfg.drafts.enabled = True
+    github = FakeGitHub()
+    writer = DraftWriter(cfg, transport=github)
+    f1, _ = store.findings_for(done_review)
+    drafting.add(store, cfg, writer, f1["id"])
+    (rid,) = github.reviews
+    github.reviews[rid] = "COMMENTED"  # submitted on GitHub just before clearing
+    store.update_review(done_review, pr_state="merged")
+    prstate.clear_leftovers(store, cfg, writer, Reader({1: "merged"}), done_review)
+    assert store.get_finding(f1["id"])["status"] == "posted" and github.comments
+
+
+def test_dropped_findings_are_read_only(cfg, store, done_review):
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="dropped")
+    learned = []
+    c = client(cfg, store, DraftWriter(cfg, transport=FakeGitHub()), Reader({1: "merged"}), learned)
+    assert "Not posted (PR closed)" in c.get(f"/findings/{f['id']}").text
+    for action in ("discard", "restore", "github/add"):
+        assert "closed before" in c.post(f"/findings/{f['id']}/{action}").text
+    assert store.get_finding(f["id"])["status"] == "dropped" and learned == []

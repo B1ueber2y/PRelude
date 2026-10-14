@@ -158,9 +158,9 @@ class Poller:
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
             try:
+                self.poll_once()  # new PRs first; housekeeping can't delay them
                 self.refresh_drafts()
                 prstate.refresh(self.store, self.cfg, self.reader)
-                self.poll_once()
                 self.store.set_setting(LAST_ERROR, "")
             except Exception as e:
                 log.warning("polling GitHub failed", exc_info=True)

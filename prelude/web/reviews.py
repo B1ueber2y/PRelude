@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import drafting, prstate, stats
 from ..drafts import DraftError
-from ..github import GitHubReader, PrRef, parse_pr
+from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
@@ -100,8 +100,8 @@ def _refresh_in_background(w: Web, review_id: int) -> None:
         try:
             drafting.refresh_submitted(w.store, w.cfg, w.writer, review_id)
             r = w.store.get_review(review_id)
-            if r and (r["pr_state"] or "open") == "open":
-                prstate.refresh(w.store, w.cfg, GitHubReader(w.cfg), [(r["owner"], r["repo"], r["number"])])
+            if r and r["pr_state"] != "merged":
+                prstate.refresh(w.store, w.cfg, w.reader, [(r["owner"], r["repo"], r["number"])])
         except Exception:
             log.warning("couldn't refresh review %s from GitHub", review_id, exc_info=True)
 
@@ -149,7 +149,9 @@ def clear_leftovers(w: WebDep, review_id: int):
     if (r["pr_state"] or "open") == "open":
         return w.flash("This PR is still open.")
     try:
-        prstate.clear_leftovers(w.store, w.cfg, w.writer, review_id)
+        prstate.clear_leftovers(w.store, w.cfg, w.writer, w.reader, review_id)
+    except prstate.StillOpen as e:
+        return w.flash(str(e))
     except DraftError as e:
         return w.flash(f"Couldn't remove a draft comment: {e}")
     return Response(status_code=204, headers={"HX-Refresh": "true"})
