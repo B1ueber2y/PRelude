@@ -3,6 +3,8 @@
   {% if edited %}<span class="tag accent">your wording</span>{% else %}<span class="tag">Claude's wording</span>{% endif %}
 </div>
 <div class="comment">{{ draft | text }}</div>
+{% if sync_error %}<p class="error">{{ sync_error }}</p>
+{% elif f.status == 'drafted' %}<p class="hint">Changes here update your GitHub draft.</p>{% endif %}
 <div class="row-actions">
   <button class="btn small" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft" hx-swap="innerHTML">Edit</button>
   {% if edited %}

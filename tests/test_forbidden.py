@@ -1,4 +1,4 @@
-"""PRelude must never publish to GitHub; only the drafts module (step 4) may write at all."""
+"""PRelude must never publish to GitHub; only drafts.py may write, and only to a pending review."""
 
 import re
 from pathlib import Path
@@ -28,3 +28,8 @@ def test_github_reader_is_get_only():
     text = (PACKAGE / "github.py").read_text()
     methods = set(re.findall(r'method\s*=\s*"([A-Z]+)"', text))
     assert methods == {"GET"}
+
+
+def test_only_drafts_module_writes():
+    writers = {p.name for p in PACKAGE.rglob("*.py") if re.search(r'method\s*=\s*"(POST|PUT|PATCH|DELETE)"', p.read_text())}
+    assert writers == {"drafts.py"}

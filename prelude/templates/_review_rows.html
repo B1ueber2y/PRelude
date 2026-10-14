@@ -8,7 +8,7 @@
       <div class="card-top">
         <span class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}</span>
         <span class="status status-{{ r.status }}">
-          {%- if r.status == 'done' -%}{{ r.pending }} to go{%- else -%}{{ r.status }}{%- endif -%}
+          {%- if r.status == 'done' -%}{% if r.pending %}{{ r.pending }} to go{% else %}{{ r.drafted }} in draft{% endif %}{%- else -%}{{ r.status }}{%- endif -%}
         </span>
       </div>
       <div class="card-title">{{ r.title or 'Loading…' }}</div>

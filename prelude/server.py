@@ -8,6 +8,7 @@ import logging
 import queue
 import threading
 from functools import lru_cache
+from html import escape
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -15,11 +16,12 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import memory_agent
+from . import drafting, memory_agent
 from .config import Config
 from .db import Store
 from .diffmap import parse_diff
 from .discuss import Broker, DiscussionBusy, current_draft, post_message
+from .drafts import DraftError, DraftWriter
 from .github import parse_pr
 from .guard import RepoNotAllowed
 from .memory import GLOBAL, STYLE, Memory, split_scope, title
@@ -32,12 +34,15 @@ HERE = Path(__file__).resolve().parent
 COOKIE = "prelude_key"
 
 
-def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, learner=None) -> FastAPI:
+def create_app(
+    cfg: Config, store: Store | None = None, *, review_runner=None, learner=None, writer: DraftWriter | None = None,
+) -> FastAPI:
     store = store or Store(cfg.db_path)
     store.fail_stale_reviews()
     broker = Broker()
     key = cfg.access_key()
     runner = review_runner or (lambda review_id: run_review(store, cfg, review_id))
+    writer = writer or DraftWriter(cfg)
     learn = learner or (lambda finding_id, action: memory_agent.learn_async(store, cfg, finding_id, action))
 
     app = FastAPI(title="PRelude", docs_url=None, redoc_url=None, openapi_url=None)
@@ -112,10 +117,17 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, l
             "next_id": ids[idx + 1] if idx + 1 < len(ids) else None,
             "position": idx + 1,
             "count": len(ids),
+            "drafts_enabled": cfg.drafts.enabled,
         }
 
     def partial(request: Request, name: str, ctx: dict) -> HTMLResponse:
         return templates.TemplateResponse(request, name, ctx)
+
+    def flash(message: str, kind: str = "error") -> HTMLResponse:
+        return HTMLResponse(
+            f'<div class="flash {kind}">{escape(message)}</div>',
+            headers={"HX-Retarget": "#flash", "HX-Reswap": "innerHTML"},
+        )
 
     # ---- pages -------------------------------------------------------------
 
@@ -160,12 +172,13 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, l
         r = review_or_404(review_id)
         findings = store.findings_for(review_id)
         shown = [f for f in findings if show == "all" or f["status"] == show]
-        counts = {
-            "pending": sum(1 for f in findings if f["status"] == "pending"),
-            "discarded": sum(1 for f in findings if f["status"] == "discarded"),
-            "all": len(findings),
-        }
-        return partial(request, "review.html", {"r": r, "findings": shown, "show": show, "counts": counts})
+        counts = {status: sum(1 for f in findings if f["status"] == status)
+                  for status in ("pending", "drafted", "discarded")}
+        counts["all"] = len(findings)
+        return partial(request, "review.html", {
+            "r": r, "findings": shown, "show": show, "counts": counts,
+            "drafts_enabled": cfg.drafts.enabled, "prefix_on": drafting.prefix_on(store), "prefix": cfg.drafts.prefix,
+        })
 
     @app.get("/reviews/{review_id}/status", response_class=HTMLResponse)
     def review_status(request: Request, review_id: int):
@@ -196,18 +209,31 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, l
         store.update_finding(finding_id, user_draft=None if text == f["claude_comment"] else text)
         if text != current_draft(f) and text != f["claude_comment"]:
             learn(finding_id, "edit")
-        return partial(request, "_draft.html", finding_context(finding_or_404(finding_id)))
+        ctx = finding_context(finding_or_404(finding_id))
+        try:
+            drafting.sync(store, cfg, writer, finding_id)
+        except DraftError as e:
+            ctx["sync_error"] = str(e)
+        return partial(request, "_draft.html", ctx)
 
     @app.post("/findings/{finding_id}/draft/reset", response_class=HTMLResponse)
     def reset_draft(request: Request, finding_id: int):
         finding_or_404(finding_id)
         store.update_finding(finding_id, user_draft=None)
-        return partial(request, "_draft.html", finding_context(finding_or_404(finding_id)))
+        ctx = finding_context(finding_or_404(finding_id))
+        try:
+            drafting.sync(store, cfg, writer, finding_id)
+        except DraftError as e:
+            ctx["sync_error"] = str(e)
+        return partial(request, "_draft.html", ctx)
 
     @app.post("/findings/{finding_id}/discard")
     def discard(finding_id: int):
         f = finding_or_404(finding_id)
-        store.update_finding(finding_id, status="discarded")
+        try:
+            drafting.remove(store, cfg, writer, finding_id, new_status="discarded")
+        except DraftError as e:
+            return flash(f"Couldn't remove the GitHub draft comment: {e}")
         learn(finding_id, "discard")
         ctx = finding_context(finding_or_404(finding_id))
         target = f"/findings/{ctx['next_id']}" if ctx["next_id"] else f"/reviews/{f['review_id']}"
@@ -217,6 +243,42 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, l
     def restore(finding_id: int):
         finding_or_404(finding_id)
         store.update_finding(finding_id, status="pending")
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+    # ---- GitHub drafts -----------------------------------------------------
+
+    @app.post("/findings/{finding_id}/github/add")
+    def github_add(finding_id: int):
+        finding_or_404(finding_id)
+        try:
+            drafting.add(store, cfg, writer, finding_id)
+        except DraftError as e:
+            return flash(str(e))
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+    @app.post("/findings/{finding_id}/github/remove")
+    def github_remove(finding_id: int):
+        finding_or_404(finding_id)
+        try:
+            drafting.remove(store, cfg, writer, finding_id)
+        except DraftError as e:
+            return flash(str(e))
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+    @app.post("/reviews/{review_id}/github/add-all")
+    def github_add_all(review_id: int):
+        review_or_404(review_id)
+        try:
+            added, failed = drafting.add_all(store, cfg, writer, review_id)
+        except DraftError as e:
+            return flash(str(e))
+        if failed:
+            return flash(f"Added {added}; {len(failed)} failed: " + " | ".join(failed))
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+    @app.post("/settings/prefix")
+    def set_prefix(on: str = Form("0")):
+        store.set_setting(drafting.PREFIX_SETTING, "1" if on == "1" else "0")
         return Response(status_code=204, headers={"HX-Refresh": "true"})
 
     # ---- discussion --------------------------------------------------------

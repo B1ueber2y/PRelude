@@ -362,3 +362,16 @@ textarea { resize: none; line-height: 1.45; }
 .when-busy { display: none; }
 .htmx-request .when-busy, .htmx-request.when-busy { display: inline-block; }
 .htmx-request .when-idle { display: none; }
+
+#flash:empty { display: none; }
+.flash {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+.draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); }

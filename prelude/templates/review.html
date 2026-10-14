@@ -20,14 +20,32 @@
   <p>{{ r.error }}</p>
 </section>
 {% else %}
+<section class="draft-bar">
+  {% if drafts_enabled %}
+  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this"
+          hx-confirm="Add all {{ counts.pending }} remaining comments to your GitHub draft review?" {{ 'disabled' if not counts.pending }}>
+    Add all to draft
+  </button>
+  {% else %}
+  <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add all to draft</button>
+  {% endif %}
+  <label class="toggle">
+    <input type="checkbox" name="on" value="1" {{ 'checked' if prefix_on }}
+           hx-post="/settings/prefix" hx-trigger="change" hx-vals='js:{on: event.target.checked ? "1" : "0"}'>
+    Prefix with “{{ prefix }}”
+  </label>
+</section>
+{% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
+
 <nav class="tabs" hx-boost="true">
   <a class="{{ 'on' if show == 'pending' }}" href="?show=pending">To review <span>{{ counts.pending }}</span></a>
+  <a class="{{ 'on' if show == 'drafted' }}" href="?show=drafted">In draft <span>{{ counts.drafted }}</span></a>
   <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
   <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
 </nav>
 {% if not findings %}
 <p class="empty-line">
-  {% if show == 'pending' and counts.all %}All findings handled. Submit your review on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>.
+  {% if show == 'pending' and counts.all %}All findings handled.{% if counts.drafted %} Submit your review on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>.{% endif %}
   {% elif counts.all == 0 %}Claude found nothing worth raising.
   {% else %}Nothing here.{% endif %}
 </p>
@@ -41,6 +59,7 @@
         {% if f.user_draft is not none %}<span class="tag">edited</span>{% endif %}
         {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
         {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
+        {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
       </div>
       <div class="card-title">{{ f.title }}</div>
       <div class="loc">{{ f.path }}{% if f.line %}:{{ f.line }}{% endif %}</div>

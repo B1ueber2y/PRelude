@@ -29,6 +29,11 @@ claude:
 # Claude reads the changed files with its tools instead.
 max_inline_diff_chars: 150000
 
+# Adding comments to your pending GitHub review. Off until you turn it on.
+github_drafts:
+  enabled: false
+  prefix: "AI review with PRelude:"
+
 server:
   host: 127.0.0.1
   port: 8787
@@ -52,11 +57,18 @@ class ServerConfig:
 
 
 @dataclass
+class DraftsConfig:
+    enabled: bool = False
+    prefix: str = "AI review with PRelude:"
+
+
+@dataclass
 class Config:
     data_dir: Path
     only_repo: str | None = None
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
+    drafts: DraftsConfig = field(default_factory=DraftsConfig)
     max_inline_diff_chars: int = 150_000
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -102,6 +114,7 @@ def load_config(data_dir: Path | None = None) -> Config:
 
     claude_raw = raw.get("claude") or {}
     server_raw = raw.get("server") or {}
+    drafts_raw = raw.get("github_drafts") or {}
     return Config(
         data_dir=data_dir,
         only_repo=(raw.get("only_repo") or None),
@@ -114,6 +127,10 @@ def load_config(data_dir: Path | None = None) -> Config:
             host=server_raw.get("host", "127.0.0.1"),
             port=int(server_raw.get("port", 8787)),
             allowed_tailscale_user=server_raw.get("allowed_tailscale_user"),
+        ),
+        drafts=DraftsConfig(
+            enabled=bool(drafts_raw.get("enabled", False)),
+            prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
         ),
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,

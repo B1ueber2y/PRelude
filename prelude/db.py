@@ -53,8 +53,11 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | discarded
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | discarded
   verdict TEXT,                            -- latest Claude verdict from discussion
+  github_review_id TEXT,                   -- pending review the comment was added to
+  github_comment_id TEXT,
+  drafted_body TEXT,                       -- body as last written to GitHub
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -82,6 +85,11 @@ CREATE TABLE IF NOT EXISTS memory_messages (
   created_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS threads (
   finding_id INTEGER PRIMARY KEY REFERENCES findings(id) ON DELETE CASCADE,
   session_id TEXT,
@@ -95,6 +103,9 @@ class Store:
         self.path = path
         with self.connect() as c:
             c.executescript(SCHEMA)
+            _add_missing_columns(c, "findings", {
+                "github_review_id": "TEXT", "github_comment_id": "TEXT", "drafted_body": "TEXT",
+            })
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -107,6 +118,18 @@ class Store:
             conn.commit()
         finally:
             conn.close()
+
+    # ---- settings ----------------------------------------------------------
+
+    def setting(self, key: str, default: str) -> str:
+        with self.connect() as c:
+            row = c.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+            return row[0] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self.connect() as c:
+            c.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                      (key, value, value))
 
     # ---- reviews -----------------------------------------------------------
 
@@ -137,6 +160,7 @@ class Store:
             return c.execute(
                 "SELECT r.*,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
+                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
                 " FROM reviews r ORDER BY r.id DESC LIMIT ?",
                 (limit,),
@@ -286,3 +310,10 @@ class Store:
                 c.execute("UPDATE threads SET busy = 0, session_id = ? WHERE finding_id = ?", (session_id, finding_id))
             else:
                 c.execute("UPDATE threads SET busy = 0 WHERE finding_id = ?", (finding_id,))
+
+
+def _add_missing_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+    have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    for name, decl in columns.items():
+        if name not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")

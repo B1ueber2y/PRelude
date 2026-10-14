@@ -15,11 +15,12 @@
     {% if f.category %}<span class="tag">{{ f.category }}</span>{% endif %}
     {% if f.confidence %}<span class="tag">{{ f.confidence }} confidence</span>{% endif %}
     {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
+    {% if f.status == 'drafted' %}<span class="tag accent">in GitHub draft</span>{% endif %}
   </div>
   <h1>{{ f.title }}</h1>
   <div class="loc">{{ f.path }}{% if f.line %}:{% if f.start_line %}{{ f.start_line }}–{% endif %}{{ f.line }}{% endif %}</div>
   {% if not f.in_diff %}
-  <p class="callout warn small">This line isn't part of the PR diff, so GitHub won't accept an inline comment here. You can still raise it in the review summary.</p>
+  <p class="callout warn small">This line isn't part of the PR diff, so it will be added as a comment on the file instead of the line.</p>
   {% endif %}
 
   {% if snippet %}
@@ -62,6 +63,14 @@
   <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
   {% endif %}
   <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
-  <button class="btn primary" disabled title="Coming next: adds this comment to your pending GitHub review">Add to draft</button>
+  {% if f.status == 'drafted' %}
+  <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
+  {% elif f.status == 'discarded' %}
+  <button class="btn primary" disabled>Add to draft</button>
+  {% elif drafts_enabled %}
+  <button class="btn primary" hx-post="/findings/{{ f.id }}/github/add" hx-disabled-elt="this">Add to draft</button>
+  {% else %}
+  <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
+  {% endif %}
 </footer>
 {% endblock %}

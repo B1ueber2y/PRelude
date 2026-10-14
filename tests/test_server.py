@@ -10,7 +10,7 @@ from prelude.server import COOKIE, create_app
 @pytest.fixture
 def client(cfg, store):
     started = []
-    app = create_app(cfg, store, review_runner=started.append)
+    app = create_app(cfg, store, review_runner=started.append, learner=lambda *a: None)
     c = TestClient(app)
     c.cookies.set(COOKIE, cfg.access_key())
     c.started = started

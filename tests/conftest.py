@@ -9,6 +9,14 @@ from prelude.db import Store
 FAKE = Path(__file__).with_name("fake_claude.py")
 
 
+@pytest.fixture(autouse=True)
+def never_real_claude(monkeypatch):
+    """No test may reach the real `claude` CLI."""
+    FAKE.chmod(FAKE.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setenv("PRELUDE_CLAUDE_BIN", str(FAKE))
+    monkeypatch.delenv("FAKE_CLAUDE_LOG", raising=False)
+
+
 @pytest.fixture
 def cfg(tmp_path):
     return load_config(tmp_path / "data")
@@ -21,9 +29,7 @@ def store(cfg):
 
 @pytest.fixture
 def fake_claude(monkeypatch, tmp_path):
-    FAKE.chmod(FAKE.stat().st_mode | stat.S_IXUSR)
     log = tmp_path / "claude-calls.jsonl"
-    monkeypatch.setenv("PRELUDE_CLAUDE_BIN", str(FAKE))
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
     return log
 
