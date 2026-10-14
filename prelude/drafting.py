@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from .config import Config
 from .db import Store
 from .discuss import current_draft
 from .drafts import DraftError, DraftWriter, NotPending
 
 PREFIX_SETTING = "draft_prefix"
+
+log = logging.getLogger(__name__)
 
 
 class DraftsDisabled(DraftError):
@@ -100,6 +104,21 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
         except DraftError as e:
             failed.append(f"{f['title']}: {e}")
     return added, failed
+
+
+def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[int]) -> int:
+    """Put new findings straight into the pending review (github_drafts.auto). Failures leave them to review."""
+    if not (cfg.drafts.enabled and cfg.drafts.auto):
+        return 0
+    added = 0
+    for finding_id in finding_ids:
+        try:
+            add(store, cfg, writer, finding_id)
+            added += 1
+        except Exception:  # the rest would likely fail the same way
+            log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
+            break
+    return added
 
 
 def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:

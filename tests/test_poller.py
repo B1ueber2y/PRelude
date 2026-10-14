@@ -117,7 +117,7 @@ def test_explicit_since_date(poller, reader, cfg):
 def test_notification_detail_levels(cfg, sent):
     cfg.notify.ntfy_topic = "topic"
     review = {"id": 3, "status": "done", "owner": "o", "repo": "r", "number": 7, "title": "Private"}
-    findings = [{"severity": "high"}, {"severity": "low"}]
+    findings = [{"severity": "high", "status": "pending"}, {"severity": "low", "status": "pending"}]
     bodies = {}
     for level in ("none", "ref", "full"):
         cfg.notify.details = level

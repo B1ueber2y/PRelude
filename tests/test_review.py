@@ -239,3 +239,71 @@ def test_extra_reviewers_get_previous_review_context(cfg, store, done_review, fa
 def test_new_commits_refusal_has_a_clear_reason(cfg, store, done_review, fake_claude):
     review.add_reviewers(store, cfg, done_review, 1, github=FakeReader())
     assert store.get_review(done_review)["error"].startswith("The PR has new commits; use Review again")
+
+
+def test_findings_start_in_the_draft(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    second = dict(FINDING, title="Second", line=2)
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING, second]}))
+    github = FakeGitHub()
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
+    assert {f["status"] for f in store.findings_for(rid)} == {"drafted"}
+    assert len(github.reviews) == 1 and len(github.comments) == 2
+    assert store.get_review(rid)["progress"] is None
+
+    cfg.drafts.auto = False
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
+    assert {f["status"] for f in store.findings_for(rid)} == {"pending"}
+
+
+def test_auto_draft_skips_closed_prs_and_survives_github_errors(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    cfg.drafts.enabled = True
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
+
+    def untouchable(query, v):
+        raise AssertionError("closed PRs get no drafts")
+
+    def down(query, v):
+        raise RuntimeError("GitHub is down")
+
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(
+        store, cfg, rid, github=FakeReader(state="closed"), writer=DraftWriter(cfg, transport=untouchable)
+    )
+    assert store.findings_for(rid)[0]["status"] == "pending"
+
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=down))
+    r = store.get_review(rid)
+    assert r["status"] == "done" and store.findings_for(rid)[0]["status"] == "pending"
+
+
+def test_extra_reviewers_draft_only_their_new_findings(cfg, store, done_review, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    store.update_review(done_review, head_sha="a" * 40, reviewers=1, merge_base="c" * 40)
+    new = dict(FINDING, title="Brand new problem", line=2)
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED",
+        json.dumps({"summary": "s", "findings": [], "new_findings": [new], "also_found": []}),
+    )
+    review.add_reviewers(
+        store, cfg, done_review, 1, github=FakeReader(), writer=DraftWriter(cfg, transport=FakeGitHub())
+    )
+    status = {f["title"]: f["status"] for f in store.findings_for(done_review)}
+    assert status == {
+        "Missing token is accepted": "pending",
+        "Second finding": "pending",
+        "Brand new problem": "drafted",
+    }

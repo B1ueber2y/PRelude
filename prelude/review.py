@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import claude, failures
+from . import claude, drafting, failures
 from .config import Config
 from .db import Store
 from .diffmap import parse_diff
+from .drafts import DraftWriter
 from .github import GitHubReader, PrRef, PullRequest
 from .guard import check_repo
 from .memory import Memory
@@ -229,7 +230,20 @@ def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: E
     )
 
 
-def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader | None = None) -> None:
+def _auto_draft(store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None) -> None:
+    if ids and cfg.drafts.enabled and cfg.drafts.auto:
+        store.update_review(review_id, progress="Adding comments to your GitHub draft")
+        drafting.auto_add(store, cfg, writer or DraftWriter(cfg), ids)
+
+
+def _in_draft(store: Store, ids: list[int]) -> str:
+    drafted = sum(1 for i in ids if store.get_finding(i)["status"] == "drafted")
+    return f", {drafted} in your draft" if drafted else ""
+
+
+def run_review(
+    store: Store, cfg: Config, review_id: int, github: GitHubReader | None = None, writer: DraftWriter | None = None
+) -> None:
     """Run a queued review to completion. Errors are recorded on the review, not raised."""
     row = store.get_review(review_id)
     if row is None:
@@ -295,7 +309,9 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
             out, result, cost = _single(job)
 
         files = parse_diff(co.diff)
-        store.add_findings(review_id, [_normalize(f, files) for f in out["findings"] if isinstance(f, dict)])
+        ids = store.add_findings(review_id, [_normalize(f, files) for f in out["findings"] if isinstance(f, dict)])
+        if pr.state == "open":
+            _auto_draft(store, cfg, review_id, ids, writer)
         store.update_review(
             review_id,
             status="done",
@@ -316,7 +332,14 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
     review_finished(cfg.notify, final, store.findings_for(review_id))
 
 
-def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: GitHubReader | None = None) -> None:
+def add_reviewers(
+    store: Store,
+    cfg: Config,
+    review_id: int,
+    n: int,
+    github: GitHubReader | None = None,
+    writer: DraftWriter | None = None,
+) -> None:
     """Ask `n` more independent reviewers and merge what they add into the existing review.
 
     The reviewer's decisions (drafts, discards, edits, discussions) are kept. Errors are recorded.
@@ -378,7 +401,9 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
                 store.bump_found_by(hit["id"], min(int(hit["count"]), len(reports)), before)
         files = parse_diff(co.diff)
         new = [_normalize(f, files) for f in out.get("new_findings") or [] if isinstance(f, dict)]
-        store.add_findings(review_id, new, added_later=True)
+        ids = store.add_findings(review_id, new, added_later=True)
+        if pr.state == "open":
+            _auto_draft(store, cfg, review_id, ids, writer)
         store.update_review(
             review_id,
             progress=None,
@@ -388,7 +413,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
         send(
             cfg.notify,
             "More reviewers done",
-            f"{len(new)} new finding{'' if len(new) == 1 else 's'}",
+            f"{len(new)} new finding{'' if len(new) == 1 else 's'}" + _in_draft(store, ids),
             path=f"/reviews/{review_id}",
             tags="mag",
         )

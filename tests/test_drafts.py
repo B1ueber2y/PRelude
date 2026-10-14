@@ -184,3 +184,11 @@ def test_deleted_pending_review_returns_findings_to_pending(enabled, store, done
     drafting.refresh_submitted(store, enabled, writer, done_review)
     row = store.get_finding(f1["id"])
     assert row["status"] == "pending" and row["github_comment_id"] is None
+
+
+def test_review_page_opens_on_drafts_when_nothing_is_left(client, store, done_review):
+    assert "To review" in client.get(f"/reviews/{done_review}").text
+    for f in store.findings_for(done_review):
+        store.update_finding(f["id"], status="drafted")
+    page = client.get(f"/reviews/{done_review}").text
+    assert 'class="on" href="?show=drafted"' in page

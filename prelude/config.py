@@ -47,6 +47,7 @@ max_inline_diff_chars: 150000
 # Adding comments to your pending GitHub review. Off until you turn it on.
 github_drafts:
   enabled: false
+  auto: true                      # new findings start in your draft; you remove what you don't want
   prefix: "AI review with PRelude:"
 
 # Automatic reviews while PRelude is running. Repo modes: all_prs | on_request | never;
@@ -119,6 +120,7 @@ class ServerConfig:
 @dataclass
 class DraftsConfig:
     enabled: bool = False
+    auto: bool = True
     prefix: str = "AI review with PRelude:"
 
 
@@ -205,6 +207,7 @@ def load_config(data_dir: Path | None = None) -> Config:
         ),
         drafts=DraftsConfig(
             enabled=bool(drafts_raw.get("enabled", False)),
+            auto=bool(drafts_raw.get("auto", True)),
             prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
         ),
         triggers=TriggerConfig.from_raw(raw.get("triggers")),

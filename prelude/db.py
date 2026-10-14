@@ -326,13 +326,14 @@ class Store:
 
     # ---- findings ----------------------------------------------------------
 
-    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> None:
+    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> list[int]:
         now = time.time()
+        ids = []
         with self.connect() as c:
             first = c.execute("SELECT COALESCE(MAX(ordinal), 0) FROM findings WHERE review_id = ?", (review_id,))
             start = first.fetchone()[0] + 1
             for i, f in enumerate(findings, start=start):
-                c.execute(
+                cur = c.execute(
                     "INSERT INTO findings (review_id, ordinal, path, line, start_line, side, in_diff, severity,"
                     " category, title, assessment, evidence, confidence, claude_comment, found_by, added_later,"
                     " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -357,6 +358,8 @@ class Store:
                         now,
                     ),
                 )
+                ids.append(cur.lastrowid)
+        return ids
 
     def findings_for(self, review_id: int) -> list[sqlite3.Row]:
         with self.connect() as c:

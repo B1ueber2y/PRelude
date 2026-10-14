@@ -69,12 +69,14 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 
 
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
-def review_page(w: WebDep, request: Request, review_id: int, show: str = "pending"):
+def review_page(w: WebDep, request: Request, review_id: int, show: str | None = None):
     r = w.review_or_404(review_id)
     _refresh_in_background(w, review_id)
     findings = w.store.findings_for(review_id)
     counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)
+    if show is None:  # with auto-drafts, nothing may be left to review
+        show = "drafted" if counts["drafted"] and not counts["pending"] else "pending"
     return w.render(
         request,
         "review.html",
