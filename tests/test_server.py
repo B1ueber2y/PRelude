@@ -75,6 +75,8 @@ def test_edit_keeps_claude_original(client, done_review, store):
     row = store.get_finding(f["id"])
     assert row["user_draft"] == "My wording."
     assert row["claude_comment"] == "Could we return 401 when the token is missing?"
+    client.post(f"/findings/{f['id']}/draft/reset")
+    assert store.get_finding(f["id"])["user_draft"] is None
 
 
 def test_discard_and_restore(client, done_review, store):
