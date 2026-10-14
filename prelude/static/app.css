@@ -552,3 +552,8 @@ body { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
 @media (max-width: 340px) { .card-actions .btn, .actionbar .btn { font-size: 0.74rem; } }
 p.summary { margin: 6px 0 4px; font-size: 0.95rem; }
 p.summary strong { font-weight: 700; }
+p.summary { font-size: 0.92rem; }
+.draft-bar { flex-wrap: nowrap; }
+.draft-bar .btn { flex: none; }
+.toggle { font-size: 0.8rem; }
+.review-head h1 { font-size: 1.05rem; }

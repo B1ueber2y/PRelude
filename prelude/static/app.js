@@ -82,7 +82,18 @@
     if (thread && thread.dataset.busy === "1") startStream(thread);
   }
 
-  document.addEventListener("DOMContentLoaded", function () { init(document); });
+  // In-app navigation only swaps the page body, so new CSS/JS would never load:
+  // reload fully when the server's asset versions differ from the ones we started with.
+  let assets = null;
+  function checkAssets() {
+    const el = document.getElementById("assets");
+    if (!el) return;
+    if (assets === null) assets = el.dataset.v;
+    else if (el.dataset.v !== assets) window.location.reload();
+  }
+
+  document.addEventListener("DOMContentLoaded", function () { checkAssets(); init(document); });
+  document.addEventListener("htmx:afterSettle", checkAssets);
   document.addEventListener("htmx:load", function (e) { init(e.target); });
   document.addEventListener("htmx:beforeHistorySave", closeStream);
 

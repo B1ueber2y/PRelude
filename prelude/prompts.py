@@ -16,7 +16,7 @@ REVIEW_SCHEMA = {
     "properties": {
         "summary": {
             "type": "string",
-            "description": "ONE short sentence (about 20 words, max 30): what the PR does and its biggest risk.",
+            "description": "2-3 short sentences (at most ~50 words) for the reviewer: what the PR does and the main risks.",
         },
         "findings": {
             "type": "array",
@@ -109,8 +109,8 @@ How to merge:
 4. Pick the best anchor (a line the PR changed), a calibrated severity and confidence, a
    clear assessment, and the best-worded `suggested_comment` (rewrite if needed, keeping
    it minimal and never mentioning AI, tools or this process).
-5. At most 15 findings, most important first. `summary`: one short sentence (about 20 words)
-   on what the PR does and its biggest risk.
+5. At most 15 findings, most important first. `summary`: 2-3 short sentences (at most ~50 words)
+   on what the PR does and the main risks.
 
 Return the result in the required JSON format."""
 

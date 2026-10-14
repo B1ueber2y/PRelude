@@ -21,6 +21,7 @@
     {% block back %}<span class="brand">PRelude</span>{% endblock %}
     {% block topright %}{% endblock %}
   </header>
+  <span id="assets" hidden data-v="{{ static('app.css') }} {{ static('app.js') }}"></span>
   <main class="page">
     <div id="flash" aria-live="polite"></div>
     {% block content %}{% endblock %}
