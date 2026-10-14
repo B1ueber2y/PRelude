@@ -1,0 +1,25 @@
+<div id="code-{{ f.id }}" class="code-wrap">
+  {%- set step = 20 -%}
+  {%- set first = f.start_line or f.line -%}
+  {%- set base_start = [first - 3, 1] | max -%}
+  {%- set base_end = f.line + 3 -%}
+  {%- set expanded = code.start < base_start or code.end > [base_end, code.total] | min -%}
+  {% if code.more_above or expanded %}
+  <div class="expand-bar">
+    {% if code.more_above %}<button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start - step }}&end={{ code.end }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">▲ {{ [step, code.start - 1] | min }} more</button>{% endif %}
+    {% if expanded %}<button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start={{ base_start }}&end={{ base_end }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">Collapse</button>{% endif %}
+  </div>
+  {% endif %}
+  <pre class="code" aria-label="Code around the finding">
+  {%- for row in code.rows -%}
+  <span class="ln {{ 'add' if row.kind == '+' else ('del' if row.kind == '-' else '') }} {{ 'hit' if row.no and first <= row.no <= f.line }}"><span class="no">{{ row.no or '' }}</span><span class="mk">{{ row.kind }}</span>{{ row.text }}</span>
+  {%- endfor -%}
+  </pre>
+  {% if code.more_below or expanded or code.more_above %}
+  <div class="expand-bar">
+    {% if code.more_below %}<button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start }}&end={{ code.end + step }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">▼ {{ [step, code.total - code.end] | min }} more</button>{% endif %}
+    {% if expanded %}<button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start={{ base_start }}&end={{ base_end }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">Collapse</button>{% endif %}
+    {% if code.more_above or code.more_below %}<button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start=1&end={{ code.total }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">Whole file ({{ code.total }})</button>{% endif %}
+  </div>
+  {% endif %}
+</div>

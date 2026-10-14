@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ r.owner }}/{{ r.repo }}#{{ r.number }} · PRelude{% endblock %}
+{% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
+{% block topright %}<a class="ext" href="{{ r.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endblock %}
+{% block content %}
+<section class="review-head">
+  <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
+  <h1>{{ r.title or 'Pull request' }}</h1>
+  {% if r.summary %}<p class="summary"><strong>Summary:</strong> {{ r.summary | text }}</p>{% endif %}
+  {% if r.body %}
+  <details class="description"><summary>Author's description</summary><div class="prose">{{ r.body | text }}</div></details>
+  {% endif %}
+  {% if r.trigger_reason %}
+  {%- set auto = r.trigger_reason.startswith('auto:') -%}
+  {%- set why = r.trigger_reason[5:].strip() if auto else r.trigger_reason -%}
+  <div class="meta">Started: {{ 'Auto' if auto else 'Manual' }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %} · {{ why }}</div>
+  {%- endif %}
+</section>
+
+{% if latest and latest.id != r.id %}
+<a class="callout small newer" href="/reviews/{{ latest.id }}">There's a newer review of this PR ›</a>
+{% endif %}
+{% if r.previous_review_id %}
+<p class="hint">Re-review ({{ 'changes since' if r.mode == 'changes' else 'full, after' }} <a href="/reviews/{{ r.previous_review_id }}">the previous review</a>).</p>
+{% endif %}
+
+{% if r.status in ('queued', 'running') %}
+<div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% include "_review_status.html" %}
+</div>
+{% elif r.status == 'failed' %}
+<section class="callout error">
+  <strong>Review failed.</strong>
+  <p>{{ r.error }}</p>
+</section>
+{% else %}
+<section class="draft-bar">
+  {% if drafts_enabled %}
+  <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this"
+          hx-confirm="Add all {{ counts.pending }} remaining comments to your GitHub draft review?" {{ 'disabled' if not counts.pending }}>
+    Add all to draft
+  </button>
+  {% else %}
+  <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add all to draft</button>
+  {% endif %}
+  <label class="toggle" title="Starts each comment with “{{ prefix }}”">
+    <input type="checkbox" name="on" value="1" {{ 'checked' if prefix_on }}
+           hx-post="/settings/prefix" hx-trigger="change" hx-vals='js:{on: event.target.checked ? "1" : "0"}'>
+    AI prefix
+  </label>
+</section>
+<div class="again">
+  <span class="again-label">Review again{% if new_commits %} <span class="tag warn">new commits</span>{% endif %}</span>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this"
+          title="Only the commits since this review; skips findings you discarded">Changes only</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
+          title="The whole PR again; skips findings you discarded">Full</button>
+  {% if r.status not in ('queued', 'running') %}
+  <details class="more">
+    <summary aria-label="More">⋯</summary>
+    <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+  </details>
+  {% endif %}
+</div>
+{% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
+
+<nav class="tabs" hx-boost="true">
+  <a class="{{ 'on' if show == 'pending' }}" href="?show=pending">To review <span>{{ counts.pending }}</span></a>
+  <a class="{{ 'on' if show == 'drafted' }}" href="?show=drafted">In draft <span>{{ counts.drafted }}</span></a>
+  <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
+  <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
+</nav>
+{% if not cards %}
+<p class="empty-line">
+  {% if show == 'pending' and counts.all %}All findings handled.{% if counts.drafted %} Submit your review on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>.{% endif %}
+  {% elif counts.all == 0 %}Claude found nothing worth raising.
+  {% else %}Nothing here.{% endif %}
+</p>
+{% endif %}
+<div class="feed">
+{% for c in cards %}
+  {% with f=c.f, r=c.r, draft=c.draft, edited=c.edited, code=c.code, drafts_enabled=c.drafts_enabled %}
+  {% include "_finding_card.html" %}
+  {% endwith %}
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

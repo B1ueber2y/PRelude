@@ -6,3 +6,9 @@ dist/
 .env.*
 .eval/
 .claude/settings.local.json
+.venv/
+.prelude-data/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="empty">
+  <h1>Locked</h1>
+  <p>Paste your access key (from <code>prelude url</code>) to unlock PRelude on this device.</p>
+  <form method="get" action="/" class="unlock" hx-boost="false">
+    <input name="key" type="password" autocomplete="current-password" autocapitalize="off" placeholder="Access key" required>
+    <button class="btn primary" type="submit">Unlock</button>
+  </form>
+</section>
+{% endblock %}

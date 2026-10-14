@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Memory · PRelude{% endblock %}
+{% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
+{% block content %}
+<h1>Memory</h1>
+<p class="hint">Claude follows these in every review and keeps them up to date as you review. Open one to read, edit, or tell Claude what to change.</p>
+<ul class="list memory-list">
+{% for d in docs %}
+  <li>
+    <a class="card" href="/memory/doc?scope={{ d.scope | urlencode }}">
+      <div class="card-title">{{ d.title }}</div>
+      {% if d.doc %}<div class="preview">{{ d.doc | replace("#", "") | trim }}</div>
+      {% else %}<div class="meta">Empty. {% if d.scope == 'global' %}Tell Claude how you like to review.{% elif d.scope == 'style' %}Grows as you edit comments.{% else %}Notes for this repository.{% endif %}</div>{% endif %}
+    </a>
+  </li>
+{% endfor %}
+</ul>
+
+{% if changes %}
+<h2 class="section-title">Recent changes</h2>
+<ul class="changes">
+{% for c in changes %}
+  <li class="{{ 'undone' if c.undone }}">
+    <div>
+      <span class="tag">{{ {'global': 'principles', 'style': 'style'}.get(c.scope, c.scope) }}</span>
+      {% if c.role == 'learned' %}Learned{% else %}Updated from chat{% endif %}{% if c.finding_id %} from <a href="/findings/{{ c.finding_id }}">a finding</a>{% endif %}:
+      {{ c.content }}
+    </div>
+    {% if not c.undone %}
+    <button class="btn small ghost" hx-post="/memory/changes/{{ c.id }}/undo" hx-swap="outerHTML">Undo</button>
+    {% else %}<span class="meta">undone</span>{% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

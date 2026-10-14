@@ -1,0 +1,40 @@
+<div class="thread" data-busy="{{ 1 if busy else 0 }}" data-finding-id="{{ f.id }}">
+  {% if not messages and not busy %}
+  <p class="hint">Challenge the finding, ask Claude to dig further, or ask for better wording. This conversation only covers this finding.</p>
+  {% endif %}
+  {% for m in messages %}
+    {% if m.role == 'user' %}
+    <div class="msg me">{{ m.content }}</div>
+    {% elif m.role == 'assistant' %}
+    <div class="msg claude">
+      <div class="prose">{{ m.content | text }}</div>
+      {% if m.verdict %}<div class="verdict verdict-{{ m.verdict }}">{{ {'confirmed': 'Claude stands by this finding', 'revised': 'Claude revised its view', 'withdrawn': 'Claude withdrew this finding'}[m.verdict] }}</div>{% endif %}
+      {% if m.proposal %}
+      <div class="proposal">
+        <div class="proposal-label">Suggested wording</div>
+        <div class="comment">{{ m.proposal | text }}</div>
+        {% if m.proposal != draft %}
+        <button class="btn small" hx-post="/messages/{{ m.id }}/use">Use this wording</button>
+        {% else %}
+        <span class="tag accent">in use</span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="msg error">Claude couldn't reply: {{ m.content }}</div>
+    {% endif %}
+  {% endfor %}
+  {% if busy %}
+  <div class="msg claude live" aria-live="polite">
+    <div class="prose live-text"></div>
+    <div class="activity"><span class="spinner small" aria-hidden="true"></span> <span class="activity-text">Claude is thinking…</span></div>
+  </div>
+  {% endif %}
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</div>
+<form id="composer" class="composer" hx-post="/findings/{{ f.id }}/messages" hx-target="#thread-{{ f.id }}" hx-swap="innerHTML">
+  <textarea id="composer-input" name="text" rows="2" class="autogrow" placeholder="Is this really reachable? / Can you suggest a fix?"
+            {{ 'disabled' if busy }} required>{{ draft_message or '' }}</textarea>
+  <button class="btn primary" type="submit" {{ 'disabled' if busy }}>Send</button>
+</form>

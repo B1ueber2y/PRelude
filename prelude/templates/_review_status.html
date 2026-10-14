@@ -1,0 +1,7 @@
+<section class="callout progress">
+  <span class="spinner" aria-hidden="true"></span>
+  <div>
+    <strong>{{ r.progress or ('Queued' if r.status == 'queued' else 'Working') }}…</strong>
+    <p>Reviews usually take a few minutes. You can leave this page; it keeps going.</p>
+  </div>
+</section>

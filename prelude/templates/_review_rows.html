@@ -1,0 +1,29 @@
+{% if not reviews %}
+<p class="empty-line">No reviews yet.</p>
+{% endif %}
+<ul class="list">
+{% set seen = namespace(prs=[]) %}
+{% for r in reviews %}
+  {% set pr_key = r.owner ~ '/' ~ r.repo ~ '#' ~ r.number %}
+  {% set older = pr_key in seen.prs %}
+  {% set seen.prs = seen.prs + [pr_key] %}
+  <li>
+    <a class="card review-card {{ 'is-older' if older }}" href="/reviews/{{ r.id }}">
+      <div class="card-top">
+        <span class="repo">{{ pr_key }}</span>
+        {% if older %}<span class="tag">older</span>{% endif %}
+        <span class="status status-{{ r.status }}">
+          {%- if r.status == 'done' -%}{% if r.pending %}{{ r.pending }} to go{% else %}{{ r.drafted }} in draft{% endif %}{%- else -%}{{ r.status }}{%- endif -%}
+        </span>
+      </div>
+      <div class="card-title">{{ r.title or 'Loading…' }}</div>
+      <div class="meta">
+        {%- if r.status == 'done' %}{{ r.total }} finding{{ '' if r.total == 1 else 's' }} · {% endif -%}
+        {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% endif -%}
+        {{ r.created_at | ago }}
+      </div>
+      {% if r.status == 'running' and r.progress %}<div class="meta">{{ r.progress }}…</div>{% endif %}
+    </a>
+  </li>
+{% endfor %}
+</ul>

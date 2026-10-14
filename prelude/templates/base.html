@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PRelude">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="{{ static('icon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ static('icon-180.png') }}">
+  <link rel="stylesheet" href="{{ static('app.css') }}">
+  <title>{% block title %}PRelude{% endblock %}</title>
+  <script src="{{ static('htmx.min.js') }}" defer></script>
+  <script src="{{ static('app.js') }}" defer></script>
+</head>
+<body hx-boost="true">
+  <header class="topbar">
+    {% block back %}<span class="brand">PRelude</span>{% endblock %}
+    {% block topright %}{% endblock %}
+  </header>
+  <span id="assets" hidden data-v="{{ static('app.css') }} {{ static('app.js') }}"></span>
+  <main class="page">
+    <div id="flash" aria-live="polite"></div>
+    {% block content %}{% endblock %}
+  </main>
+  {% block bottombar %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,27 @@
+<section class="block" id="doc">
+  {% include "_memory_view.html" %}
+</section>
+<section class="block">
+  <h2>Talk to Claude</h2>
+  <div class="thread">
+    {% if not messages %}
+    <p class="hint">
+      {% if scope == 'global' %}e.g. "I care about tests and error handling; skip naming nits."
+      {% elif scope == 'style' %}e.g. "Keep comments to one sentence and phrase them as questions."
+      {% else %}e.g. "In this repo, logging calls are fire-and-forget on purpose."{% endif %}
+      Changes are saved right away and can be undone on the Memory page.
+    </p>
+    {% endif %}
+    {% for m in messages %}
+      {% if m.role == 'user' %}<div class="msg me">{{ m.content }}</div>
+      {% elif m.role == 'assistant' %}<div class="msg claude"><div class="prose">{{ m.content | text }}</div>{% if m.new_document %}<div class="verdict verdict-confirmed">{{ 'Updated (undone)' if m.undone else 'Updated' }}</div>{% endif %}</div>
+      {% else %}<div class="msg error">Claude couldn't reply: {{ m.content }}</div>{% endif %}
+    {% endfor %}
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  </div>
+  <form class="composer" hx-post="/memory/chat" hx-target="#doc-body" hx-swap="innerHTML" hx-disabled-elt="find button, find textarea">
+    <input type="hidden" name="scope" value="{{ scope }}">
+    <textarea name="text" rows="2" class="autogrow" placeholder="Tell Claude what to change…" required></textarea>
+    <button class="btn primary" type="submit"><span class="when-idle">Send</span><span class="spinner small when-busy" aria-hidden="true"></span></button>
+  </form>
+</section>

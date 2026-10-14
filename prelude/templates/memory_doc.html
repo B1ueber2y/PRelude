@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · PRelude{% endblock %}
+{% block back %}<a class="back" href="/memory">‹ Memory</a>{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<div id="doc-body">
+  {% include "_memory_doc_body.html" %}
+</div>
+{% endblock %}

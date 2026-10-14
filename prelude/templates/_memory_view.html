@@ -1,0 +1,5 @@
+<div class="block-head">
+  <h2>Current</h2>
+  <button class="btn small" hx-get="/memory/doc/edit?scope={{ scope | urlencode }}" hx-target="#doc" hx-swap="innerHTML">Edit</button>
+</div>
+{% if doc %}<div class="comment">{{ doc | text }}</div>{% else %}<p class="empty-line">Nothing yet.</p>{% endif %}
