@@ -380,3 +380,5 @@ textarea { resize: none; line-height: 1.45; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text); }
 .chip input { width: auto; padding: 0; accent-color: var(--accent); margin: 0; }
 .hint.inline { flex-basis: 100%; margin: 0; }
+.unlock { display: flex; gap: 8px; margin-top: 16px; }
+.unlock input { flex: 1; min-width: 0; }
