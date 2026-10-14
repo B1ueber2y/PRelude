@@ -144,6 +144,7 @@ class Store:
                     "drafted_body": "TEXT",
                     "found_by": "INTEGER",
                     "added_later": "INTEGER NOT NULL DEFAULT 0",
+                    "auto_drafted": "INTEGER NOT NULL DEFAULT 0",
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
@@ -499,6 +500,15 @@ class Store:
                 (time.time(), owner, repo, number),
             )
             return 1 if cur.rowcount else 0
+
+    def drafts_on_pr(self, owner: str, repo: str, number: int, *, besides: int) -> list[sqlite3.Row]:
+        """Findings of other reviews of this PR that are still in the pending GitHub review."""
+        with self.connect() as c:
+            return c.execute(
+                "SELECT f.* FROM findings f JOIN reviews r ON r.id = f.review_id WHERE f.status = 'drafted'"
+                " AND r.owner = ? AND r.repo = ? AND r.number = ? AND r.id != ?",
+                (owner, repo, number, besides),
+            ).fetchall()
 
     def reviews_with_drafts(self) -> list[int]:
         with self.connect() as c:

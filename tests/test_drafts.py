@@ -192,3 +192,40 @@ def test_review_page_opens_on_drafts_when_nothing_is_left(client, store, done_re
         store.update_finding(f["id"], status="drafted")
     page = client.get(f"/reviews/{done_review}").text
     assert 'class="on" href="?show=drafted"' in page
+
+
+def test_auto_add_skips_bad_comments_and_handled_findings(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def picky(owner, repo, review_id, **kw):
+        if kw["line"] == f1["line"]:
+            raise DraftError("GitHub rejected the comment location")
+        return real(owner, repo, review_id, **kw)
+
+    writer.add_comment = picky
+    assert drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]]) == 1
+    assert store.get_finding(f1["id"])["status"] == "pending"
+    assert store.get_finding(f2["id"])["auto_drafted"] == 1
+
+    store.update_finding(f1["id"], status="discarded")
+    writer.add_comment = real
+    assert drafting.auto_add(store, enabled, writer, [f1["id"]]) == 0
+    assert store.get_finding(f1["id"])["status"] == "discarded"
+
+
+def test_auto_drafts_count_as_undecided_until_touched(client, enabled, store, done_review, writer, github):
+    from prelude import stats
+    from prelude.prompts import outcome
+
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]])
+    assert [outcome(f) for f in store.findings_for(done_review)] == ["pending", "pending"]
+    total = stats.overview(store)["total"]
+    assert (total.kept, total.pending) == (0, 2)
+
+    client.post(f"/findings/{f1['id']}/draft", data={"text": "My words."})
+    assert store.get_finding(f1["id"])["auto_drafted"] == 0 and outcome(store.get_finding(f1["id"])) == "drafted"
+    github.reviews[store.get_finding(f2["id"])["github_review_id"]] = "COMMENTED"
+    drafting.refresh_submitted(store, enabled, writer, done_review)
+    assert outcome(store.get_finding(f2["id"])) == "posted"

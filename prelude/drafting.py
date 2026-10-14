@@ -38,7 +38,7 @@ def _review(store: Store, finding):
     return store.get_review(finding["review_id"])
 
 
-def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None:
+def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto: bool = False) -> None:
     if not cfg.drafts.enabled:
         raise DraftsDisabled("Adding to GitHub drafts is turned off (github_drafts.enabled in config.yaml).")
     f = store.get_finding(finding_id)
@@ -64,6 +64,7 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None
         github_review_id=review_id,
         github_comment_id=comment_id,
         drafted_body=body,
+        auto_drafted=int(auto),
     )
 
 
@@ -88,7 +89,7 @@ def remove(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, new_
     if f["status"] == "drafted":
         r = _review(store, f)
         writer.delete_comment(r["owner"], r["repo"], f["github_review_id"], f["github_comment_id"])
-    store.update_finding(finding_id, status=new_status, github_comment_id=None, drafted_body=None)
+    store.update_finding(finding_id, status=new_status, github_comment_id=None, drafted_body=None, auto_drafted=0)
 
 
 def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> tuple[int, list[str]]:
@@ -107,15 +108,24 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
 
 
 def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[int]) -> int:
-    """Put new findings straight into the pending review (github_drafts.auto). Failures leave them to review."""
+    """Put new findings straight into the pending review (github_drafts.auto). Failures leave them to review.
+
+    They count as not handled until the reviewer edits them or submits the review.
+    """
     if not (cfg.drafts.enabled and cfg.drafts.auto):
         return 0
     added = 0
     for finding_id in finding_ids:
+        if store.get_finding(finding_id)["status"] != "pending":  # handled in the UI meanwhile
+            continue
         try:
-            add(store, cfg, writer, finding_id)
+            add(store, cfg, writer, finding_id, auto=True)
             added += 1
-        except Exception:  # the rest would likely fail the same way
+        except (DraftsDisabled, NotPending):
+            break
+        except DraftError:  # e.g. a line GitHub won't take; the others may still work
+            log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
+        except Exception:  # GitHub unreachable: the rest would fail the same way
             log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
             break
     return added
@@ -138,7 +148,7 @@ def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id:
         new = "pending" if state is None else "posted"
         for f in drafted:
             if f["github_review_id"] == gh_review:
-                fields = {"status": new}
+                fields = {"status": new, "auto_drafted": 0}
                 if new == "pending":
                     fields.update(github_review_id=None, github_comment_id=None, drafted_body=None)
                 store.update_finding(f["id"], **fields)

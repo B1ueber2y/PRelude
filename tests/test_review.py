@@ -307,3 +307,21 @@ def test_extra_reviewers_draft_only_their_new_findings(cfg, store, done_review, 
         "Second finding": "pending",
         "Brand new problem": "drafted",
     }
+
+
+def test_repeats_of_earlier_drafts_are_not_drafted_again(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    earlier = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.add_findings(earlier, [FINDING])
+    store.update_finding(store.findings_for(earlier)[0]["id"], status="drafted")
+    elsewhere = dict(FINDING, title="Elsewhere", path="src/other.ts")
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING, elsewhere]}))
+    github = FakeGitHub()
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
+    status = {f["title"]: f["status"] for f in store.findings_for(rid)}
+    assert status == {"Missing token is accepted": "pending", "Elsewhere": "drafted"} and len(github.comments) == 1

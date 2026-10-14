@@ -178,7 +178,7 @@ class Web:
             return "This comment can't be changed any more (posted, or its PR was closed)."
         text = text.strip() if text is not None else None
         user_draft = None if text is None or text == f["claude_comment"] else text
-        self.store.update_finding(finding_id, user_draft=user_draft)
+        self.store.update_finding(finding_id, user_draft=user_draft, auto_drafted=0)  # the reviewer has looked
         if learn and user_draft is not None and user_draft != f["user_draft"]:
             self.learn(finding_id, "edit")
         try:

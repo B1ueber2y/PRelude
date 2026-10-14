@@ -230,7 +230,15 @@ def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: E
     )
 
 
+def _repeats(f, drafts) -> bool:
+    """Whether a new finding is likely one already in the draft from an earlier review (same spot)."""
+    return any(d["path"] == f["path"] and abs((d["line"] or 0) - (f["line"] or 0)) <= 5 for d in drafts)
+
+
 def _auto_draft(store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None) -> None:
+    r = store.get_review(review_id)
+    drafts = store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id)
+    ids = [i for i in ids if not _repeats(store.get_finding(i), drafts)]  # those wait in To review
     if ids and cfg.drafts.enabled and cfg.drafts.auto:
         store.update_review(review_id, progress="Adding comments to your GitHub draft")
         drafting.auto_add(store, cfg, writer or DraftWriter(cfg), ids)

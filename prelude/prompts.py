@@ -175,12 +175,15 @@ OUTCOMES = {
 }
 
 
+def outcome(f) -> str:
+    """The finding's status as the reviewer decided it; untouched auto-drafts aren't decided yet."""
+    return "pending" if f["status"] == "drafted" and f["auto_drafted"] else f["status"]
+
+
 def previous_section(*, mode: str, old_head: str, findings: list[dict], changes: str | None) -> str:
     """What a re-review needs to know about the last review of this PR."""
     lines = (
-        "\n".join(
-            f"- {f['title']} ({f['path']}:{f['line']}): {OUTCOMES.get(f['status'], f['status'])}" for f in findings
-        )
+        "\n".join(f"- {f['title']} ({f['path']}:{f['line']}): {OUTCOMES.get(outcome(f), outcome(f))}" for f in findings)
         or "- (no findings)"
     )
     common = f"""This PR was reviewed before, at commit {old_head[:12]}. Findings from that review and what
@@ -240,7 +243,7 @@ def add_reviewers_prompt(
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     shown = (
-        "\n".join(f"- id {f['id']}: {f['title']} ({f['path']}:{f['line']}) [{f['status']}]" for f in existing)
+        "\n".join(f"- id {f['id']}: {f['title']} ({f['path']}:{f['line']}) [{outcome(f)}]" for f in existing)
         or "- (none)"
     )
     blocks = "\n\n".join(
