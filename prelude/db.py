@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   reviewers INTEGER NOT NULL DEFAULT 1,     -- 0 until resolved from PR size
   changed_lines INTEGER,
   runner_pid INTEGER,                      -- process running the review
+  previous_review_id INTEGER,              -- set on re-reviews
+  mode TEXT NOT NULL DEFAULT 'full',       -- full | changes (re-review of new commits only)
   reports TEXT,                            -- independent reviewers' raw reports (JSON)
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
@@ -127,7 +129,7 @@ class Store:
             })
             _add_missing_columns(c, "reviews", {
                 "reviewers": "INTEGER NOT NULL DEFAULT 1", "reports": "TEXT", "changed_lines": "INTEGER",
-                "runner_pid": "INTEGER",
+                "runner_pid": "INTEGER", "previous_review_id": "INTEGER", "mode": "TEXT NOT NULL DEFAULT 'full'",
             })
 
     @contextmanager
@@ -180,13 +182,14 @@ class Store:
 
     def create_review(
         self, owner: str, repo: str, number: int, url: str, trigger_reason: str, reviewers: int = 1,
+        previous_review_id: int | None = None, mode: str = "full",
     ) -> int:
         now = time.time()
         with self.connect() as c:
             cur = c.execute(
-                "INSERT INTO reviews (owner, repo, number, url, trigger_reason, reviewers, status, created_at,"
-                " updated_at) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
-                (owner, repo, number, url, trigger_reason, reviewers, now, now),
+                "INSERT INTO reviews (owner, repo, number, url, trigger_reason, reviewers, previous_review_id, mode,"
+                " status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
+                (owner, repo, number, url, trigger_reason, reviewers, previous_review_id, mode, now, now),
             )
             return int(cur.lastrowid)
 
@@ -201,6 +204,14 @@ class Store:
     def get_review(self, review_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
             return c.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone()
+
+    def latest_review_for(self, owner: str, repo: str, number: int, done_only: bool = True) -> sqlite3.Row | None:
+        with self.connect() as c:
+            return c.execute(
+                "SELECT * FROM reviews WHERE owner = ? AND repo = ? AND number = ?"
+                + (" AND status = 'done'" if done_only else "") + " ORDER BY id DESC LIMIT 1",
+                (owner, repo, number),
+            ).fetchone()
 
     def list_reviews(self, limit: int = 50) -> list[sqlite3.Row]:
         with self.connect() as c:

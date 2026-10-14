@@ -44,3 +44,19 @@ def test_expand_route(cfg, store, done_review):
     assert "more lines" in page and "Show whole file (40 lines)" in page
     more = c.get(f"/findings/{f['id']}/code", params={"start": 1, "end": 29}).text
     assert "line 29" in more and "line 30" not in more
+
+
+def test_collapse_after_expanding(cfg, store, done_review):
+    from fastapi.testclient import TestClient
+
+    from prelude.web import COOKIE, create_app
+
+    wt = store.get_review(done_review)["worktree"]
+    Path(wt, "src").mkdir()
+    Path(wt, "src", "auth.ts").write_text("\n".join(HEAD))
+    c = TestClient(create_app(cfg, store, review_runner=lambda _id: None, learner=lambda *a: None))
+    c.cookies.set(COOKIE, cfg.access_key())
+    f = store.findings_for(done_review)[0]
+    assert "Collapse" not in c.get(f"/findings/{f['id']}").text
+    expanded = c.get(f"/findings/{f['id']}/code", params={"start": 1, "end": 40}).text
+    assert "Collapse" in expanded and "start=1&end=6" in expanded

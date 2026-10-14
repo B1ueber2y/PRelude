@@ -10,7 +10,6 @@ from fnmatch import fnmatchcase
 from typing import Any
 
 MODES = ("all_prs", "on_request", "never")
-NEW_COMMITS = ("notify", "rereview", "ignore")
 
 
 class TriggerConfigError(ValueError):
@@ -30,7 +29,6 @@ class TriggerConfig:
     team_requests: bool = True
     skip_draft_prs: bool = True
     max_reviews_per_day: int = 20
-    on_new_commits: str = "notify"
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
@@ -57,7 +55,6 @@ class TriggerConfig:
             team_requests=bool(raw.get("team_requests", True)),
             skip_draft_prs=bool(raw.get("skip_draft_prs", True)),
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
-            on_new_commits=str(raw.get("on_new_commits", "notify")),
         )
         t.validate()
         return t
@@ -68,8 +65,6 @@ class TriggerConfig:
                 raise TriggerConfigError(f"unknown repo mode {mode!r} (use one of {', '.join(MODES)})")
         if both := self.always & self.block:
             raise TriggerConfigError(f"on both the always and block lists: {', '.join(sorted(both))}")
-        if self.on_new_commits not in NEW_COMMITS:
-            raise TriggerConfigError(f"on_new_commits must be one of {', '.join(NEW_COMMITS)}")
 
     def repo_pattern(self, slug: str) -> str | None:
         """The configured pattern for a repo: exact match, else the most specific wildcard."""

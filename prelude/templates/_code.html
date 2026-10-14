@@ -1,6 +1,9 @@
 <div id="code-{{ f.id }}" class="code-wrap">
   {%- set step = 20 -%}
   {%- set first = f.start_line or f.line -%}
+  {%- set base_start = [first - 3, 1] | max -%}
+  {%- set base_end = f.line + 3 -%}
+  {%- set expanded = code.start < base_start or code.end > [base_end, code.total] | min -%}
   {% if code.more_above %}
   <button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start - step }}&end={{ code.end }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">▲ {{ [step, code.start - 1] | min }} more lines</button>
   {% endif %}
@@ -11,6 +14,9 @@
   </pre>
   {% if code.more_below %}
   <button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start }}&end={{ code.end + step }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">▼ {{ [step, code.total - code.end] | min }} more lines</button>
+  {% endif %}
+  {% if expanded %}
+  <button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start={{ base_start }}&end={{ base_end }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">Collapse</button>
   {% endif %}
   {% if code.more_above or code.more_below %}
   <button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start=1&end={{ code.total }}" hx-target="#code-{{ f.id }}" hx-swap="outerHTML">Show whole file ({{ code.total }} lines)</button>

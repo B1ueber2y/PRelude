@@ -65,7 +65,6 @@ triggers:
   team_requests: true
   skip_draft_prs: true
   max_reviews_per_day: 20
-  on_new_commits: notify          # notify | rereview | ignore
 
 # Phone notifications via the ntfy app. Run `prelude notify-setup` to create a topic.
 notify:

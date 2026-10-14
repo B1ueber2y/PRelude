@@ -57,21 +57,12 @@ def test_reviews_requested_prs_once(poller, reader, store):
     assert store.watched("B1ueber2y", "PRelude", 2)["reason"] == "no review request"
 
 
-def test_new_commits_notify_by_default(poller, reader, sent):
+def test_new_commits_are_never_reviewed_automatically(poller, reader, store):
     reader.add(1, direct=["bob"])
     poller.poll_once()
     reader.add(1, direct=["bob"], head="h2")
     assert poller.poll_once() == []
-    assert sent and sent[-1][2]["Title"] == "New commits"
-
-
-def test_new_commits_rereview(poller, reader, cfg, store):
-    cfg.triggers.on_new_commits = "rereview"
-    reader.add(1, direct=["bob"])
-    poller.poll_once()
-    reader.add(1, direct=["bob"], head="h2")
-    (rid,) = poller.poll_once()
-    assert store.get_review(rid)["trigger_reason"].endswith("; new commits")
+    assert store.watched("B1ueber2y", "PRelude", 1)["head_sha"] == "h2"  # recorded for the app
 
 
 def test_daily_cap(poller, reader, cfg):

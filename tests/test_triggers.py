@@ -54,5 +54,3 @@ def test_config_errors():
         cfg(requesters={"always": ["x"], "block": ["X"]})
     with pytest.raises(TriggerConfigError):
         cfg(repos={"org/app": "sometimes"})
-    with pytest.raises(TriggerConfigError):
-        cfg(on_new_commits="explode")

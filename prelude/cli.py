@@ -20,7 +20,13 @@ def _cmd_review(args: argparse.Namespace) -> int:
     store = Store(cfg.db_path)
     try:
         ref = parse_pr(args.pr)
-        review_id = start_review(store, cfg, ref, trigger_reason="manual (cli)", reviewers=args.reviewers)
+        previous = store.latest_review_for(ref.owner, ref.repo, ref.number) if args.again else None
+        if args.again and previous is None:
+            print("No earlier review of this PR; doing a normal review.")
+        review_id = start_review(
+            store, cfg, ref, trigger_reason="manual (cli)", reviewers=args.reviewers,
+            previous_review_id=previous["id"] if previous else None, mode=args.again or "full",
+        )
     except (ValueError, RepoNotAllowed) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -181,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("pr", help="PR link (https://github.com/OWNER/REPO/pull/N) or OWNER/REPO#N")
     s.add_argument("-n", "--reviewers", type=int, default=None,
                    help="independent reviewers, merged by a meta-reviewer; 0 = by PR size (default: config)")
+    s.add_argument("--again", choices=("full", "changes"),
+                   help="re-review after the last review: the whole PR again, or only the new commits")
     s.set_defaults(fn=_cmd_review)
 
     s = sub.add_parser("show", help="print a stored review")

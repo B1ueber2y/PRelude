@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import drafting
 from ..drafts import DraftError
-from ..github import parse_pr
+from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
@@ -64,7 +64,29 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
         "drafts_enabled": w.cfg.drafts.enabled,
         "prefix_on": drafting.prefix_on(w.store),
         "prefix": w.cfg.drafts.prefix,
+        "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
+        "new_commits": _has_new_commits(w, r),
     })
+
+
+def _has_new_commits(w: Web, r) -> bool:
+    """Known when PRelude is watching the PR (triggers on); otherwise unknown and not shown."""
+    seen = w.store.watched(r["owner"], r["repo"], r["number"])
+    return bool(seen and r["head_sha"] and seen["head_sha"] and seen["head_sha"] != r["head_sha"])
+
+
+@router.post("/reviews/{review_id}/again")
+def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
+    r = w.review_or_404(review_id)
+    try:
+        new_id = start_review(
+            w.store, w.cfg, PrRef(r["owner"], r["repo"], r["number"]), trigger_reason=f"re-review ({mode}) on phone",
+            reviewers=r["reviewers"], previous_review_id=review_id, mode=mode,
+        )
+    except (ValueError, RepoNotAllowed) as e:
+        return w.flash(str(e))
+    threading.Thread(target=w.run_review, args=(new_id,), daemon=True, name=f"review-{new_id}").start()
+    return Response(status_code=204, headers={"HX-Redirect": f"/reviews/{new_id}"})
 
 
 @router.get("/reviews/{review_id}/status", response_class=HTMLResponse)

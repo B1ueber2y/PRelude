@@ -18,19 +18,27 @@ from .github import GitHubReader, PrRef, PullRequest
 from .guard import check_repo
 from .memory import Memory
 from .notify import review_finished
-from .prompts import MERGE_SCHEMA, REVIEW_SCHEMA, SEVERITIES, merge_prompt, review_prompt
-from .workspace import Checkout, prepare_checkout
+from .prompts import MERGE_SCHEMA, REVIEW_SCHEMA, SEVERITIES, merge_prompt, previous_section, review_prompt
+from .workspace import Checkout, diff_between, prepare_checkout
 
 log = logging.getLogger(__name__)
 
 
 def start_review(
     store: Store, cfg: Config, ref: PrRef, trigger_reason: str = "manual", reviewers: int | None = None,
+    previous_review_id: int | None = None, mode: str = "full",
 ) -> int:
-    """Record a queued review. Raises RepoNotAllowed before anything is stored."""
+    """Record a queued review. Raises RepoNotAllowed before anything is stored.
+
+    With `previous_review_id` it's a re-review: `full` looks at the whole PR again, `changes`
+    focuses on commits since that review. Either way, dismissed findings aren't raised again.
+    """
     check_repo(cfg, ref.owner, ref.repo)
+    if mode not in ("full", "changes"):
+        raise ValueError(f"unknown review mode {mode!r}")
     n = max(0, min(8, cfg.claude.reviewers if reviewers is None else reviewers))  # 0 = by PR size
-    return store.create_review(ref.owner, ref.repo, ref.number, ref.url, trigger_reason, reviewers=n)
+    return store.create_review(ref.owner, ref.repo, ref.number, ref.url, trigger_reason, reviewers=n,
+                               previous_review_id=previous_review_id, mode=mode)
 
 
 def _normalize(raw: dict[str, Any], files: dict) -> dict[str, Any]:
@@ -64,6 +72,7 @@ class _Job:
     pr: PullRequest
     co: Checkout
     memory: str
+    previous: str = ""
 
     @property
     def inline(self) -> bool:
@@ -82,7 +91,7 @@ class _Job:
         return review_prompt(
             slug=self.ref.slug, title=self.pr.title, author=self.pr.author, base_ref=self.pr.base_ref,
             head_ref=self.pr.head_ref, body=self.pr.body, changed_files=self.co.changed_files,
-            diff=self.co.diff, diff_inlined=self.inline, memory=self.memory, lens=lens,
+            diff=self.co.diff, diff_inlined=self.inline, memory=self.memory, lens=lens, previous=self.previous,
         )
 
 
@@ -114,9 +123,20 @@ def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]
     job.progress(f"Meta-reviewer is merging {len(reports)} reports")
     result = job.run(merge_prompt(
         slug=job.ref.slug, title=job.pr.title, reports=reports, changed_files=job.co.changed_files,
-        diff=job.co.diff, diff_inlined=job.inline, memory=job.memory,
+        diff=job.co.diff, diff_inlined=job.inline, memory=job.memory, previous=job.previous,
     ), MERGE_SCHEMA)
     return _structured(result), result, cost + (result.cost_usd or 0.0), reports
+
+
+def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
+    prev = store.get_review(row["previous_review_id"]) if row["previous_review_id"] else None
+    if prev is None or not prev["head_sha"]:
+        return ""
+    changes = None
+    if row["mode"] == "changes":
+        changes = diff_between(cfg, row["owner"], row["repo"], prev["head_sha"], head_sha)
+    findings = [dict(f) for f in store.findings_for(prev["id"])]
+    return previous_section(mode=row["mode"], old_head=prev["head_sha"], findings=findings, changes=changes)
 
 
 def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader | None = None) -> None:
@@ -145,7 +165,8 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         store.update_review(review_id, worktree=str(co.worktree), merge_base=co.merge_base, diff=co.diff)
 
         job = _Job(store, cfg, review_id, ref, pr, co,
-                   memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()))
+                   memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
+                   previous=_previous(store, cfg, row, pr.head_sha))
         reports = None
         if n > 1:
             out, result, cost, reports = _panel(job, n)

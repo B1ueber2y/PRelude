@@ -117,3 +117,12 @@ def remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:
     except GitError:
         shutil.rmtree(wt, ignore_errors=True)
         _git("--git-dir", str(bare), "worktree", "prune")
+
+
+def diff_between(cfg: Config, owner: str, repo: str, old_sha: str, new_sha: str) -> str | None:
+    """Changes from an earlier head to the current one, or None if the old commit is gone."""
+    gd = ["--git-dir", str(cfg.repos_dir / owner / f"{repo}.git")]
+    try:
+        return _git(*gd, "diff", "--no-color", "--no-ext-diff", "-M", f"{old_sha}..{new_sha}")
+    except GitError:
+        return None

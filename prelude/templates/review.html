@@ -10,6 +10,13 @@
   {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}{% if r.reviewers > 1 %} · {{ r.reviewers }} reviewers + meta-review{% endif %}</div>{% endif %}
 </section>
 
+{% if latest and latest.id != r.id %}
+<a class="callout small newer" href="/reviews/{{ latest.id }}">There's a newer review of this PR ›</a>
+{% endif %}
+{% if r.previous_review_id %}
+<p class="hint">Re-review ({{ 'changes since' if r.mode == 'changes' else 'full, after' }} <a href="/reviews/{{ r.previous_review_id }}">the previous review</a>).</p>
+{% endif %}
+
 {% if r.status in ('queued', 'running') %}
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}
@@ -35,6 +42,14 @@
     Prefix with “{{ prefix }}”
   </label>
 </section>
+<details class="again" {{ 'open' if new_commits }}>
+  <summary>Review again{% if new_commits %} <span class="tag warn">new commits since this review</span>{% endif %}</summary>
+  <div class="row-actions">
+    <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this">Changes only</button>
+    <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this">Full review</button>
+  </div>
+  <p class="hint">Changes only: just the commits since this review. Both skip findings you discarded.</p>
+</details>
 {% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
 
 <nav class="tabs" hx-boost="true">

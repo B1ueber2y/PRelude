@@ -93,15 +93,8 @@ class Poller:
                                        decision="review" if ok else "skip", reason=reason)
                 if not ok:
                     continue
-                if seen and seen["reviewed_sha"]:  # reviewed before; these are new commits
-                    if t.on_new_commits == "notify":
-                        notify.send(self.cfg.notify, "New commits", "A PR you reviewed has new commits",
-                                    path="/", tags="arrows_counterclockwise", sender=self.sender)
-                        self.store.set_watched(owner, repo, number, reviewed_sha=pr.head_sha)
-                        continue
-                    if t.on_new_commits == "ignore":
-                        continue
-                    reason = f"{reason}; new commits"
+                if seen and seen["reviewed_sha"]:
+                    continue  # new commits on a reviewed PR: shown in the app, re-review is your call
                 if self.store.auto_reviews_since(time.time() - 86400) >= t.max_reviews_per_day:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue

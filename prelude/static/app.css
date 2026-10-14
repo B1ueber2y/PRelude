@@ -417,3 +417,7 @@ textarea { resize: none; line-height: 1.45; }
 .finding-full.is-discarded { padding: 10px 14px; }
 .feed > * { min-width: 0; }            /* let wide code scroll inside its card */
 .finding-full { overflow: hidden; }
+
+.again { margin-top: 12px; }
+.again summary { color: var(--accent); font-weight: 600; cursor: pointer; }
+.newer { display: block; color: var(--accent); font-weight: 600; }

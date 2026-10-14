@@ -77,7 +77,7 @@ _merged_item["required"] = [*_merged_item["required"], "found_by"]
 
 
 def merge_prompt(*, slug: str, title: str, reports: list[dict], changed_files: list[str], diff: str,
-                 diff_inlined: bool, memory: str = "") -> str:
+                 diff_inlined: bool, memory: str = "", previous: str = "") -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     blocks = "\n\n".join(
         f"<report reviewer=\"{i}\">\n{json.dumps(r, indent=1)}\n</report>" for i, r in enumerate(reports, start=1)
@@ -96,6 +96,8 @@ Changed files:
 
 {blocks}
 
+{previous}
+
 {memory}
 
 How to merge:
@@ -110,6 +112,39 @@ How to merge:
 5. At most 15 findings, most important first. Write a `summary` of the PR and its risk.
 
 Return the result in the required JSON format."""
+
+
+OUTCOMES = {
+    "drafted": "the reviewer kept it (added to their GitHub review)",
+    "discarded": "the reviewer DISMISSED it",
+    "pending": "not handled yet",
+}
+
+
+def previous_section(*, mode: str, old_head: str, findings: list[dict], changes: str | None) -> str:
+    """What a re-review needs to know about the last review of this PR."""
+    lines = "\n".join(
+        f"- {f['title']} ({f['path']}:{f['line']}): {OUTCOMES.get(f['status'], f['status'])}" for f in findings
+    ) or "- (no findings)"
+    common = f"""This PR was reviewed before, at commit {old_head[:12]}. Findings from that review and what
+the reviewer did with them:
+{lines}
+
+Never raise a dismissed finding again unless the new commits make it materially worse; say so
+if they do."""
+    if mode != "changes":
+        return common + "\nReview the whole PR again with fresh eyes."
+    if changes is None:
+        return common + "\nThe earlier commit is no longer available (history rewritten); review the whole PR."
+    return f"""{common}
+
+This is a re-review of the new commits only. Focus on the changes since that review:
+<changes_since_last_review>
+{changes}
+</changes_since_last_review>
+Report problems these changes introduce. For earlier findings that were kept or not handled,
+report them again only if they are still present, and say "still present" in the assessment.
+Don't report earlier findings the new commits fixed."""
 
 
 def diff_section(diff: str, inlined: bool) -> str:
@@ -134,6 +169,7 @@ def review_prompt(
     diff_inlined: bool,
     memory: str = "",
     lens: str | None = None,
+    previous: str = "",
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     return f"""You are reviewing pull request {slug} on behalf of a human reviewer.
@@ -157,6 +193,8 @@ Changed files:
 {files}
 
 {diff_section(diff, diff_inlined)}
+
+{previous}
 
 {memory}
 {f"You are one of several independent reviewers. Look especially hard at {lens}, but report any serious problem you find.{chr(10)}" if lens else ""}

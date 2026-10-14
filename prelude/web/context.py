@@ -98,7 +98,7 @@ class Web:
             return None
         fd = self._diff_files(r["id"], r["head_sha"]).get(f["path"])
         first = f["start_line"] or f["line"]
-        return build(lines, fd, start if start is not None else first - 6, end if end is not None else f["line"] + 6)
+        return build(lines, fd, start if start is not None else first - 3, end if end is not None else f["line"] + 3)
 
     def card_context(self, f, r) -> dict:
         """What a finding card in the review feed needs."""
