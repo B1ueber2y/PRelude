@@ -335,3 +335,30 @@ textarea { resize: none; line-height: 1.45; }
   overflow-x: auto;
 }
 .prose code, .comment code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+
+.memory-list .preview {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.changes li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.92rem;
+}
+.changes li.undone { opacity: 0.55; }
+.when-busy { display: none; }
+.htmx-request .when-busy, .htmx-request.when-busy { display: inline-block; }
+.htmx-request .when-idle { display: none; }

@@ -1,0 +1,9 @@
+<form hx-post="/memory/doc" hx-target="#doc" hx-swap="innerHTML">
+  <input type="hidden" name="scope" value="{{ scope }}">
+  <div class="block-head"><h2>Edit</h2></div>
+  <textarea name="text" rows="10" class="autogrow" autofocus>{{ doc }}</textarea>
+  <div class="row-actions">
+    <button class="btn small primary" type="submit">Save</button>
+    <button class="btn small ghost" type="button" hx-get="/memory/doc/view?scope={{ scope | urlencode }}" hx-target="#doc" hx-swap="innerHTML">Cancel</button>
+  </div>
+</form>

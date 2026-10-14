@@ -77,6 +77,7 @@ def review_prompt(
     changed_files: list[str],
     diff: str,
     diff_inlined: bool,
+    memory: str = "",
 ) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     if diff_inlined:
@@ -107,6 +108,8 @@ Changed files:
 {files}
 
 {diff_section}
+
+{memory}
 
 How to review:
 1. Understand what the change is trying to do.
@@ -153,6 +156,7 @@ def discuss_first_prompt(
     claude_comment: str,
     current_draft: str,
     user_message: str,
+    memory: str = "",
 ) -> str:
     where = f"{path}:{line}" if line else path
     draft_note = (
@@ -177,6 +181,8 @@ Your suggested comment:
 Reviewer:
 {user_message}
 
+{memory}
+
 Take their point seriously. If they are right, say so plainly rather than defending the
 finding. If you still think you are right, explain why with concrete evidence.
 
@@ -193,6 +199,131 @@ def discuss_followup_prompt(*, current_draft: str, user_message: str) -> str:
 </draft>)
 
 {DISCUSS_FORMAT}"""
+
+
+LEARN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["lesson", "scope"],
+    "properties": {
+        "lesson": {"type": ["string", "null"], "description": "One short imperative sentence, or null."},
+        "scope": {"type": "string", "enum": ["global", "repo"]},
+    },
+}
+
+
+def learn_prompt(*, repo: str, title: str, path: str, claude_comment: str, outcome: str,
+                 discussion: str, existing: str) -> str:
+    return f"""You maintain a code reviewer's review memory: short rules PRelude follows in future
+reviews. The reviewer just handled one of PRelude's findings. Decide whether it reveals a
+lasting, general preference worth remembering.
+
+Repository: {repo}
+Finding: {title} ({path})
+Suggested comment:
+<comment>
+{claude_comment}
+</comment>
+What the reviewer did: {outcome}
+{discussion}
+Current memory:
+<memory>
+{existing or "(empty)"}
+</memory>
+
+Most single actions are one-offs: a finding can be discarded simply because it was wrong
+here. Only return a lesson when the reviewer's action or words show a preference that
+should change future reviews (what to flag or skip, how strict to be, how to word
+comments), and it isn't already in memory. Otherwise return null.
+
+A lesson is one short imperative sentence, e.g. "Don't flag missing await on
+fire-and-forget audit logging." Use scope "repo" if it only applies to {repo}, otherwise
+"global". Don't investigate the code; answer directly."""
+
+
+STYLE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["updated_style", "summary"],
+    "properties": {
+        "updated_style": {"type": ["string", "null"], "description": "Complete revised style guide, or null."},
+        "summary": {"type": "string", "description": "What changed, in a few words."},
+    },
+}
+
+
+def style_from_edit_prompt(*, style: str, suggested: str, edited: str) -> str:
+    return f"""You maintain a code reviewer's comment style guide. PRelude drafts review comments
+with it, and the reviewer just rewrote one of them.
+
+Current style guide:
+<style>
+{style or "(empty)"}
+</style>
+
+PRelude suggested:
+<suggested>
+{suggested}
+</suggested>
+
+The reviewer rewrote it as:
+<edited>
+{edited}
+</edited>
+
+Work out what the rewrite says about how they like comments worded: length, tone,
+directness, questions vs statements, code suggestions, formatting, words they avoid.
+Ignore changes that only fix facts about this specific code. If the guide should change,
+return the complete updated guide in `updated_style` (a concise markdown bullet list;
+keep existing points unless contradicted). Otherwise return null."""
+
+
+def style_from_history_prompt(*, repo: str, comments: str) -> str:
+    return f"""Below are review comments the reviewer wrote on pull requests in {repo}.
+Write their comment style guide: a concise markdown bullet list describing how they word
+review comments (length, tone, directness, questions vs statements, code suggestions,
+formatting, typical phrases). Describe the style, not the topics. PRelude will use it to
+draft comments in their voice.
+
+<comments>
+{comments}
+</comments>
+
+Return the guide in `updated_style` and a one-line `summary`."""
+
+
+MEMORY_CHAT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["reply", "updated_document"],
+    "properties": {
+        "reply": {"type": "string", "description": "Short conversational answer to the reviewer."},
+        "updated_document": {
+            "type": ["string", "null"],
+            "description": "The complete revised document, or null if nothing should change.",
+        },
+    },
+}
+
+
+def memory_chat_prompt(*, what: str, document: str, history: str, user_message: str) -> str:
+    return f"""You help a code reviewer maintain {what}. PRelude, their review assistant, reads it
+before every review to decide what to look for, what to skip, how strict to be, and how
+to word comments.
+
+Current document:
+<document>
+{document or "(empty)"}
+</document>
+{history}
+Reviewer:
+{user_message}
+
+If they ask to change something, return the complete updated document in
+`updated_document`: a concise markdown bullet list grouped under short headings when it
+helps, in their voice, keeping everything they didn't ask to change. It is saved
+immediately. If they only ask a question, answer it and set `updated_document` to null.
+Keep `reply` brief and say what you changed."""
 
 
 _COMMENT_BLOCK = re.compile(r"```comment[^\n]*\n(.*?)```", re.DOTALL)

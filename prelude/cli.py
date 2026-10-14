@@ -11,7 +11,7 @@ from . import claude
 from .config import load_config
 from .db import Store
 from .github import parse_pr
-from .guard import RepoNotAllowed
+from .guard import RepoNotAllowed, check_repo
 from .review import run_review, start_review
 
 
@@ -75,6 +75,32 @@ def _cmd_auth(_args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_style_init(args: argparse.Namespace) -> int:
+    from .github import GitHubReader
+    from .memory_agent import init_style
+
+    cfg = load_config()
+    owner, _, repo = args.repo.partition("/")
+    if not owner or not repo:
+        print("error: expected OWNER/REPO", file=sys.stderr)
+        return 2
+    try:
+        check_repo(cfg, owner, repo)
+        gh = GitHubReader(cfg)
+        login = args.author or gh.viewer_login()
+        comments = gh.comments_by(owner, repo, login, limit=args.limit)
+    except RepoNotAllowed as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    if len(comments) < 5:
+        print(f"Only {len(comments)} comments by {login} on {args.repo}; not enough to infer a style.")
+        return 1
+    print(f"Learning comment style from {len(comments)} comments by {login} on {args.repo}…")
+    summary = init_style(Store(cfg.db_path), cfg, args.repo, comments)
+    print(summary or "No change.")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from .server import serve
 
@@ -105,6 +131,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list", help="list reviews").set_defaults(fn=_cmd_list)
     sub.add_parser("auth", help="check the Claude login PRelude will use").set_defaults(fn=_cmd_auth)
     sub.add_parser("url", help="print the web UI link (with access key)").set_defaults(fn=_cmd_url)
+
+    s = sub.add_parser("style-init", help="write your comment style guide from past comments on a repo")
+    s.add_argument("repo", help="OWNER/REPO")
+    s.add_argument("--author", help="GitHub login (default: you)")
+    s.add_argument("--limit", type=int, default=150)
+    s.set_defaults(fn=_cmd_style_init)
 
     s = sub.add_parser("serve", help="run the web UI")
     s.add_argument("--host", default=None)

@@ -11,6 +11,7 @@ from .db import Store
 from .diffmap import parse_diff
 from .github import GitHubReader, PrRef
 from .guard import check_repo
+from .memory import Memory
 from .prompts import REVIEW_SCHEMA, SEVERITIES, review_prompt
 from .workspace import prepare_checkout
 
@@ -64,7 +65,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         prompt = review_prompt(
             slug=ref.slug, title=pr.title, author=pr.author, base_ref=pr.base_ref,
             head_ref=pr.head_ref, body=pr.body, changed_files=co.changed_files,
-            diff=co.diff, diff_inlined=inline,
+            diff=co.diff, diff_inlined=inline, memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
         )
 
         store.update_review(review_id, progress="Claude is reviewing")

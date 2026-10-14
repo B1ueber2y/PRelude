@@ -15,12 +15,14 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from . import memory_agent
 from .config import Config
 from .db import Store
 from .diffmap import parse_diff
 from .discuss import Broker, DiscussionBusy, current_draft, post_message
 from .github import parse_pr
 from .guard import RepoNotAllowed
+from .memory import GLOBAL, STYLE, Memory, split_scope, title
 from .review import run_review, start_review
 from .textfmt import render_text
 
@@ -30,12 +32,13 @@ HERE = Path(__file__).resolve().parent
 COOKIE = "prelude_key"
 
 
-def create_app(cfg: Config, store: Store | None = None, *, review_runner=None) -> FastAPI:
+def create_app(cfg: Config, store: Store | None = None, *, review_runner=None, learner=None) -> FastAPI:
     store = store or Store(cfg.db_path)
     store.fail_stale_reviews()
     broker = Broker()
     key = cfg.access_key()
     runner = review_runner or (lambda review_id: run_review(store, cfg, review_id))
+    learn = learner or (lambda finding_id, action: memory_agent.learn_async(store, cfg, finding_id, action))
 
     app = FastAPI(title="PRelude", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -191,6 +194,8 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None) -
         f = finding_or_404(finding_id)
         text = text.strip()
         store.update_finding(finding_id, user_draft=None if text == f["claude_comment"] else text)
+        if text != current_draft(f) and text != f["claude_comment"]:
+            learn(finding_id, "edit")
         return partial(request, "_draft.html", finding_context(finding_or_404(finding_id)))
 
     @app.post("/findings/{finding_id}/draft/reset", response_class=HTMLResponse)
@@ -203,6 +208,7 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None) -
     def discard(finding_id: int):
         f = finding_or_404(finding_id)
         store.update_finding(finding_id, status="discarded")
+        learn(finding_id, "discard")
         ctx = finding_context(finding_or_404(finding_id))
         target = f"/findings/{ctx['next_id']}" if ctx["next_id"] else f"/reviews/{f['review_id']}"
         return Response(status_code=204, headers={"HX-Redirect": target})
@@ -270,6 +276,64 @@ def create_app(cfg: Config, store: Store | None = None, *, review_runner=None) -
             events(), media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    # ---- reviewer memory ---------------------------------------------------
+
+    memory = Memory(cfg)
+
+    def check_scope(scope: str) -> str:
+        if scope not in (GLOBAL, STYLE):
+            try:
+                split_scope(scope)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+        return scope
+
+    def memory_ctx(scope: str, **extra) -> dict:
+        return {"scope": scope, "title": title(scope), "doc": memory.read(scope),
+                "messages": store.memory_messages(scope), **extra}
+
+    @app.get("/memory", response_class=HTMLResponse)
+    def memory_index(request: Request):
+        repos = sorted({f"{o}/{r}" for o, r in store.reviewed_repos()})
+        docs = [{"scope": sc, "title": title(sc), "doc": memory.read(sc)} for sc in (GLOBAL, STYLE, *repos)]
+        return partial(request, "memory.html", {"docs": docs, "changes": store.memory_changes()})
+
+    @app.get("/memory/doc", response_class=HTMLResponse)
+    def memory_doc(request: Request, scope: str = GLOBAL):
+        return partial(request, "memory_doc.html", memory_ctx(check_scope(scope)))
+
+    @app.get("/memory/doc/edit", response_class=HTMLResponse)
+    def memory_doc_edit(request: Request, scope: str = GLOBAL):
+        return partial(request, "_memory_edit.html", memory_ctx(check_scope(scope)))
+
+    @app.get("/memory/doc/view", response_class=HTMLResponse)
+    def memory_doc_view(request: Request, scope: str = GLOBAL):
+        return partial(request, "_memory_view.html", memory_ctx(check_scope(scope)))
+
+    @app.post("/memory/doc", response_class=HTMLResponse)
+    def memory_doc_save(request: Request, scope: str = Form(...), text: str = Form("")):
+        memory.write(check_scope(scope), text)
+        return partial(request, "_memory_view.html", memory_ctx(scope))
+
+    @app.post("/memory/chat", response_class=HTMLResponse)
+    def memory_chat_send(request: Request, scope: str = Form(...), text: str = Form(...)):
+        error = None
+        try:
+            memory_agent.chat(store, cfg, check_scope(scope), text)
+        except ValueError as e:
+            error = str(e)
+        return partial(request, "_memory_doc_body.html", memory_ctx(scope, error=error))
+
+    @app.post("/memory/changes/{message_id}/undo")
+    def memory_undo(message_id: int):
+        try:
+            memory_agent.undo(store, cfg, message_id)
+        except KeyError as e:
+            raise HTTPException(404, "Nothing to undo") from e
+        except memory_agent.MemoryChanged as e:
+            return HTMLResponse(f'<span class="error">{e}</span>')
+        return Response(status_code=204, headers={"HX-Refresh": "true"})
 
     app.state.store = store
     app.state.broker = broker

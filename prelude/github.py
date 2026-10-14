@@ -76,8 +76,11 @@ class GitHubReader:
 
     def _get(self, owner: str, repo: str, path: str) -> object:
         check_repo(self.cfg, owner, repo)
+        return self._request(f"/repos/{owner}/{repo}{path}")
+
+    def _request(self, path: str) -> object:
         req = urllib.request.Request(
-            f"{API}/repos/{owner}/{repo}{path}",
+            f"{API}{path}",
             method="GET",
             headers={
                 "Authorization": f"Bearer {self.token}",
@@ -105,3 +108,26 @@ class GitHubReader:
             head_sha=data["head"]["sha"],
             html_url=data["html_url"],
         )
+
+    def viewer_login(self) -> str:
+        data = self._request("/user")
+        assert isinstance(data, dict)
+        return data["login"]
+
+    def comments_by(self, owner: str, repo: str, author: str, limit: int = 150) -> list[str]:
+        """Recent PR comments (inline and conversation) written by `author`, newest first."""
+        found: list[tuple[str, str]] = []
+        for kind in ("pulls/comments", "issues/comments"):
+            for page in range(1, 6):
+                batch = self._get(owner, repo, f"/{kind}?sort=created&direction=desc&per_page=100&page={page}")
+                assert isinstance(batch, list)
+                for c in batch:
+                    if (c.get("user") or {}).get("login", "").lower() != author.lower():
+                        continue
+                    if kind == "issues/comments" and "/pull/" not in c.get("html_url", ""):
+                        continue
+                    found.append((c.get("created_at", ""), c.get("body") or ""))
+                if len(batch) < 100 or len(found) >= limit:
+                    break
+        found.sort(reverse=True)
+        return [body for _, body in found[:limit] if body.strip()]

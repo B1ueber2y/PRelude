@@ -9,9 +9,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import claude
+from . import claude, memory_agent
 from .config import Config
 from .db import Store
+from .memory import Memory
 from .prompts import discuss_first_prompt, discuss_followup_prompt, parse_reply
 
 log = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ def post_message(store: Store, cfg: Config, broker: Broker, finding_id: int, tex
             ordinal=finding["ordinal"], title=finding["title"], path=finding["path"], line=finding["line"],
             assessment=finding["assessment"], claude_comment=finding["claude_comment"],
             current_draft=current_draft(finding), user_message=text,
+            memory=Memory(cfg).prompt_section(review["owner"], review["repo"], store.recent_edits()),
         )
         resume, fork = review["claude_session_id"], True
 
@@ -113,6 +115,8 @@ def _reply(
     worktree: Path, resume: str, fork: bool,
 ) -> None:
     session_id = None
+    changed_mind = False
+    final = Event("done")
     try:
         claude.ensure_logged_in()
         result = claude.run_stream(
@@ -127,10 +131,14 @@ def _reply(
         store.add_message(finding_id, "assistant", text, proposal=proposal, verdict=verdict, session_id=session_id)
         if verdict:
             store.update_finding(finding_id, verdict=verdict)
-        broker.publish(finding_id, Event("done"))
+        changed_mind = verdict in ("revised", "withdrawn")
     except Exception as e:
         log.exception("discussion reply for finding %s failed", finding_id)
         store.add_message(finding_id, "error", f"{type(e).__name__}: {e}"[:2000])
-        broker.publish(finding_id, Event("error", str(e)[:500]))
+        final = Event("error", str(e)[:500])
     finally:
         store.release_thread(finding_id, session_id)
+        broker.publish(finding_id, final)
+    if changed_mind:
+        # The reviewer changed Claude's mind: maybe a lasting preference.
+        memory_agent.learn_from_finding(store, cfg, finding_id, "discuss")

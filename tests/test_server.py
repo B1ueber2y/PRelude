@@ -17,6 +17,11 @@ def client(cfg, store):
     return c
 
 
+def discussion_calls(log):
+    """Claude runs that continue a session (memory learning runs don't)."""
+    return [c for c in map(json.loads, log.read_text().splitlines()) if "--resume" in c["args"]]
+
+
 def wait_idle(store, finding_id, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -101,13 +106,13 @@ def test_discussion_forks_then_continues_and_never_edits_draft(
     assert "```comment" not in msgs[1]["content"]
     assert store.get_finding(f["id"])["user_draft"] is None  # Claude didn't touch the draft
 
-    calls = [json.loads(line) for line in fake_claude.read_text().splitlines() if '"-p"' in line]
+    calls = discussion_calls(fake_claude)
     first = calls[-1]["args"]
     assert first[first.index("--resume") + 1] == "review-session" and "--fork-session" in first
 
     client.post(f"/findings/{f['id']}/messages", data={"text": "Thanks"})
     wait_idle(store, f["id"])
-    calls = [json.loads(line) for line in fake_claude.read_text().splitlines() if '"-p"' in line]
+    calls = discussion_calls(fake_claude)
     second = calls[-1]["args"]
     assert second[second.index("--resume") + 1] == msgs[1]["session_id"] and "--fork-session" not in second
 

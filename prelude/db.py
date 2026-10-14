@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS memory_messages (
+  id INTEGER PRIMARY KEY,
+  scope TEXT NOT NULL,                     -- "global" or "OWNER/REPO"
+  role TEXT NOT NULL,                      -- user | assistant | learned | error
+  content TEXT NOT NULL,
+  new_document TEXT,                       -- document after this change, if it changed it
+  prev_document TEXT,                      -- document before, for undo
+  finding_id INTEGER,                      -- source of a learned change
+  undone INTEGER NOT NULL DEFAULT 0,
+  created_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS threads (
   finding_id INTEGER PRIMARY KEY REFERENCES findings(id) ON DELETE CASCADE,
   session_id TEXT,
@@ -206,6 +218,56 @@ class Store:
     def get_message(self, message_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
             return c.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+
+    # ---- memory chat -------------------------------------------------------
+
+    def add_memory_message(
+        self, scope: str, role: str, content: str, *,
+        new_document: str | None = None, prev_document: str | None = None, finding_id: int | None = None,
+    ) -> int:
+        with self.connect() as c:
+            cur = c.execute(
+                "INSERT INTO memory_messages (scope, role, content, new_document, prev_document, finding_id,"
+                " created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (scope, role, content, new_document, prev_document, finding_id, time.time()),
+            )
+            return int(cur.lastrowid)
+
+    def memory_messages(self, scope: str, limit: int = 40) -> list[sqlite3.Row]:
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT * FROM memory_messages WHERE scope = ? AND role != 'learned' ORDER BY id DESC LIMIT ?",
+                (scope, limit),
+            ).fetchall()
+            return rows[::-1]
+
+    def memory_changes(self, limit: int = 30) -> list[sqlite3.Row]:
+        with self.connect() as c:
+            return c.execute(
+                "SELECT * FROM memory_messages WHERE new_document IS NOT NULL ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+
+    def get_memory_message(self, message_id: int) -> sqlite3.Row | None:
+        with self.connect() as c:
+            return c.execute("SELECT * FROM memory_messages WHERE id = ?", (message_id,)).fetchone()
+
+    def mark_memory_undone(self, message_id: int) -> None:
+        with self.connect() as c:
+            c.execute("UPDATE memory_messages SET undone = 1 WHERE id = ?", (message_id,))
+
+    def recent_edits(self, limit: int = 4) -> list[tuple[str, str]]:
+        """(Claude's comment, reviewer's rewrite) pairs, newest first."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT claude_comment, user_draft FROM findings WHERE user_draft IS NOT NULL"
+                " AND user_draft != claude_comment ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [(r[0], r[1]) for r in rows]
+
+    def reviewed_repos(self) -> list[tuple[str, str]]:
+        with self.connect() as c:
+            return [(r[0], r[1]) for r in c.execute("SELECT DISTINCT owner, repo FROM reviews ORDER BY owner, repo")]
 
     def thread(self, finding_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
