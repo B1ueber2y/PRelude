@@ -10,6 +10,14 @@ FAKE = Path(__file__).with_name("fake_claude.py")
 
 
 @pytest.fixture(autouse=True)
+def no_retry_waits(monkeypatch):
+    """Retries happen instantly in tests."""
+    from prelude import retry
+
+    monkeypatch.setattr(retry.time, "sleep", lambda s: None)
+
+
+@pytest.fixture(autouse=True)
 def never_real_claude(monkeypatch):
     """No test may reach the real `claude` CLI."""
     FAKE.chmod(FAKE.stat().st_mode | stat.S_IXUSR)

@@ -12,6 +12,7 @@ from pathlib import Path
 from .config import Config
 from .github import PullRequest
 from .guard import check_repo
+from .retry import retry
 
 # Use the `gh` login for HTTPS git access, ignoring any other credential helpers.
 _GIT_AUTH = ["-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential"]
@@ -84,20 +85,22 @@ def _is_checkout_of(wt: Path, sha: str) -> bool:
         return False
 
 
+def _fetch(gd: list[str], *refs: str) -> None:
+    """Fetch from GitHub, retrying network hiccups."""
+    retry(
+        lambda: _git(*_GIT_AUTH, *gd, "fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin", *refs),
+        what="git fetch",
+    )
+
+
 def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     owner, repo, number = pr.ref.owner, pr.ref.repo, pr.ref.number
     check_repo(cfg, owner, repo)
     bare = _bare_repo(cfg, owner, repo)
     gd = ["--git-dir", str(bare)]
 
-    _git(
-        *_GIT_AUTH,
-        *gd,
-        "fetch",
-        "--quiet",
-        "--no-tags",
-        "--filter=blob:none",
-        "origin",
+    _fetch(
+        gd,
         f"+refs/pull/{number}/head:refs/prelude/pr/{number}",
         f"+refs/heads/{pr.base_ref}:refs/prelude/base/{pr.base_ref}",
     )
@@ -106,7 +109,7 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
         try:
             _git(*gd, "cat-file", "-e", f"{sha}^{{commit}}")
         except GitError:
-            _git(*_GIT_AUTH, *gd, "fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin", sha)
+            _fetch(gd, sha)
 
     merge_base = _git(*gd, "merge-base", pr.base_sha, pr.head_sha).strip()
 

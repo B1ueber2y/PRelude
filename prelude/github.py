@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from .config import Config
 from .guard import check_repo
+from .retry import retry
 
 API = "https://api.github.com"
 
@@ -97,8 +98,12 @@ class GitHubReader:
                 "User-Agent": "prelude",
             },
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.load(resp)
+
+        def fetch():
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.load(resp)
+
+        return retry(fetch, what=f"GitHub GET {path.split('?')[0]}")
 
     def pull_request(self, ref: PrRef) -> PullRequest:
         data = self._get(ref.owner, ref.repo, f"/pulls/{ref.number}")

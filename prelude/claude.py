@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .retry import retry
+
 SAFE_FLAGS = [
     "--restricted",
     "--safe-mode",
@@ -94,7 +96,12 @@ def _check(result: dict[str, Any]) -> None:
         raise ClaudeError(f"Claude run failed ({result.get('subtype')}): {str(result.get('result') or result)[:1000]}")
 
 
-def run_json(
+def run_json(*args, **kwargs) -> RunResult:
+    """Run to completion; retried when Claude is temporarily unavailable."""
+    return retry(lambda: _run_json_once(*args, **kwargs), what="Claude run")
+
+
+def _run_json_once(
     prompt: str,
     cwd: Path,
     *,
@@ -104,7 +111,6 @@ def run_json(
     fork: bool = False,
     timeout: int = 1500,
 ) -> RunResult:
-    """Run to completion and return the final result (with structured output if a schema is given)."""
     args = _base_args(model, resume, fork) + ["--output-format", "json"]
     if schema is not None:
         args += ["--json-schema", json.dumps(schema)]
