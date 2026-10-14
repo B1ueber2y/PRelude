@@ -73,6 +73,8 @@ def use_proposal(w: WebDep, message_id: int):
 
 @router.post("/findings/{finding_id}/discard")
 def discard(w: WebDep, request: Request, finding_id: int):
+    if refused := w.refuse_if_posted(finding_id):
+        return refused
     f = w.finding_or_404(finding_id)
     try:
         drafting.remove(w.store, w.cfg, w.writer, finding_id, new_status="discarded")
@@ -92,6 +94,8 @@ def discard(w: WebDep, request: Request, finding_id: int):
 
 @router.post("/findings/{finding_id}/restore")
 def restore(w: WebDep, request: Request, finding_id: int):
+    if refused := w.refuse_if_posted(finding_id):
+        return refused
     w.finding_or_404(finding_id)
     w.store.update_finding(finding_id, status="pending")
     if w.wants_card(request, finding_id):
@@ -101,6 +105,8 @@ def restore(w: WebDep, request: Request, finding_id: int):
 
 @router.post("/findings/{finding_id}/github/add")
 def github_add(w: WebDep, request: Request, finding_id: int):
+    if refused := w.refuse_if_posted(finding_id):
+        return refused
     w.finding_or_404(finding_id)
     try:
         drafting.add(w.store, w.cfg, w.writer, finding_id)
@@ -113,6 +119,8 @@ def github_add(w: WebDep, request: Request, finding_id: int):
 
 @router.post("/findings/{finding_id}/github/remove")
 def github_remove(w: WebDep, request: Request, finding_id: int):
+    if refused := w.refuse_if_posted(finding_id):
+        return refused
     w.finding_or_404(finding_id)
     try:
         drafting.remove(w.store, w.cfg, w.writer, finding_id)

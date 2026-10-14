@@ -30,10 +30,12 @@
     {% with compact=True %}{% include "_draft.html" %}{% endwith %}
   </div>
 
-  <div class="card-actions">
+  <div class="card-actions{{ ' posted' if f.status == 'posted' }}">
     {% if f.status == 'posted' %}
     <button class="btn" disabled>Posted ✓</button>
-    {% elif f.status == 'drafted' %}
+    <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss</a>
+    {% else %}
+    {% if f.status == 'drafted' %}
     <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-target="#card-{{ f.id }}" hx-swap="outerHTML"
             hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
     {% elif drafts_enabled %}
@@ -45,6 +47,7 @@
     <button class="btn" hx-get="/findings/{{ f.id }}/draft/edit?compact=1" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">Edit</button>
     <button class="btn" hx-post="/findings/{{ f.id }}/discard" hx-target="#card-{{ f.id }}" hx-swap="outerHTML">Discard</button>
     <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss</a>
+    {% endif %}
   </div>
   {% endif %}
 </article>

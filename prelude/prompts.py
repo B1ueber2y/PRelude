@@ -277,7 +277,7 @@ Return:
   the number of new reviewers who raised it. An empty list is a fine answer."""
 
 
-def comments_section(comments: list[dict]) -> str:
+def comments_section(comments: list[dict], judge: bool = True) -> str:
     """The PR conversation so far, so the review builds on it instead of repeating it."""
     if not comments:
         return ""
@@ -293,9 +293,13 @@ def comments_section(comments: list[dict]) -> str:
     return (
         "Comments already on this PR (from the author, other reviewers, or the reviewer you work for):\n"
         + "\n".join(lines)
-        + "\n\nDon't raise anything these comments already raise, even in different words. In "
-        "`existing_comments`, say for each inline comment that starts a thread whether the current code "
-        "addresses it."
+        + "\n\nDon't raise anything these comments already raise, even in different words."
+        + (
+            " In `existing_comments`, say for each inline comment that starts a thread whether the current code"
+            " addresses it."
+            if judge
+            else ""
+        )
     )
 
 

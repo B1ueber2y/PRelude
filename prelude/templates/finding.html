@@ -60,10 +60,12 @@
 {% endblock %}
 
 {% block bottombar %}
-<footer class="actionbar">
+<footer class="actionbar{{ ' posted' if f.status == 'posted' }}">
   {% if f.status == 'posted' %}
   <button class="btn" disabled>Posted ✓</button>
-  {% elif f.status == 'drafted' %}
+  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% else %}
+  {% if f.status == 'drafted' %}
   <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
   {% elif f.status == 'discarded' %}
   <button class="btn primary" disabled>Add to draft</button>
@@ -80,5 +82,6 @@
   <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
   {% endif %}
   <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% endif %}
 </footer>
 {% endblock %}

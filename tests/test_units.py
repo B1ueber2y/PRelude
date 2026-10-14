@@ -132,3 +132,36 @@ def test_existing_checkout_of_same_commit_is_recognized(tmp_path):
     assert _is_checkout_of(repo, sha)
     assert not _is_checkout_of(repo, "0" * 40)
     assert not _is_checkout_of(tmp_path / "missing", sha)
+
+
+def test_pr_comments_reads_every_page_and_keeps_the_newest(cfg):
+    from prelude.github import GitHubReader, PrRef
+
+    def comment(i):
+        return {
+            "id": i,
+            "user": {"login": "a"},
+            "body": f"c{i}",
+            "html_url": "u",
+            "created_at": f"2026-01-01T00:{i // 60:02}:{i % 60:02}Z",
+        }
+
+    pages = {"/pulls/1/comments": [comment(i) for i in range(130)], "/pulls/1/reviews": [], "/issues/1/comments": []}
+
+    def fake_get(owner, repo, path):
+        base, query = path.split("?")
+        page = int(dict(kv.split("=") for kv in query.split("&"))["page"])
+        return pages[base][(page - 1) * 100 : page * 100]
+
+    gh = GitHubReader(cfg, token="t")
+    gh._get = fake_get
+    out = gh.pr_comments(PrRef("o", "r", 1), limit=80)
+    assert len(out) == 80 and out[-1]["id"] == 129 and out[0]["id"] == 50
+
+
+def test_add_reviewers_prompt_does_not_ask_for_verdicts():
+    from prelude.prompts import comments_section
+
+    comments = [{"id": 1, "kind": "inline", "author": "a", "path": "p", "line": 1, "body": "b"}]
+    assert "existing_comments" in comments_section(comments)
+    assert "existing_comments" not in comments_section(comments, judge=False)

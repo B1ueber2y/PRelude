@@ -349,7 +349,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
             pr,
             co,
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
-            comments=comments_section(_read_comments(github or GitHubReader(cfg), ref)),
+            comments=comments_section(_read_comments(github or GitHubReader(cfg), ref), judge=False),
             previous=_previous(store, cfg, row, pr.head_sha),
         )
         before = row["reviewers"] or 1

@@ -7,7 +7,7 @@
 <div class="comment">{{ draft | text }}</div>
 {% if sync_error %}<p class="error">{{ sync_error }}</p>
 {% elif f.status == 'drafted' %}<p class="hint">Changes here update your GitHub draft.</p>{% endif %}
-{% if edited %}
+{% if edited and f.status != 'posted' %}
 <div class="row-actions">
   <button class="btn small ghost" hx-post="/findings/{{ f.id }}/draft/reset{{ '?compact=1' if compact }}" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML"
           hx-confirm="Go back to Claude's original wording?">Use Claude's original</button>

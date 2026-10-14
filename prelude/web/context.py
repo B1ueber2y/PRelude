@@ -127,6 +127,12 @@ class Web:
         f = self.finding_or_404(finding_id)
         return self.render(request, "_finding_card.html", self.card_context(f, self.review_or_404(f["review_id"])))
 
+    def refuse_if_posted(self, finding_id: int) -> HTMLResponse | None:
+        """A posted comment lives on GitHub now; PRelude no longer changes it."""
+        if self.finding_or_404(finding_id)["status"] == "posted":
+            return self.flash("This comment is already posted on GitHub; change it there.")
+        return None
+
     @staticmethod
     def wants_card(request: Request, finding_id: int) -> bool:
         return request.headers.get("HX-Target") == f"card-{finding_id}"
@@ -163,6 +169,8 @@ class Web:
         Returns an error message if the GitHub draft couldn't be updated.
         """
         f = self.finding_or_404(finding_id)
+        if f["status"] == "posted":
+            return "This comment is already posted on GitHub; change it there."
         text = text.strip() if text is not None else None
         user_draft = None if text is None or text == f["claude_comment"] else text
         self.store.update_finding(finding_id, user_draft=user_draft)

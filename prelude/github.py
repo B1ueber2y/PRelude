@@ -120,6 +120,17 @@ class GitHubReader:
             merged=bool(data.get("merged")),
         )
 
+    def _get_pages(self, owner: str, repo: str, path: str, max_pages: int = 5) -> list:
+        """All items of a paginated list (oldest first), up to max_pages * 100."""
+        items: list = []
+        for page in range(1, max_pages + 1):
+            batch = self._get(owner, repo, f"{path}?per_page=100&page={page}")
+            assert isinstance(batch, list)
+            items.extend(batch)
+            if len(batch) < 100:
+                break
+        return items
+
     def pr_comments(self, ref: PrRef, limit: int = 80) -> list[dict]:
         """What's already been said on the PR: inline review comments, review summaries, general comments."""
 
@@ -128,7 +139,7 @@ class GitHubReader:
             return text if len(text) <= 700 else text[:700] + "…"
 
         out: list[dict] = []
-        for c in self._get(ref.owner, ref.repo, f"/pulls/{ref.number}/comments?per_page=100") or []:
+        for c in self._get_pages(ref.owner, ref.repo, f"/pulls/{ref.number}/comments"):
             out.append(
                 {
                     "id": c["id"],
@@ -142,7 +153,7 @@ class GitHubReader:
                     "at": c.get("created_at"),
                 }
             )
-        for r in self._get(ref.owner, ref.repo, f"/pulls/{ref.number}/reviews?per_page=100") or []:
+        for r in self._get_pages(ref.owner, ref.repo, f"/pulls/{ref.number}/reviews"):
             if (r.get("body") or "").strip():
                 out.append(
                     {
@@ -155,7 +166,7 @@ class GitHubReader:
                         "at": r.get("submitted_at"),
                     }
                 )
-        for c in self._get(ref.owner, ref.repo, f"/issues/{ref.number}/comments?per_page=100") or []:
+        for c in self._get_pages(ref.owner, ref.repo, f"/issues/{ref.number}/comments"):
             out.append(
                 {
                     "id": c["id"],

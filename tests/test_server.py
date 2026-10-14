@@ -228,3 +228,15 @@ def test_existing_comments_section(client, done_review, store):
     )
     page = client.get(f"/reviews/{done_review}").text
     assert "Existing comments (3) · 1 still open" in page and "Still unchecked." in page and "LGTM" in page
+
+
+def test_posted_findings_are_read_only(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="posted")
+    card = client.get(f"/reviews/{done_review}?show=all").text
+    assert "Posted ✓" in card
+    for action in ("discard", "restore", "github/add", "github/remove"):
+        assert "already posted" in client.post(f"/findings/{f['id']}/{action}").text
+    client.post(f"/findings/{f['id']}/draft", data={"text": "sneaky edit"})
+    row = store.get_finding(f["id"])
+    assert row["status"] == "posted" and row["user_draft"] is None
