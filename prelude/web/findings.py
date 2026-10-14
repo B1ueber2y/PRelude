@@ -136,6 +136,14 @@ def send_message(w: WebDep, request: Request, finding_id: int, text: str = Form(
     return w.render(request, "_thread.html", w.finding_context(finding_id, **extra))
 
 
+@router.get("/findings/{finding_id}/busy")
+def busy(w: WebDep, finding_id: int):
+    """Fallback for when a stream's final event is lost (e.g. through an SSH tunnel)."""
+    w.finding_or_404(finding_id)
+    t = w.store.thread(finding_id)
+    return {"busy": bool(t and t["busy"])}
+
+
 @router.get("/findings/{finding_id}/stream")
 def stream(w: WebDep, finding_id: int):
     w.finding_or_404(finding_id)

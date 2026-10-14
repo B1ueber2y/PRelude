@@ -7,6 +7,7 @@
   "use strict";
 
   let source = null;
+  let watchdog = null;
 
   function autogrow(el) {
     el.style.height = "auto";
@@ -17,6 +18,10 @@
     if (source) {
       source.close();
       source = null;
+    }
+    if (watchdog) {
+      clearInterval(watchdog);
+      watchdog = null;
     }
   }
 
@@ -47,10 +52,20 @@
       const verbs = { Read: "Reading code…", Grep: "Searching the code…", Glob: "Looking for files…" };
       if (activity) activity.textContent = verbs[tool] || "Investigating…";
     });
+    let finished = false;
     function finish() {
+      if (finished) return;
+      finished = true;
       closeStream();
       refreshThread(findingId);
     }
+    // Don't depend only on the stream's last event: it can get lost on the way to a phone.
+    watchdog = setInterval(function () {
+      fetch("/findings/" + findingId + "/busy", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (!d.busy) finish(); })
+        .catch(function () {});
+    }, 3000);
     source.addEventListener("done", finish);
     source.addEventListener("error", function (e) {
       // Server-sent "error" events carry data; connection errors don't.
@@ -70,6 +85,13 @@
   document.addEventListener("DOMContentLoaded", function () { init(document); });
   document.addEventListener("htmx:load", function (e) { init(e.target); });
   document.addEventListener("htmx:beforeHistorySave", closeStream);
+
+  // Coming back to the app (e.g. from Termius): pick up a reply that finished meanwhile.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible") return;
+    const thread = document.querySelector(".thread");
+    if (thread && thread.dataset.busy === "1") startStream(thread);
+  });
 
   document.addEventListener("click", function (e) {
     const link = e.target.closest("[data-focus]");

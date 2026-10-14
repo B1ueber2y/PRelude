@@ -144,3 +144,10 @@ def test_running_review_cannot_be_deleted(client, done_review, store):
     store.update_review(done_review, status="running")
     assert "still running" in client.post(f"/reviews/{done_review}/delete").text
     assert store.get_review(done_review) is not None
+
+
+def test_busy_endpoint(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": False}
+    store.try_lock_thread(f["id"])
+    assert client.get(f"/findings/{f['id']}/busy").json() == {"busy": True}

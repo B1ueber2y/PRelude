@@ -42,19 +42,20 @@
     Prefix with “{{ prefix }}”
   </label>
 </section>
-<details class="again" {{ 'open' if new_commits }}>
-  <summary>More{% if new_commits %} <span class="tag warn">new commits since this review</span>{% endif %}</summary>
-  <div class="hint">Review again:</div>
-  <div class="row-actions">
-    <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this">Changes only</button>
-    <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this">Full review</button>
-  </div>
-  <p class="hint">Changes only: just the commits since this review. Both skip findings you discarded.</p>
+<div class="again">
+  <span class="again-label">Review again{% if new_commits %} <span class="tag warn">new commits</span>{% endif %}</span>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this"
+          title="Only the commits since this review; skips findings you discarded">Changes only</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
+          title="The whole PR again; skips findings you discarded">Full</button>
   {% if r.status not in ('queued', 'running') %}
-  <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
-          hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+  <details class="more">
+    <summary aria-label="More">⋯</summary>
+    <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+  </details>
   {% endif %}
-</details>
+</div>
 {% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
 
 <nav class="tabs" hx-boost="true">
