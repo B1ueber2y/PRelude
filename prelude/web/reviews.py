@@ -152,11 +152,19 @@ def clear_leftovers(w: WebDep, review_id: int):
         prstate.clear_leftovers(w.store, w.cfg, w.writer, w.reader, review_id)
     except prstate.StillOpen as e:
         return w.flash(str(e))
-    except DraftError as e:
-        return w.flash(f"Couldn't remove a draft comment: {e}")
-    except Exception:
-        log.warning("clear leftovers of review %s failed", review_id, exc_info=True)
+    except prstate.CheckFailed:
+        log.warning("clear leftovers of review %s: couldn't check the PR", review_id, exc_info=True)
         return w.flash("Couldn't reach GitHub; nothing was cleared.")
+    except prstate.ClearInterrupted as e:
+        log.warning("clear leftovers of review %s stopped partway", review_id, exc_info=True)
+        # Refresh so the page shows what really changed, with a note on the review.
+        w.store.update_review(
+            review_id,
+            error=(
+                f"Cleared {e.cleared} of {e.total} leftovers; GitHub stopped responding. "
+                "Tap Clear leftovers again for the rest."
+            ),
+        )
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 

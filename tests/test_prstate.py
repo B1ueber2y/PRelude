@@ -140,3 +140,29 @@ def test_a_failing_search_doesnt_skip_housekeeping(cfg, store):
     p.refresh_drafts = lambda: ran.append("drafts")
     p.round()
     assert ran == ["drafts"] and "search broke" in store.setting("poll_error", "")
+
+
+def test_partial_clear_says_what_happened(cfg, store, done_review):
+    cfg.drafts.enabled = True
+    github = FakeGitHub()
+    writer = DraftWriter(cfg, transport=github)
+    f1, f2 = store.findings_for(done_review)
+    drafting.add(store, cfg, writer, f1["id"])
+    drafting.add(store, cfg, writer, f2["id"])
+    store.update_review(done_review, pr_state="merged")
+    real = github.__call__
+    deletes = []
+
+    def flaky(query, variables):
+        if "deletePullRequestReviewComment" in query:
+            deletes.append(1)
+            if len(deletes) == 2:
+                raise urllib.error.URLError("connection reset")
+        return real(query, variables)
+
+    writer._transport = flaky
+    c = client(cfg, store, writer, Reader({1: "merged"}), [])
+    r = c.post(f"/reviews/{done_review}/clear-leftovers")
+    assert r.headers.get("HX-Refresh") == "true"
+    assert "Cleared 1 of 2 leftovers" in store.get_review(done_review)["error"]
+    assert "Cleared 1 of 2 leftovers" in c.get(f"/reviews/{done_review}").text

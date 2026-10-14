@@ -19,6 +19,18 @@ class StillOpen(Exception):
     pass
 
 
+class CheckFailed(Exception):
+    """Couldn't confirm the PR's state; nothing was changed."""
+
+
+class ClearInterrupted(Exception):
+    """Some leftovers were cleared before GitHub failed."""
+
+    def __init__(self, cleared: int, total: int, cause: Exception):
+        super().__init__(f"cleared {cleared} of {total}: {cause}")
+        self.cleared, self.total = cleared, total
+
+
 def state_of(pr) -> str:
     return "merged" if pr.merged else ("open" if pr.state == "open" else "closed")
 
@@ -62,17 +74,24 @@ def clear_leftovers(store: Store, cfg: Config, writer: DraftWriter, reader: GitH
     Not a judgement on the comments, so nothing is learned from it.
     """
     r = store.get_review(review_id)
-    state = state_of(reader.pull_request(PrRef(r["owner"], r["repo"], r["number"])))
+    try:
+        state = state_of(reader.pull_request(PrRef(r["owner"], r["repo"], r["number"])))
+    except Exception as e:
+        raise CheckFailed(str(e)) from e
     store.set_pr_state(r["owner"], r["repo"], r["number"], state)
     if state == "open":
         raise StillOpen("This PR is open again; nothing was cleared.")
-    drafting.refresh_submitted(store, cfg, writer, review_id)
+    todo = [f for f in store.findings_for(review_id) if f["status"] in ("pending", "drafted")]
     n = 0
-    for f in store.findings_for(review_id):
-        if f["status"] == "drafted":
-            drafting.remove(store, cfg, writer, f["id"], new_status="dropped")
-            n += 1
-        elif f["status"] == "pending":
-            store.update_finding(f["id"], status="dropped")
-            n += 1
+    try:
+        drafting.refresh_submitted(store, cfg, writer, review_id)
+        for f in store.findings_for(review_id):
+            if f["status"] == "drafted":
+                drafting.remove(store, cfg, writer, f["id"], new_status="dropped")
+                n += 1
+            elif f["status"] == "pending":
+                store.update_finding(f["id"], status="dropped")
+                n += 1
+    except Exception as e:
+        raise ClearInterrupted(n, len(todo), e) from e
     return n
