@@ -51,12 +51,6 @@ def save_draft(w: WebDep, request: Request, finding_id: int, text: str = Form(..
     return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error, compact=compact))
 
 
-@router.post("/findings/{finding_id}/draft/reset", response_class=HTMLResponse)
-def reset_draft(w: WebDep, request: Request, finding_id: int, compact: bool = False):
-    error = w.set_draft(finding_id, None)
-    return w.render(request, "_draft.html", w.finding_context(finding_id, sync_error=error, compact=compact))
-
-
 @router.post("/messages/{message_id}/use")
 def use_proposal(w: WebDep, message_id: int):
     m = w.store.get_message(message_id)
