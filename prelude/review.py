@@ -416,6 +416,7 @@ def add_reviewers(
             f"{len(new)} new finding{'' if len(new) == 1 else 's'}" + _in_draft(store, ids),
             path=f"/reviews/{review_id}",
             tags="mag",
+            link=f"{row['url']}/files",
         )
     except Exception as e:
         log.exception("adding reviewers to review %s failed", review_id)

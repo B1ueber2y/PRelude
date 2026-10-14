@@ -33,11 +33,21 @@ def _http_send(url: str, body: bytes, headers: dict[str, str]) -> None:
 
 
 def send(
-    cfg: NotifyConfig, title: str, message: str, *, path: str = "/", tags: str = "", sender: Sender | None = None
+    cfg: NotifyConfig,
+    title: str,
+    message: str,
+    *,
+    path: str = "/",
+    tags: str = "",
+    link: str | None = None,
+    sender: Sender | None = None,
 ) -> bool:
+    """Tapping opens `link` if given, else PRelude at `path`."""
     if not cfg.ntfy_topic:
         return False
-    headers = {"Title": title, "Click": cfg.open_url.rstrip("/") + path}
+    if cfg.details == "none":
+        link = None  # the link names the repo
+    headers = {"Title": title, "Click": link or cfg.open_url.rstrip("/") + path}
     if tags:
         headers["Tags"] = tags
     try:
@@ -64,7 +74,15 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
         msg = prefix + f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "")
         if drafted:
             msg += ", all in your draft" if drafted == n else f", {drafted} in your draft"
-        return send(cfg, "Review ready", msg, path=f"/reviews/{review['id']}", tags="mag" + repo_tag, sender=sender)
+        return send(
+            cfg,
+            "Review ready",
+            msg,
+            path=f"/reviews/{review['id']}",
+            tags="mag" + repo_tag,
+            link=f"{review['url']}/files",
+            sender=sender,
+        )
     why = (review["error"] or "").split(":", 1)[0] or "see PRelude for details"
     return send(
         cfg,

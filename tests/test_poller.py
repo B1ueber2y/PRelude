@@ -116,20 +116,21 @@ def test_explicit_since_date(poller, reader, cfg):
 
 def test_notification_detail_levels(cfg, sent):
     cfg.notify.ntfy_topic = "topic"
-    review = {"id": 3, "status": "done", "owner": "o", "repo": "r", "number": 7, "title": "Private"}
+    review = {"id": 3, "status": "done", "owner": "o", "repo": "r", "number": 7, "title": "Private", "url": "U"}
     findings = [{"severity": "high", "status": "pending"}, {"severity": "low", "status": "pending"}]
-    bodies = {}
+    bodies, clicks = {}, {}
     for level in ("none", "ref", "full"):
         cfg.notify.details = level
         review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
-        bodies[level] = sent[-1][1]
+        bodies[level], clicks[level] = sent[-1][1], sent[-1][2]["Click"]
     assert bodies == {
         "none": b"2 findings (1 high)",
         "ref": b"o/r#7 \xc2\xb7 2 findings (1 high)",
         "full": b"o/r#7 Private \xc2\xb7 2 findings (1 high)",
     }
+    assert clicks == {"none": "http://localhost:8787/reviews/3", "ref": "U/files", "full": "U/files"}
     url, _, headers = sent[-1]
-    assert url == "https://ntfy.sh/topic" and headers["Click"] == "http://localhost:8787/reviews/3"
+    assert url == "https://ntfy.sh/topic" and "Actions" not in headers
     assert headers["Tags"] == "mag,r"
     cfg.notify.ntfy_topic = None
     assert send(cfg.notify, "t", "m", sender=lambda *a: sent.append(a)) is False
