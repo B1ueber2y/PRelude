@@ -30,6 +30,9 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
 
 - **Investigates, not just diffs.** Claude explores the repository around the change
   (callers, tests, config) in a read-only checkout and anchors each finding to a line.
+- **A panel, not one opinion.** Optionally run several independent reviewers, each with
+  a different focus, and a meta-reviewer that merges their reports, checks disputed
+  claims against the code, and records how many reviewers raised each finding.
 - **One thread per finding.** Challenging one comment never muddles another. Each
   discussion continues from the review's context, so Claude doesn't start over.
 - **Your words stay yours.** Claude's suggestion and your edited wording are stored
@@ -67,6 +70,7 @@ to a single repository during development.
 
 ```bash
 .venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review from the terminal
+.venv/bin/prelude review -n 3 OWNER/REPO#123                     # 3 reviewers + meta-reviewer
 .venv/bin/prelude serve                                          # web UI on 127.0.0.1:8787
 .venv/bin/prelude url                                            # link that unlocks the UI on a device
 .venv/bin/prelude style-init OWNER/REPO                          # learn your comment style

@@ -22,6 +22,18 @@ only_repo: B1ueber2y/PRelude
 # Claude settings. `model: null` uses Claude Code's default model.
 claude:
   model: null
+  # Independent reviewers per review (more = more thorough, uses more of your plan).
+  # With more than one, a meta-reviewer merges their reports. "auto" picks by PR size
+  # (changed lines) using reviewers_by_size: first row whose max_lines is not exceeded.
+  reviewers: auto
+  reviewers_by_size:
+    - {max_lines: 99, reviewers: 1}
+    - {max_lines: 499, reviewers: 3}
+    - {reviewers: 5}
+  lenses:
+    - correctness and edge cases
+    - security and data handling
+    - API contracts, error handling and reliability
   review_timeout_seconds: 1500
   discuss_timeout_seconds: 900
 
@@ -42,9 +54,30 @@ server:
 """
 
 
+AUTO = 0  # pick reviewers by PR size
+DEFAULT_BY_SIZE = ((99, 1), (499, 3), (None, 5))
+
+# Kubernetes-style PR size labels by changed lines.
+SIZE_LABELS = ((9, "XS"), (29, "S"), (99, "M"), (499, "L"), (999, "XL"), (None, "XXL"))
+
+
+def size_label(changed_lines: int) -> str:
+    return next(label for limit, label in SIZE_LABELS if limit is None or changed_lines <= limit)
+
+
+DEFAULT_LENSES = (
+    "correctness and edge cases",
+    "security and data handling",
+    "API contracts, error handling and reliability",
+)
+
+
 @dataclass
 class ClaudeConfig:
     model: str | None = None
+    reviewers: int = AUTO
+    reviewers_by_size: list[tuple[int | None, int]] = field(default_factory=lambda: list(DEFAULT_BY_SIZE))
+    lenses: list[str] = field(default_factory=lambda: list(DEFAULT_LENSES))
     review_timeout_seconds: int = 1500
     discuss_timeout_seconds: int = 900
 
@@ -88,6 +121,12 @@ class Config:
     def access_key_path(self) -> Path:
         return self.data_dir / "access_key"
 
+    def reviewers_for(self, changed_lines: int) -> int:
+        for max_lines, n in self.claude.reviewers_by_size:
+            if max_lines is None or changed_lines <= max_lines:
+                return n
+        return 1
+
     def access_key(self) -> str:
         """Secret the phone presents (once, via link) to use the web UI."""
         path = self.access_key_path
@@ -120,6 +159,12 @@ def load_config(data_dir: Path | None = None) -> Config:
         only_repo=(raw.get("only_repo") or None),
         claude=ClaudeConfig(
             model=claude_raw.get("model"),
+            reviewers=_reviewers(claude_raw.get("reviewers", "auto")),
+            reviewers_by_size=[
+                (row.get("max_lines"), _reviewers(row.get("reviewers", 1)) or 1)
+                for row in (claude_raw.get("reviewers_by_size") or [])
+            ] or list(DEFAULT_BY_SIZE),
+            lenses=[str(x) for x in (claude_raw.get("lenses") or DEFAULT_LENSES)],
             review_timeout_seconds=int(claude_raw.get("review_timeout_seconds", 1500)),
             discuss_timeout_seconds=int(claude_raw.get("discuss_timeout_seconds", 900)),
         ),
@@ -135,3 +180,9 @@ def load_config(data_dir: Path | None = None) -> Config:
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,
     )
+
+
+def _reviewers(value) -> int:
+    if value in (None, "auto", "", 0):
+        return AUTO
+    return max(1, min(8, int(value)))

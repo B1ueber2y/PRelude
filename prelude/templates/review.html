@@ -4,10 +4,10 @@
 {% block topright %}<a class="ext" href="{{ r.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endblock %}
 {% block content %}
 <section class="review-head">
-  <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}</div>
+  <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
   <h1>{{ r.title or 'Pull request' }}</h1>
   {% if r.summary %}<p class="summary">{{ r.summary | text }}</p>{% endif %}
-  {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}</div>{% endif %}
+  {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}{% if r.reviewers > 1 %} · {{ r.reviewers }} reviewers + meta-review{% endif %}</div>{% endif %}
 </section>
 
 {% if r.status in ('queued', 'running') %}
@@ -59,6 +59,7 @@
         {% if f.user_draft is not none %}<span class="tag">edited</span>{% endif %}
         {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
         {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
+        {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
         {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
       </div>
       <div class="card-title">{{ f.title }}</div>

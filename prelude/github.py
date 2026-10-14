@@ -61,6 +61,12 @@ class PullRequest:
     head_ref: str
     head_sha: str
     html_url: str
+    additions: int = 0
+    deletions: int = 0
+
+    @property
+    def changed_lines(self) -> int:
+        return self.additions + self.deletions
 
 
 class GitHubReader:
@@ -107,6 +113,8 @@ class GitHubReader:
             head_ref=data["head"]["ref"],
             head_sha=data["head"]["sha"],
             html_url=data["html_url"],
+            additions=int(data.get("additions") or 0),
+            deletions=int(data.get("deletions") or 0),
         )
 
     def viewer_login(self) -> str:

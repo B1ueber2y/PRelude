@@ -18,7 +18,10 @@ router = APIRouter()
 
 
 def _index(request: Request, w: Web, **extra) -> HTMLResponse:
-    return w.render(request, "index.html", {"reviews": w.store.list_reviews(), "only_repo": w.cfg.only_repo, **extra})
+    return w.render(request, "index.html", {
+        "reviews": w.store.list_reviews(), "only_repo": w.cfg.only_repo,
+        "default_reviewers": w.cfg.claude.reviewers, **extra,
+    })
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -32,9 +35,9 @@ def review_rows(w: WebDep, request: Request):
 
 
 @router.post("/reviews")
-def create_review(w: WebDep, request: Request, pr: str = Form(...)):
+def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: int | None = Form(None)):
     try:
-        review_id = start_review(w.store, w.cfg, parse_pr(pr), trigger_reason="manual (phone)")
+        review_id = start_review(w.store, w.cfg, parse_pr(pr), trigger_reason="manual (phone)", reviewers=reviewers)
     except (ValueError, RepoNotAllowed) as e:
         return _index(request, w, error=str(e), pr=pr)
     threading.Thread(target=w.run_review, args=(review_id,), daemon=True, name=f"review-{review_id}").start()

@@ -375,3 +375,8 @@ textarea { resize: none; line-height: 1.45; }
 .draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.reviewers { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 0.9rem; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text); }
+.chip input { width: auto; padding: 0; accent-color: var(--accent); margin: 0; }
+.hint.inline { flex-basis: 100%; margin: 0; }

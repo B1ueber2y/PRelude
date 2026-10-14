@@ -20,7 +20,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
     store = Store(cfg.db_path)
     try:
         ref = parse_pr(args.pr)
-        review_id = start_review(store, cfg, ref, trigger_reason="manual (cli)")
+        review_id = start_review(store, cfg, ref, trigger_reason="manual (cli)", reviewers=args.reviewers)
     except (ValueError, RepoNotAllowed) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -45,7 +45,8 @@ def _print_review(store: Store, review_id: int) -> int:
     for f in store.findings_for(review_id):
         loc = f"{f['path']}:{f['line']}" if f["line"] else f["path"]
         flag = "" if f["in_diff"] else "  (not on a diff line)"
-        print(f"[{f['severity']:>6}] {f['title']}\n         {loc}{flag}  — {f['status']}")
+        agree = f"  (found by {f['found_by']}/{r['reviewers']})" if f["found_by"] else ""
+        print(f"[{f['severity']:>6}] {f['title']}{agree}\n         {loc}{flag}  — {f['status']}")
     return 0
 
 
@@ -122,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("review", help="review a PR now and print the findings")
     s.add_argument("pr", help="PR link (https://github.com/OWNER/REPO/pull/N) or OWNER/REPO#N")
+    s.add_argument("-n", "--reviewers", type=int, default=None,
+                   help="independent reviewers, merged by a meta-reviewer; 0 = by PR size (default: config)")
     s.set_defaults(fn=_cmd_review)
 
     s = sub.add_parser("show", help="print a stored review")

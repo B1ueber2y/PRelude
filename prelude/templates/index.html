@@ -8,6 +8,13 @@
            placeholder="https://github.com/owner/repo/pull/123" value="{{ pr or '' }}" required>
     <button class="btn primary" type="submit">Review</button>
   </div>
+  <div class="reviewers">
+    <span>Reviewers</span>
+    {% for n, label in ((0, 'Auto'), (1, '1'), (3, '3'), (5, '5')) %}
+    <label class="chip"><input type="radio" name="reviewers" value="{{ n }}" {{ 'checked' if n == default_reviewers }}> {{ label }}</label>
+    {% endfor %}
+    <span class="hint inline">Auto picks by PR size. More reviewers + a meta-reviewer: more thorough, uses more of your plan.</span>
+  </div>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   {% if only_repo %}<p class="hint">Restricted to <strong>{{ only_repo }}</strong> while in development.</p>{% endif %}
 </form>

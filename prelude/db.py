@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -32,6 +33,10 @@ CREATE TABLE IF NOT EXISTS reviews (
   worktree TEXT,
   diff TEXT,
   cost_usd REAL,
+  reviewers INTEGER NOT NULL DEFAULT 1,     -- 0 until resolved from PR size
+  changed_lines INTEGER,
+  runner_pid INTEGER,                      -- process running the review
+  reports TEXT,                            -- independent reviewers' raw reports (JSON)
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -58,6 +63,7 @@ CREATE TABLE IF NOT EXISTS findings (
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
   drafted_body TEXT,                       -- body as last written to GitHub
+  found_by INTEGER,                        -- reviewers who raised it (multi-reviewer runs)
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -105,6 +111,11 @@ class Store:
             c.executescript(SCHEMA)
             _add_missing_columns(c, "findings", {
                 "github_review_id": "TEXT", "github_comment_id": "TEXT", "drafted_body": "TEXT",
+                "found_by": "INTEGER",
+            })
+            _add_missing_columns(c, "reviews", {
+                "reviewers": "INTEGER NOT NULL DEFAULT 1", "reports": "TEXT", "changed_lines": "INTEGER",
+                "runner_pid": "INTEGER",
             })
 
     @contextmanager
@@ -133,13 +144,15 @@ class Store:
 
     # ---- reviews -----------------------------------------------------------
 
-    def create_review(self, owner: str, repo: str, number: int, url: str, trigger_reason: str) -> int:
+    def create_review(
+        self, owner: str, repo: str, number: int, url: str, trigger_reason: str, reviewers: int = 1,
+    ) -> int:
         now = time.time()
         with self.connect() as c:
             cur = c.execute(
-                "INSERT INTO reviews (owner, repo, number, url, trigger_reason, status, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)",
-                (owner, repo, number, url, trigger_reason, now, now),
+                "INSERT INTO reviews (owner, repo, number, url, trigger_reason, reviewers, status, created_at,"
+                " updated_at) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
+                (owner, repo, number, url, trigger_reason, reviewers, now, now),
             )
             return int(cur.lastrowid)
 
@@ -167,15 +180,20 @@ class Store:
             ).fetchall()
 
     def fail_stale_reviews(self) -> int:
-        """Reviews left running by a previous process can never finish."""
+        """Fail reviews whose process is gone; another process may still be running some."""
         with self.connect() as c:
-            cur = c.execute(
-                "UPDATE reviews SET status = 'failed', error = 'interrupted (PRelude restarted)', updated_at = ?"
-                " WHERE status IN ('queued', 'running')",
-                (time.time(),),
-            )
+            rows = c.execute(
+                "SELECT id, runner_pid FROM reviews WHERE status IN ('queued', 'running')"
+            ).fetchall()
+            stale = [r["id"] for r in rows if not _alive(r["runner_pid"])]
+            for rid in stale:
+                c.execute(
+                    "UPDATE reviews SET status = 'failed', error = 'interrupted (PRelude restarted)', updated_at = ?"
+                    " WHERE id = ?",
+                    (time.time(), rid),
+                )
             c.execute("UPDATE threads SET busy = 0")
-            return cur.rowcount
+            return len(stale)
 
     # ---- findings ----------------------------------------------------------
 
@@ -185,13 +203,13 @@ class Store:
             for i, f in enumerate(findings, start=1):
                 c.execute(
                     "INSERT INTO findings (review_id, ordinal, path, line, start_line, side, in_diff, severity,"
-                    " category, title, assessment, evidence, confidence, claude_comment, created_at, updated_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " category, title, assessment, evidence, confidence, claude_comment, found_by, created_at,"
+                    " updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         review_id, i, f["path"], f.get("line"), f.get("start_line"), f.get("side", "RIGHT"),
                         int(bool(f.get("in_diff"))), f["severity"], f.get("category"), f["title"],
                         f["assessment"], json.dumps(f.get("evidence") or []), f.get("confidence"),
-                        f["suggested_comment"], now, now,
+                        f["suggested_comment"], f.get("found_by"), now, now,
                     ),
                 )
 
@@ -310,6 +328,18 @@ class Store:
                 c.execute("UPDATE threads SET busy = 0, session_id = ? WHERE finding_id = ?", (session_id, finding_id))
             else:
                 c.execute("UPDATE threads SET busy = 0 WHERE finding_id = ?", (finding_id,))
+
+
+def _alive(pid: int | None) -> bool:
+    if not pid or pid == os.getpid():
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _add_missing_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:

@@ -15,7 +15,8 @@
     {% if f.category %}<span class="tag">{{ f.category }}</span>{% endif %}
     {% if f.confidence %}<span class="tag">{{ f.confidence }} confidence</span>{% endif %}
     {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
-    {% if f.status == 'drafted' %}<span class="tag accent">in GitHub draft</span>{% endif %}
+    {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+        {% if f.status == 'drafted' %}<span class="tag accent">in GitHub draft</span>{% endif %}
   </div>
   <h1>{{ f.title }}</h1>
   <div class="loc">{{ f.path }}{% if f.line %}:{% if f.start_line %}{{ f.start_line }}–{% endif %}{{ f.line }}{% endif %}</div>

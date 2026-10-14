@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .. import drafting
-from ..config import Config
+from ..config import Config, size_label
 from ..db import Store
 from ..diffmap import FileDiff, parse_diff
 from ..discuss import Broker, current_draft
@@ -30,6 +30,7 @@ def make_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=PACKAGE / "templates")
     templates.env.filters["fromjson"] = json.loads
     templates.env.filters["text"] = render_text
+    templates.env.filters["size_label"] = size_label
     return templates
 
 

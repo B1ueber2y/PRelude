@@ -12,16 +12,16 @@ import uuid
 
 args = sys.argv[1:]
 log = os.environ.get("FAKE_CLAUDE_LOG")
+prompt = "" if args[:2] == ["auth", "status"] else sys.stdin.read()
 if log:
     with open(log, "a") as f:
-        f.write(json.dumps({"args": args, "env_keys": sorted(os.environ)}) + "\n")
+        f.write(json.dumps({"args": args, "env_keys": sorted(os.environ), "prompt": prompt}) + "\n")
 
 if args[:2] == ["auth", "status"]:
     method = os.environ.get("FAKE_CLAUDE_AUTH", "claude.ai")
     print(json.dumps({"loggedIn": method != "none", "authMethod": method}))
     sys.exit(0)
 
-prompt = sys.stdin.read()
 session = str(uuid.uuid4())
 reply = os.environ.get("FAKE_CLAUDE_REPLY", "Looks right to me.\nVERDICT: confirmed")
 fmt = args[args.index("--output-format") + 1] if "--output-format" in args else "text"
