@@ -121,3 +121,11 @@ def test_notifications_say_little_by_default(cfg, sent):
     assert b"secret-repo" in sent[-1][1]
     cfg.notify.ntfy_topic = None
     assert send(cfg.notify, "t", "m", sender=lambda *a: sent.append(a)) is False
+
+
+def test_own_prs_opened_before_watching_are_skipped(poller, reader, store):
+    reader.add(1, author="me", created="2000-01-01T00:00:00Z")
+    reader.add(2, author="me")
+    (rid,) = poller.poll_once()
+    assert store.get_review(rid)["number"] == 2
+    assert "opened before" in store.watched("B1ueber2y", "PRelude", 1)["reason"]

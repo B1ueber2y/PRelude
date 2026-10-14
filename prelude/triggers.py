@@ -95,16 +95,22 @@ class Candidate:
     team_requesters: set[str] = field(default_factory=set)    # requested a team you're on
 
 
-def decide(t: TriggerConfig, me: str, c: Candidate, since: str | None = None) -> tuple[bool, str]:
+def decide(t: TriggerConfig, me: str, c: Candidate, since: str | None = None,
+           own_since: str | None = None) -> tuple[bool, str]:
     """Whether to review `c` automatically, and why (shown on the review).
 
-    `since` (ISO date) limits all_prs repos to PRs opened from then on; requests still count.
+    `since` / `own_since` (ISO dates) limit all_prs repos and your own PRs to PRs opened from
+    then on; review requests always count.
     """
     me, author = me.lower(), c.author.lower()
     if t.skip_draft_prs and c.draft:
         return False, "draft PR"
     if author == me:
-        return (True, "your PR") if t.own_prs else (False, "your PR (own_prs off)")
+        if not t.own_prs:
+            return False, "your PR (own_prs off)"
+        if own_since and c.created_at and c.created_at < own_since:
+            return False, f"your PR, opened before {own_since[:10]}, when watching started"
+        return True, "your PR"
     if author in t.block:
         return False, f"author {c.author} is blocked"
 

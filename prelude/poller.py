@@ -19,6 +19,7 @@ from .triggers import Candidate, decide
 
 log = logging.getLogger(__name__)
 
+OWN = "@own"  # watch-start key for your own PRs
 LAST_POLL = "poll_last"
 LAST_ERROR = "poll_error"
 
@@ -51,7 +52,7 @@ class Poller:
         t = self.cfg.triggers
         queries = ["review-requested:@me"]
         if t.own_prs:
-            queries.append("author:@me")
+            queries.append(f"author:@me created:>={self.since(OWN)[:10]}")
         for pattern, mode in t.repos.items():
             if mode == "all_prs":
                 owner, _, repo = pattern.partition("/")
@@ -74,7 +75,7 @@ class Poller:
         ok, reason = decide(t, self._me, Candidate(
             slug=f"{owner}/{repo}", number=number, author=item["author"], draft=pr.draft,
             created_at=item.get("created_at", ""), direct_requesters=direct, team_requesters=team,
-        ), since=since)
+        ), since=since, own_since=self.since(OWN))
         return pr, ok, reason
 
     def poll_once(self) -> list[int]:
