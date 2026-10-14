@@ -248,3 +248,10 @@ def test_use_this_wording_hidden_on_posted_findings(client, done_review, store):
     assert "Use this wording" in client.get(f"/findings/{f['id']}").text
     store.update_finding(f["id"], status="posted")
     assert "Use this wording" not in client.get(f"/findings/{f['id']}").text
+
+
+def test_stats_page_renders(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="posted")
+    page = client.get("/stats").text
+    assert "By reviewer agreement" in page and "PRelude" in page and "100%" in page

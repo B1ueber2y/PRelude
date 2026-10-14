@@ -571,3 +571,18 @@ p.summary { font-size: 0.92rem; }
 .existing .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .cs-addressed { color: #2f9e5b; background: color-mix(in srgb, #2f9e5b 14%, transparent); }
 .cs-open { color: var(--medium); background: var(--medium-bg); }
+
+/* stats */
+.toplinks { display: flex; gap: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 12px 0; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+.tile .num { font-size: 1.3rem; font-weight: 700; }
+.tile .lbl { font-size: 0.75rem; color: var(--muted); }
+table.stats { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+table.stats th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.72rem; padding: 4px 6px; }
+table.stats td { padding: 6px; border-top: 1px solid var(--border); }
+table.stats .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.stats .lab { word-break: normal; overflow-wrap: normal; }
+table.stats .bar { width: 38%; position: relative; }
+table.stats .bar span { display: block; height: 16px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+table.stats .bar em { position: absolute; left: 10px; top: 6px; font-style: normal; font-size: 0.75rem; }

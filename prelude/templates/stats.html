@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Stats · PRelude{% endblock %}
+{% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
+{% block content %}
+<h1>Stats</h1>
+<p class="hint">What happened to PRelude's comments. "Kept" means you added them to your draft or posted them.</p>
+
+<div class="tiles">
+  <div class="tile"><div class="num">{{ s.reviews }}</div><div class="lbl">reviews</div></div>
+  <div class="tile"><div class="num">{{ s.clean }}</div><div class="lbl">clean</div></div>
+  <div class="tile"><div class="num">{{ s.total.findings }}</div><div class="lbl">findings</div></div>
+  <div class="tile"><div class="num">{{ pct(s.total.acceptance) }}</div><div class="lbl">kept</div></div>
+  <div class="tile"><div class="num">{{ pct(s.total.edit_rate) }}</div><div class="lbl">edited before keeping</div></div>
+</div>
+
+{% macro table(title, rows) %}
+<h2 class="section-title">{{ title }}</h2>
+{% if not rows %}<p class="empty-line">Nothing yet.</p>{% else %}
+<table class="stats">
+  <thead><tr><th></th><th>kept</th><th>found</th><th class="num">kept / ✗ / open</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="lab">{{ r.label | replace("/", "/\u200b") }}</td>
+      <td class="bar"><span style="width: {{ ((r.acceptance or 0) * 100) | round }}%"></span><em>{{ pct(r.acceptance) }}</em></td>
+      <td class="num">{{ r.findings }}</td>
+      <td class="num">{{ r.kept }} / {{ r.discarded }} / {{ r.pending }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endmacro %}
+
+{{ table("By repository", s.by_repo) }}
+{{ table("By severity", s.by_severity) }}
+{{ table("By reviewer agreement", s.by_agreement) }}
+{{ table("By week", s.by_week) }}
+<p class="hint">If memory is working, "kept" should go up and "edited" down over the weeks.</p>
+{% endblock %}

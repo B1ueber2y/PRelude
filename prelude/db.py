@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -127,6 +128,9 @@ CREATE TABLE IF NOT EXISTS threads (
 class Store:
     def __init__(self, path: Path):
         self.path = path
+        self._local = threading.local()
+        with sqlite3.connect(path, timeout=30) as c:
+            c.execute("PRAGMA journal_mode=WAL")  # persistent; set once, not on every connection
         with self.connect() as c:
             c.executescript(SCHEMA)
             _add_missing_columns(
@@ -160,15 +164,23 @@ class Store:
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.path, timeout=30)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
+        """This thread's connection; commits on success, rolls back on error.
+
+        Connections are kept open per thread: opening and closing one per operation from several
+        threads made SQLite's WAL handling block threads for up to the busy timeout.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.path, timeout=30)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys=ON")
+            self._local.conn = conn
         try:
             yield conn
             conn.commit()
-        finally:
-            conn.close()
+        except BaseException:
+            conn.rollback()
+            raise
 
     # ---- settings ----------------------------------------------------------
 

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from .config import Config
 from .github import gh_token
 from .guard import check_repo
+from .retry import retry
 
 GRAPHQL = "https://api.github.com/graphql"
 
@@ -81,7 +82,10 @@ class DraftWriter:
         check_query(query)
         if self._transport is None:
             self._transport = _http_transport(gh_token())
-        out = self._transport(query, variables)
+        if query.lstrip().startswith("mutation"):
+            out = self._transport(query, variables)  # never retried: it could post twice
+        else:
+            out = retry(lambda: self._transport(query, variables), what="GitHub GraphQL query")
         errors = out.get("errors") or []
         if missing_ok and errors and all(e.get("type") == "NOT_FOUND" for e in errors):
             return out.get("data") or {}
