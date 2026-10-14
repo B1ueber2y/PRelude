@@ -238,6 +238,16 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone()
 
+    def try_mark_busy(self, review_id: int, progress: str) -> bool:
+        """Claim a finished review for extra work; False if it's already busy (atomic)."""
+        with self.connect() as c:
+            cur = c.execute(
+                "UPDATE reviews SET progress = ?, error = NULL, runner_pid = ?, updated_at = ?"
+                " WHERE id = ? AND status = 'done' AND progress IS NULL",
+                (progress, os.getpid(), time.time(), review_id),
+            )
+            return cur.rowcount == 1
+
     def delete_review(self, review_id: int) -> None:
         """Remove a review and its findings and discussions (GitHub is not touched)."""
         with self.connect() as c:
@@ -273,6 +283,15 @@ class Store:
         with self.connect() as c:
             rows = c.execute("SELECT id, runner_pid FROM reviews WHERE status IN ('queued', 'running')").fetchall()
             stale = [r["id"] for r in rows if not _alive(r["runner_pid"])]
+            adding = c.execute(
+                "SELECT id, runner_pid FROM reviews WHERE status = 'done' AND progress IS NOT NULL"
+            ).fetchall()
+            for r in adding:
+                if not _alive(r["runner_pid"]):
+                    c.execute(
+                        "UPDATE reviews SET progress = NULL, error = ? WHERE id = ?",
+                        ("Adding reviewers was interrupted (PRelude restarted)", r["id"]),
+                    )
             for rid in stale:
                 c.execute(
                     "UPDATE reviews SET status = 'failed', error = 'interrupted (PRelude restarted)', updated_at = ?"

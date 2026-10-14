@@ -308,7 +308,10 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
     ref = PrRef(row["owner"], row["repo"], row["number"])
     try:
         check_repo(cfg, ref.owner, ref.repo)
-        store.update_review(review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None)
+        if not row["progress"]:  # not claimed by the caller yet
+            store.update_review(
+                review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None, runner_pid=os.getpid()
+            )
         claude.ensure_logged_in()
         pr = (github or GitHubReader(cfg)).pull_request(ref)
         if pr.head_sha != row["head_sha"]:
@@ -357,7 +360,7 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
         store.update_review(
             review_id,
             progress=None,
-            reviewers=before + n,
+            reviewers=before + len(reports),
             cost_usd=(row["cost_usd"] or 0) + cost + (result.cost_usd or 0),
         )
         send(

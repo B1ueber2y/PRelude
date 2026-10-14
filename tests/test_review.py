@@ -154,3 +154,22 @@ def test_auto_review_skips_pr_closed_while_waiting(cfg, store, checkout, fake_cl
     manual = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), trigger_reason="manual (phone)")
     review.run_review(store, cfg, manual, github=FakeReader(state="closed"))
     assert store.get_review(manual)["status"] == "done"  # you asked for it explicitly
+
+
+def test_reviewer_count_only_counts_reviewers_that_delivered(cfg, store, done_review, fake_claude, monkeypatch):
+    store.update_review(done_review, head_sha="a" * 40, reviewers=1, merge_base="c" * 40)
+    calls = {"n": 0}
+    real = review._Job.run
+
+    def flaky(self, prompt, schema):
+        calls["n"] += 1
+        if "Look especially hard" in prompt and calls["n"] == 1:
+            raise RuntimeError("reviewer crashed")
+        return real(self, prompt, schema)
+
+    monkeypatch.setattr(review._Job, "run", flaky)
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [], "new_findings": [], "also_found": []})
+    )
+    review.add_reviewers(store, cfg, done_review, 3, github=FakeReader())
+    assert store.get_review(done_review)["reviewers"] == 3  # 1 + the 2 that delivered

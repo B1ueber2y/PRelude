@@ -76,3 +76,11 @@ def test_never_repo_wins_over_own_prs():
     t = cfg(repos={"me/tool": "never"}, requesters={"always": ["boss"]})
     assert decide(t, "me", pr(author="me", slug="me/tool")) == (False, "me/tool is set to never")
     assert decide(t, "me", pr(author="me", slug="me/other")) == (True, "your PR")
+
+
+def test_dates_are_validated():
+    with pytest.raises(TriggerConfigError):
+        cfg(requests_since="10/10/2026")
+    with pytest.raises(TriggerConfigError):
+        cfg(repos={"org/app": {"mode": "all_prs", "since": "last week"}})
+    cfg(requests_since="2026-10-10", repos={"org/app": {"mode": "all_prs", "since": "2026-10-01"}})

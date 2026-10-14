@@ -91,11 +91,10 @@ def _has_new_commits(w: Web, r) -> bool:
 
 @router.post("/reviews/{review_id}/more")
 def more_reviewers(w: WebDep, review_id: int, n: int = Form(1)):
-    r = w.review_or_404(review_id)
-    if r["status"] != "done" or r["progress"]:
-        return w.flash("This review is busy; try again when it's finished.")
+    w.review_or_404(review_id)
     n = max(1, min(5, n))
-    w.store.update_review(review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None)
+    if not w.store.try_mark_busy(review_id, f"Adding {n} reviewer{'s' if n > 1 else ''}"):
+        return w.flash("This review is busy; try again when it's finished.")
     threading.Thread(target=w.add_reviewers, args=(review_id, n), daemon=True, name=f"more-{review_id}").start()
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
@@ -122,7 +121,7 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
 @router.post("/reviews/{review_id}/delete")
 def delete_review(w: WebDep, review_id: int):
     r = w.review_or_404(review_id)
-    if r["status"] in ("queued", "running"):
+    if r["status"] in ("queued", "running") or r["progress"]:
         return w.flash("This review is still running; delete it when it's finished.")
     w.store.delete_review(review_id)
     if r["worktree"] and not w.store.worktree_in_use(r["worktree"]):
@@ -136,7 +135,7 @@ def delete_review(w: WebDep, review_id: int):
 @router.get("/reviews/{review_id}/status", response_class=HTMLResponse)
 def review_status(w: WebDep, request: Request, review_id: int):
     r = w.review_or_404(review_id)
-    if r["status"] in ("done", "failed") and not r["progress"]:
+    if r["status"] in ("done", "failed", "skipped") and not r["progress"]:
         return Response(headers={"HX-Refresh": "true"})  # reload so the findings appear
     return w.render(request, "_review_status.html", {"r": r})
 

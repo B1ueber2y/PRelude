@@ -6,6 +6,7 @@ Precedence: blocked people -> always-list requesters -> repo set to never -> you
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from fnmatch import fnmatchcase
 from typing import Any
 
@@ -65,6 +66,12 @@ class TriggerConfig:
         for mode in (self.default_mode, *self.repos.values()):
             if mode not in MODES:
                 raise TriggerConfigError(f"unknown repo mode {mode!r} (use one of {', '.join(MODES)})")
+        for label, value in [("requests_since", self.requests_since), *self.since.items()]:
+            if value is not None:
+                try:
+                    date.fromisoformat(str(value)[:10])
+                except ValueError:
+                    raise TriggerConfigError(f"{label}: {value!r} is not a date like 2026-10-10") from None
         if both := self.always & self.block:
             raise TriggerConfigError(f"on both the always and block lists: {', '.join(sorted(both))}")
 

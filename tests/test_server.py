@@ -168,3 +168,30 @@ def test_more_reviewers_button(cfg, store, done_review):
     time.sleep(0.1)
     assert started == [(done_review, 3)]
     assert "Adding 3 reviewers" in c.get(f"/reviews/{done_review}").text
+
+
+def test_more_reviewers_claims_atomically_and_blocks_delete(cfg, store, done_review):
+    c = TestClient(
+        create_app(cfg, store, review_runner=lambda _id: None, learner=lambda *a: None, more_runner=lambda rid, n: None)
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    c.post(f"/reviews/{done_review}/more", data={"n": "1"})
+    assert "busy" in c.post(f"/reviews/{done_review}/more", data={"n": "3"}).text  # second tap refused
+    assert "still running" in c.post(f"/reviews/{done_review}/delete").text
+    assert store.get_review(done_review) is not None
+
+
+def test_restart_releases_interrupted_add_reviewers(store, done_review):
+    import subprocess
+
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    store.update_review(done_review, progress="Adding 1 reviewer", runner_pid=gone.pid)
+    store.fail_stale_reviews()
+    r = store.get_review(done_review)
+    assert r["progress"] is None and "interrupted" in r["error"] and r["status"] == "done"
+
+
+def test_skipped_review_stops_polling(client, done_review, store):
+    store.update_review(done_review, status="skipped")
+    assert client.get(f"/reviews/{done_review}/status").headers.get("HX-Refresh") == "true"
