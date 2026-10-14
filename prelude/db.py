@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   progress TEXT,
   error TEXT,
   error_detail TEXT,                       -- full trace for the "Technical details" view
+  pr_state TEXT,                           -- open | merged | closed (last seen on GitHub)
+  pr_checked_at REAL,
   pr_comments TEXT,                        -- JSON: the PR conversation the review saw
   comment_status TEXT,                     -- JSON: per existing comment, addressed / open / unclear
   trigger_reason TEXT,
@@ -65,7 +67,7 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded | dropped (PR closed first)
   verdict TEXT,                            -- latest Claude verdict from discussion
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
@@ -157,6 +159,8 @@ class Store:
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
                     "error_detail": "TEXT",
+                    "pr_state": "TEXT",
+                    "pr_checked_at": "REAL",
                     "pr_comments": "TEXT",
                     "comment_status": "TEXT",
                 },
@@ -293,7 +297,7 @@ class Store:
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
-                " FROM reviews r ORDER BY r.id DESC LIMIT ?",
+                " FROM reviews r ORDER BY COALESCE(r.pr_state, 'open') != 'open', r.id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
 
@@ -459,6 +463,39 @@ class Store:
                 (limit,),
             ).fetchall()
             return [(r[0], r[1]) for r in rows]
+
+    def prs_to_recheck(self, limit: int = 20) -> list[tuple[str, str, int]]:
+        """Reviewed PRs that aren't merged (closed ones can reopen), least recently checked first."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT owner, repo, number FROM reviews WHERE status = 'done'"
+                " AND COALESCE(pr_state, 'open') != 'merged' GROUP BY owner, repo, number"
+                " ORDER BY MIN(COALESCE(pr_checked_at, 0)) LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [(r[0], r[1], r[2]) for r in rows]
+
+    def mark_pr_checked(self, owner: str, repo: str, number: int) -> None:
+        """Move a PR to the back of the re-check queue, even if reading it failed."""
+        with self.connect() as c:
+            c.execute(
+                "UPDATE reviews SET pr_checked_at = ? WHERE owner = ? AND repo = ? AND number = ?",
+                (time.time(), owner, repo, number),
+            )
+
+    def set_pr_state(self, owner: str, repo: str, number: int, state: str) -> int:
+        """Store the PR's state on all its reviews; returns 1 if it changed."""
+        with self.connect() as c:
+            cur = c.execute(
+                "UPDATE reviews SET pr_state = ?, pr_checked_at = ? WHERE owner = ? AND repo = ? AND number = ?"
+                " AND COALESCE(pr_state, 'open') != ?",
+                (state, time.time(), owner, repo, number, state),
+            )
+            c.execute(
+                "UPDATE reviews SET pr_checked_at = ? WHERE owner = ? AND repo = ? AND number = ?",
+                (time.time(), owner, repo, number),
+            )
+            return 1 if cur.rowcount else 0
 
     def reviews_with_drafts(self) -> list[int]:
         with self.connect() as c:

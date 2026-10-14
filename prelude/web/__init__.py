@@ -13,6 +13,7 @@ from .. import memory_agent
 from ..config import Config
 from ..db import Store
 from ..drafts import DraftWriter
+from ..github import GitHubReader
 from ..review import add_reviewers, run_review
 from . import auth, findings, memory, reviews
 from .auth import COOKIE
@@ -43,6 +44,7 @@ def create_app(
     more_runner=None,
     learner=None,
     writer: DraftWriter | None = None,
+    reader=None,
     watch: bool = False,
 ) -> FastAPI:
     store = store or Store(cfg.db_path)
@@ -51,6 +53,7 @@ def create_app(
         cfg=cfg,
         store=store,
         writer=writer or DraftWriter(cfg),
+        reader=reader or GitHubReader(cfg),
         run_review=review_runner or (lambda review_id: run_review(store, cfg, review_id)),
         add_reviewers=more_runner or (lambda review_id, n: add_reviewers(store, cfg, review_id, n)),
         learn=learner or (lambda finding_id, action: memory_agent.learn_async(store, cfg, finding_id, action)),
@@ -75,7 +78,7 @@ def create_app(
     if watch and cfg.triggers.enabled:
         from ..poller import Poller
 
-        app.state.poller = Poller(store, cfg, run=w.run_review)
+        app.state.poller = Poller(store, cfg, reader=w.reader, run=w.run_review)
         app.state.poller.start()
     return app
 

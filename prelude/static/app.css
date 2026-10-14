@@ -586,3 +586,7 @@ table.stats .lab { word-break: normal; overflow-wrap: normal; }
 table.stats .bar { width: 38%; position: relative; }
 table.stats .bar span { display: block; height: 16px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
 table.stats .bar em { position: absolute; left: 10px; top: 6px; font-style: normal; font-size: 0.75rem; }
+.review-card.is-closed { opacity: 0.7; }
+.pr-merged { color: #8250df; background: color-mix(in srgb, #8250df 14%, transparent); }
+.pr-closed { color: var(--muted); }
+.closed-pr { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }

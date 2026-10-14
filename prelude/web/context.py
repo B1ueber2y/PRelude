@@ -22,6 +22,7 @@ from ..db import Store
 from ..diffmap import FileDiff, parse_diff
 from ..discuss import Broker, current_draft
 from ..drafts import DraftError, DraftWriter
+from ..github import GitHubReader
 from ..memory import Memory
 from ..textfmt import render_text
 
@@ -59,6 +60,7 @@ class Web:
     cfg: Config
     store: Store
     writer: DraftWriter
+    reader: GitHubReader
     run_review: Callable[[int], None]
     add_reviewers: Callable[[int, int], None]
     learn: Callable[[int, str], object]
@@ -128,9 +130,12 @@ class Web:
         return self.render(request, "_finding_card.html", self.card_context(f, self.review_or_404(f["review_id"])))
 
     def refuse_if_posted(self, finding_id: int) -> HTMLResponse | None:
-        """A posted comment lives on GitHub now; PRelude no longer changes it."""
-        if self.finding_or_404(finding_id)["status"] == "posted":
+        """Posted comments live on GitHub now, and dropped ones belong to a closed PR: read-only."""
+        status = self.finding_or_404(finding_id)["status"]
+        if status == "posted":
             return self.flash("This comment is already posted on GitHub; change it there.")
+        if status == "dropped":
+            return self.flash("This PR was closed before the comment was posted.")
         return None
 
     @staticmethod
@@ -169,8 +174,8 @@ class Web:
         Returns an error message if the GitHub draft couldn't be updated.
         """
         f = self.finding_or_404(finding_id)
-        if f["status"] == "posted":
-            return "This comment is already posted on GitHub; change it there."
+        if f["status"] in ("posted", "dropped"):
+            return "This comment can't be changed any more (posted, or its PR was closed)."
         text = text.strip() if text is not None else None
         user_draft = None if text is None or text == f["claude_comment"] else text
         self.store.update_finding(finding_id, user_draft=user_draft)

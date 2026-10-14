@@ -4,7 +4,7 @@
 {% block topright %}<a class="ext" href="{{ r.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endblock %}
 {% block content %}
 <section class="review-head">
-  <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
+  <div class="repo">{% if (r.pr_state or 'open') != 'open' %}<span class="tag pr-{{ r.pr_state }}">{{ r.pr_state | capitalize }}</span> {% endif %}{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
   <h1>{{ r.title or 'Pull request' }}</h1>
   {% if r.summary %}<p class="summary"><strong>Summary:</strong> {{ r.summary | text }}</p>{% endif %}
   {% if r.body %}
@@ -17,6 +17,18 @@
   {%- endif %}
 </section>
 
+{% if (r.pr_state or 'open') != 'open' and (leftovers.pending or leftovers.drafted) %}
+<div class="callout warn small closed-pr">
+  <div>
+    This PR was {{ r.pr_state }} before the review was finished:
+    {% if leftovers.drafted %}<strong>{{ leftovers.drafted }}</strong> comment{{ '' if leftovers.drafted == 1 else 's' }} still in your GitHub draft{% endif %}{% if leftovers.drafted and leftovers.pending %}, {% endif %}
+    {% if leftovers.pending %}<strong>{{ leftovers.pending }}</strong> not handled{% endif %}.
+    You can still submit the draft on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>, or clear them.
+  </div>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/clear-leftovers"
+          hx-confirm="Remove the unsubmitted draft comments from GitHub and mark the rest as not posted?">Clear leftovers</button>
+</div>
+{% endif %}
 {% if latest and latest.id != r.id %}
 <a class="callout small newer" href="/reviews/{{ latest.id }}">There's a newer review of this PR ›</a>
 {% endif %}
