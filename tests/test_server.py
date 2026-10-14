@@ -126,3 +126,21 @@ def test_stream_replays_buffered_reply(client, done_review, store, fake_claude):
     wait_idle(store, f["id"])
     body = client.get(f"/findings/{f['id']}/stream").text
     assert "event: text" in body and "event: done" in body
+
+
+def test_delete_review_keeps_github_untouched(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="drafted", github_comment_id="C1")
+    store.add_message(f["id"], "user", "hi")
+    page = client.get(f"/reviews/{done_review}").text
+    assert "1 comment(s) already in your GitHub draft stay there" in page
+    r = client.post(f"/reviews/{done_review}/delete")
+    assert r.headers["HX-Redirect"] == "/"
+    assert store.get_review(done_review) is None and store.get_finding(f["id"]) is None
+    assert store.messages_for(f["id"]) == []
+
+
+def test_running_review_cannot_be_deleted(client, done_review, store):
+    store.update_review(done_review, status="running")
+    assert "still running" in client.post(f"/reviews/{done_review}/delete").text
+    assert store.get_review(done_review) is not None

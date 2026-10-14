@@ -421,3 +421,4 @@ textarea { resize: none; line-height: 1.45; }
 .again { margin-top: 12px; }
 .again summary { color: var(--accent); font-weight: 600; cursor: pointer; }
 .newer { display: block; color: var(--accent); font-weight: 600; }
+.btn.danger { color: var(--error); padding-left: 0; }

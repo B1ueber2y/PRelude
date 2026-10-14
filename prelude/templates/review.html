@@ -50,6 +50,10 @@
   </div>
   <p class="hint">Changes only: just the commits since this review. Both skip findings you discarded.</p>
 </details>
+{% if r.status not in ('queued', 'running') %}
+<button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+        hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+{% endif %}
 {% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
 
 <nav class="tabs" hx-boost="true">

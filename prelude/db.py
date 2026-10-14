@@ -205,6 +205,16 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone()
 
+    def delete_review(self, review_id: int) -> None:
+        """Remove a review and its findings and discussions (GitHub is not touched)."""
+        with self.connect() as c:
+            c.execute("UPDATE reviews SET previous_review_id = NULL WHERE previous_review_id = ?", (review_id,))
+            c.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+
+    def worktree_in_use(self, worktree: str) -> bool:
+        with self.connect() as c:
+            return c.execute("SELECT 1 FROM reviews WHERE worktree = ? LIMIT 1", (worktree,)).fetchone() is not None
+
     def latest_review_for(self, owner: str, repo: str, number: int, done_only: bool = True) -> sqlite3.Row | None:
         with self.connect() as c:
             return c.execute(

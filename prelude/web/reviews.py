@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import threading
+from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -13,7 +15,10 @@ from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
+from ..workspace import remove_checkout
 from .context import Web, WebDep
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -87,6 +92,20 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
         return w.flash(str(e))
     threading.Thread(target=w.run_review, args=(new_id,), daemon=True, name=f"review-{new_id}").start()
     return Response(status_code=204, headers={"HX-Redirect": f"/reviews/{new_id}"})
+
+
+@router.post("/reviews/{review_id}/delete")
+def delete_review(w: WebDep, review_id: int):
+    r = w.review_or_404(review_id)
+    if r["status"] in ("queued", "running"):
+        return w.flash("This review is still running; delete it when it's finished.")
+    w.store.delete_review(review_id)
+    if r["worktree"] and not w.store.worktree_in_use(r["worktree"]):
+        try:
+            remove_checkout(w.cfg, r["owner"], r["repo"], Path(r["worktree"]))
+        except Exception:
+            log.warning("couldn't remove checkout %s", r["worktree"], exc_info=True)
+    return Response(status_code=204, headers={"HX-Redirect": "/"})
 
 
 @router.get("/reviews/{review_id}/status", response_class=HTMLResponse)
