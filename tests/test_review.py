@@ -77,7 +77,11 @@ def test_failed_review_is_recorded(cfg, store, checkout, fake_claude, monkeypatc
     rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
     review.run_review(store, cfg, rid, github=FakeReader())
     r = store.get_review(rid)
-    assert r["status"] == "failed" and "not logged in" in r["error"]
+    assert r["status"] == "failed" and r["error"].startswith("Claude login needed: ")
+    assert "Traceback" in r["error_detail"]
+    (report,) = (cfg.data_dir / "errors").glob("*.txt")
+    text = report.read_text()
+    assert "pr: B1ueber2y/PRelude#1" in text and "reason: Claude login needed" in text and "Traceback" in text
 
 
 def test_auto_reviewers_follow_pr_size(cfg, store, checkout, fake_claude, monkeypatch):

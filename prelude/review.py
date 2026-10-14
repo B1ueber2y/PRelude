@@ -6,12 +6,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import claude
+from . import claude, failures
 from .config import Config
 from .db import Store
 from .diffmap import parse_diff
@@ -191,6 +192,29 @@ def _previous(store: Store, cfg: Config, row, head_sha: str) -> str:
     return previous_section(mode=row["mode"], old_head=prev["head_sha"], findings=findings, changes=changes)
 
 
+def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: Exception, **fields) -> None:
+    row = store.get_review(review_id)
+    report = failures.save_report(
+        cfg,
+        what,
+        {
+            "review": review_id,
+            "pr": f"{row['owner']}/{row['repo']}#{row['number']}",
+            "head": row["head_sha"],
+            "reviewers": row["reviewers"],
+            "mode": row["mode"],
+        },
+        exc,
+    )
+    store.update_review(
+        review_id,
+        progress=None,
+        error=f"{failures.reason(exc)}: {exc}"[:2000],
+        error_detail=f"Report: {report}\n\n" + "".join(traceback.format_exception(exc))[-8000:],
+        **fields,
+    )
+
+
 def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader | None = None) -> None:
     """Run a queued review to completion. Errors are recorded on the review, not raised."""
     row = store.get_review(review_id)
@@ -266,7 +290,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         )
     except Exception as e:  # recorded for the UI; the server keeps running
         log.exception("review %s failed", review_id)
-        store.update_review(review_id, status="failed", progress=None, error=f"{type(e).__name__}: {e}"[:4000])
+        _record_failure(store, cfg, review_id, "review", e, status="failed")
     final = store.get_review(review_id)
     if final["status"] == "skipped":
         return
@@ -345,4 +369,5 @@ def add_reviewers(store: Store, cfg: Config, review_id: int, n: int, github: Git
         )
     except Exception as e:
         log.exception("adding reviewers to review %s failed", review_id)
-        store.update_review(review_id, progress=None, error=f"Adding reviewers failed: {type(e).__name__}: {e}"[:2000])
+        _record_failure(store, cfg, review_id, "adding reviewers", e)
+        send(cfg.notify, "Adding reviewers failed", failures.reason(e), path=f"/reviews/{review_id}", tags="warning")

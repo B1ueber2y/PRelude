@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed | skipped
   progress TEXT,
   error TEXT,
+  error_detail TEXT,                       -- full trace for the "Technical details" view
   trigger_reason TEXT,
   summary TEXT,
   claude_session_id TEXT,
@@ -149,6 +150,7 @@ class Store:
                     "previous_review_id": "INTEGER",
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
+                    "error_detail": "TEXT",
                 },
             )
 

@@ -29,7 +29,9 @@
   {% include "_review_status.html" %}
 </div>
 {% elif r.status == 'done' and r.error %}
-<p class="callout warn small">{{ r.error }}</p>
+<div class="callout warn small">{{ r.error }}
+  {% if r.error_detail %}<details class="tech"><summary>Technical details</summary><pre>{{ r.error_detail }}</pre></details>{% endif %}
+</div>
 {% endif %}
 
 {% if r.status in ('queued', 'running') %}
@@ -40,8 +42,9 @@
 <p class="callout small">{{ r.error }}</p>
 {% elif r.status == 'failed' %}
 <section class="callout error">
-  <strong>Review failed.</strong>
-  <p>{{ r.error }}</p>
+  <strong>Review failed: {{ (r.error or '').split(':', 1)[0] }}</strong>
+  {% if ':' in (r.error or '') %}<p>{{ (r.error or '').split(':', 1)[1] }}</p>{% endif %}
+  {% if r.error_detail %}<details class="tech"><summary>Technical details</summary><pre>{{ r.error_detail }}</pre></details>{% endif %}
 </section>
 {% else %}
 <section class="draft-bar">
