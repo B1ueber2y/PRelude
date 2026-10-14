@@ -1,9 +1,9 @@
-<form hx-post="/findings/{{ f.id }}/draft" hx-target="#draft" hx-swap="innerHTML">
+<form hx-post="/findings/{{ f.id }}/draft" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">
   <div class="block-head"><h2>Edit comment</h2></div>
   <textarea name="text" rows="7" class="autogrow" autofocus>{{ draft }}</textarea>
   <div class="row-actions">
     <button class="btn small primary" type="submit">Save</button>
-    <button class="btn small ghost" type="button" hx-get="/findings/{{ f.id }}/draft" hx-target="#draft" hx-swap="innerHTML">Cancel</button>
+    <button class="btn small ghost" type="button" hx-get="/findings/{{ f.id }}/draft" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">Cancel</button>
   </div>
   {% if edited %}
   <details class="original"><summary>Claude's original</summary><div class="comment muted">{{ f.claude_comment | text }}</div></details>

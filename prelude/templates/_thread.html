@@ -33,7 +33,7 @@
   {% endif %}
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 </div>
-<form id="composer" class="composer" hx-post="/findings/{{ f.id }}/messages" hx-target="#thread" hx-swap="innerHTML">
+<form id="composer" class="composer" hx-post="/findings/{{ f.id }}/messages" hx-target="#thread-{{ f.id }}" hx-swap="innerHTML">
   <textarea id="composer-input" name="text" rows="2" class="autogrow" placeholder="Is this really reachable? / Can you suggest a fix?"
             {{ 'disabled' if busy }} required>{{ draft_message or '' }}</textarea>
   <button class="btn primary" type="submit" {{ 'disabled' if busy }}>Send</button>

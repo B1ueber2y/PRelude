@@ -58,7 +58,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
     counts["all"] = len(findings)
     return w.render(request, "review.html", {
         "r": r,
-        "findings": [f for f in findings if show == "all" or f["status"] == show],
+        "cards": [w.card_context(f, r) for f in findings if show == "all" or f["status"] == show],
         "show": show,
         "counts": counts,
         "drafts_enabled": w.cfg.drafts.enabled,

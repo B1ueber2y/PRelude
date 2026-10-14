@@ -100,6 +100,26 @@ class Web:
         first = f["start_line"] or f["line"]
         return build(lines, fd, start if start is not None else first - 6, end if end is not None else f["line"] + 6)
 
+    def card_context(self, f, r) -> dict:
+        """What a finding card in the review feed needs."""
+        return {
+            "f": f,
+            "r": r,
+            "draft": current_draft(f),
+            "edited": f["user_draft"] is not None and f["user_draft"] != f["claude_comment"],
+            "code": self.code_view(f, r, (f["start_line"] or f["line"] or 1) - 3, (f["line"] or 1) + 3)
+            if f["status"] != "discarded" else None,
+            "drafts_enabled": self.cfg.drafts.enabled,
+        }
+
+    def card(self, request: Request, finding_id: int) -> HTMLResponse:
+        f = self.finding_or_404(finding_id)
+        return self.render(request, "_finding_card.html", self.card_context(f, self.review_or_404(f["review_id"])))
+
+    @staticmethod
+    def wants_card(request: Request, finding_id: int) -> bool:
+        return request.headers.get("HX-Target") == f"card-{finding_id}"
+
     def finding_context(self, finding_id: int, **extra) -> dict:
         f = self.finding_or_404(finding_id)
         r = self.review_or_404(f["review_id"])

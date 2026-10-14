@@ -45,13 +45,13 @@
     {% endif %}
   </section>
 
-  <section class="block" id="draft">
+  <section class="block" id="draft-{{ f.id }}">
     {% include "_draft.html" %}
   </section>
 
   <section class="block" id="discussion">
     <h2>Discuss with Claude</h2>
-    <div id="thread">
+    <div id="thread-{{ f.id }}">
       {% include "_thread.html" %}
     </div>
   </section>

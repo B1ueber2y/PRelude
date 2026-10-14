@@ -70,13 +70,15 @@ def use_proposal(w: WebDep, message_id: int):
 # ---- status ----------------------------------------------------------------
 
 @router.post("/findings/{finding_id}/discard")
-def discard(w: WebDep, finding_id: int):
+def discard(w: WebDep, request: Request, finding_id: int):
     f = w.finding_or_404(finding_id)
     try:
         drafting.remove(w.store, w.cfg, w.writer, finding_id, new_status="discarded")
     except DraftError as e:
         return w.flash(f"Couldn't remove the GitHub draft comment: {e}")
     w.learn(finding_id, "discard")
+    if w.wants_card(request, finding_id):
+        return w.card(request, finding_id)
     next_id = w.finding_context(finding_id)["next_id"]
     return Response(status_code=204, headers={
         "HX-Redirect": f"/findings/{next_id}" if next_id else f"/reviews/{f['review_id']}",
@@ -84,29 +86,35 @@ def discard(w: WebDep, finding_id: int):
 
 
 @router.post("/findings/{finding_id}/restore")
-def restore(w: WebDep, finding_id: int):
+def restore(w: WebDep, request: Request, finding_id: int):
     w.finding_or_404(finding_id)
     w.store.update_finding(finding_id, status="pending")
+    if w.wants_card(request, finding_id):
+        return w.card(request, finding_id)
     return Response(status_code=204, headers=REFRESH)
 
 
 @router.post("/findings/{finding_id}/github/add")
-def github_add(w: WebDep, finding_id: int):
+def github_add(w: WebDep, request: Request, finding_id: int):
     w.finding_or_404(finding_id)
     try:
         drafting.add(w.store, w.cfg, w.writer, finding_id)
     except DraftError as e:
         return w.flash(str(e))
+    if w.wants_card(request, finding_id):
+        return w.card(request, finding_id)
     return Response(status_code=204, headers=REFRESH)
 
 
 @router.post("/findings/{finding_id}/github/remove")
-def github_remove(w: WebDep, finding_id: int):
+def github_remove(w: WebDep, request: Request, finding_id: int):
     w.finding_or_404(finding_id)
     try:
         drafting.remove(w.store, w.cfg, w.writer, finding_id)
     except DraftError as e:
         return w.flash(str(e))
+    if w.wants_card(request, finding_id):
+        return w.card(request, finding_id)
     return Response(status_code=204, headers=REFRESH)
 
 

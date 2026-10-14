@@ -1,0 +1,45 @@
+<article id="card-{{ f.id }}" class="card finding-full {{ 'is-discarded' if f.status == 'discarded' }}">
+  {% if f.status == 'discarded' %}
+  <div class="card-folded">
+    <div>
+      <span class="tag">discarded</span>
+      <a href="/findings/{{ f.id }}" class="folded-title">{{ f.title }}</a>
+    </div>
+    <button class="btn small" hx-post="/findings/{{ f.id }}/restore" hx-target="#card-{{ f.id }}" hx-swap="outerHTML">Restore</button>
+  </div>
+  {% else %}
+  <div class="card-top">
+    <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
+    {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+    {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
+    {% if f.verdict == 'withdrawn' %}<span class="tag warn">Claude withdrew</span>{% endif %}
+  </div>
+  <a class="card-title" href="/findings/{{ f.id }}">{{ f.title }}</a>
+  <div class="loc">{{ f.path }}{% if f.line %}:{% if f.start_line %}{{ f.start_line }}–{% endif %}{{ f.line }}{% endif %}{% if not f.in_diff %} · file comment{% endif %}</div>
+
+  {% if code %}{% include "_code.html" %}{% endif %}
+
+  <details class="why">
+    <summary>Why</summary>
+    <div class="prose">{{ f.assessment | text }}</div>
+  </details>
+
+  <div class="block" id="draft-{{ f.id }}">
+    {% include "_draft.html" %}
+  </div>
+
+  <div class="card-actions">
+    {% if f.status == 'drafted' %}
+    <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-target="#card-{{ f.id }}" hx-swap="outerHTML"
+            hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
+    {% elif drafts_enabled %}
+    <button class="btn primary" hx-post="/findings/{{ f.id }}/github/add" hx-target="#card-{{ f.id }}" hx-swap="outerHTML"
+            hx-disabled-elt="this">Add to draft</button>
+    {% else %}
+    <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
+    {% endif %}
+    <button class="btn" hx-post="/findings/{{ f.id }}/discard" hx-target="#card-{{ f.id }}" hx-swap="outerHTML">Discard</button>
+    <a class="btn" href="/findings/{{ f.id }}#discussion">Discuss ›</a>
+  </div>
+  {% endif %}
+</article>

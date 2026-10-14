@@ -21,7 +21,7 @@
   }
 
   function refreshThread(findingId) {
-    htmx.ajax("GET", "/findings/" + findingId + "/thread", { target: "#thread", swap: "innerHTML" });
+    htmx.ajax("GET", "/findings/" + findingId + "/thread", { target: "#thread-" + findingId, swap: "innerHTML" });
   }
 
   function startStream(thread) {

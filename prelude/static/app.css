@@ -401,3 +401,19 @@ textarea { resize: none; line-height: 1.45; }
   cursor: pointer;
 }
 .expand.subtle { background: var(--surface); color: var(--muted); font-family: inherit; }
+
+.feed { display: grid; gap: 14px; }
+.finding-full { padding: 14px 16px; }
+.finding-full .card-title { display: block; color: var(--text); font-size: 1.05rem; margin-top: 6px; }
+.finding-full .code-wrap { margin: 12px -16px; }
+.finding-full .code { border-radius: 0; border-left: 0; border-right: 0; }
+.finding-full .block { margin-top: 12px; }
+.why { margin-top: 10px; }
+.why summary { color: var(--muted); font-size: 0.9rem; cursor: pointer; }
+.why .prose { margin-top: 6px; font-size: 0.95rem; }
+.card-actions { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+.card-folded { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.folded-title { color: var(--muted); margin-left: 6px; }
+.finding-full.is-discarded { padding: 10px 14px; }
+.feed > * { min-width: 0; }            /* let wide code scroll inside its card */
+.finding-full { overflow: hidden; }

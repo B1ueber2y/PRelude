@@ -6,9 +6,9 @@
 {% if sync_error %}<p class="error">{{ sync_error }}</p>
 {% elif f.status == 'drafted' %}<p class="hint">Changes here update your GitHub draft.</p>{% endif %}
 <div class="row-actions">
-  <button class="btn small" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft" hx-swap="innerHTML">Edit</button>
+  <button class="btn small" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML">Edit</button>
   {% if edited %}
-  <button class="btn small ghost" hx-post="/findings/{{ f.id }}/draft/reset" hx-target="#draft" hx-swap="innerHTML"
+  <button class="btn small ghost" hx-post="/findings/{{ f.id }}/draft/reset" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML"
           hx-confirm="Go back to Claude's original wording?">Use Claude's original</button>
   {% endif %}
 </div>
