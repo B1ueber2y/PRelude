@@ -110,6 +110,14 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_daemon(args: argparse.Namespace) -> int:
+    from . import daemon
+
+    cfg = load_config()
+    print({"start": daemon.start, "stop": daemon.stop, "status": daemon.status}[args.cmd](cfg))
+    return 0
+
+
 def _cmd_url(_args: argparse.Namespace) -> int:
     cfg = load_config()
     print(f"http://{cfg.server.host}:{cfg.server.port}/?key={cfg.access_key()}")
@@ -145,6 +153,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--host", default=None)
     s.add_argument("--port", type=int, default=None)
     s.set_defaults(fn=_cmd_serve)
+
+    for name, help_text in (
+        ("start", "run the web UI in the background until `prelude stop`"),
+        ("stop", "stop a PRelude started with `prelude start`"),
+        ("status", "is PRelude running?"),
+    ):
+        sub.add_parser(name, help=help_text).set_defaults(fn=_cmd_daemon)
 
     args = p.parse_args(argv)
     if args.cmd is None:  # plain `prelude` starts the web UI
