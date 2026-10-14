@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from .. import drafting
+from .. import drafting, stats
 from ..drafts import DraftError
 from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
@@ -43,6 +43,14 @@ def _index(request: Request, w: Web, **extra) -> HTMLResponse:
 @router.get("/", response_class=HTMLResponse)
 def index(w: WebDep, request: Request):
     return _index(request, w)
+
+
+@router.get("/stats", response_class=HTMLResponse)
+def stats_page(w: WebDep, request: Request):
+    def pct(x):
+        return "–" if x is None else f"{round(x * 100)}%"
+
+    return w.render(request, "stats.html", {"s": stats.overview(w.store), "pct": pct})
 
 
 @router.get("/reviews/rows", response_class=HTMLResponse)
