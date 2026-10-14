@@ -258,8 +258,8 @@ Changed files:
 
 {diff_section(diff, diff_inlined)}
 
-Existing findings (status: pending = not handled yet, drafted = kept, discarded = the
-reviewer dismissed it):
+Existing findings (status: pending = not handled yet, drafted = kept, posted = already on the
+PR, discarded = the reviewer dismissed it):
 {shown}
 
 {blocks}

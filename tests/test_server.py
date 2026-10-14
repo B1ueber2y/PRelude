@@ -240,3 +240,11 @@ def test_posted_findings_are_read_only(client, done_review, store):
     client.post(f"/findings/{f['id']}/draft", data={"text": "sneaky edit"})
     row = store.get_finding(f["id"])
     assert row["status"] == "posted" and row["user_draft"] is None
+
+
+def test_use_this_wording_hidden_on_posted_findings(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    store.add_message(f["id"], "assistant", "Shorter:", proposal="401?")
+    assert "Use this wording" in client.get(f"/findings/{f['id']}").text
+    store.update_finding(f["id"], status="posted")
+    assert "Use this wording" not in client.get(f"/findings/{f['id']}").text
