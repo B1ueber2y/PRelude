@@ -557,3 +557,4 @@ p.summary { font-size: 0.92rem; }
 .draft-bar .btn { flex: none; }
 .toggle { font-size: 0.8rem; }
 .review-head h1 { font-size: 1.05rem; }
+.toggle { white-space: nowrap; }

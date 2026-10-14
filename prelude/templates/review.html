@@ -39,10 +39,10 @@
   {% else %}
   <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add all to draft</button>
   {% endif %}
-  <label class="toggle">
+  <label class="toggle" title="Starts each comment with “{{ prefix }}”">
     <input type="checkbox" name="on" value="1" {{ 'checked' if prefix_on }}
            hx-post="/settings/prefix" hx-trigger="change" hx-vals='js:{on: event.target.checked ? "1" : "0"}'>
-    Prefix with “{{ prefix }}”
+    AI prefix
   </label>
 </section>
 <div class="again">
