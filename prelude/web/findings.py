@@ -23,6 +23,16 @@ def finding_page(w: WebDep, request: Request, finding_id: int):
     return w.render(request, "finding.html", w.finding_context(finding_id))
 
 
+@router.get("/findings/{finding_id}/code", response_class=HTMLResponse)
+def code(w: WebDep, request: Request, finding_id: int, start: int, end: int):
+    f = w.finding_or_404(finding_id)
+    r = w.review_or_404(f["review_id"])
+    view = w.code_view(f, r, start, end)
+    if view is None:
+        raise HTTPException(404, "File not available")
+    return w.render(request, "_code.html", {"f": f, "code": view})
+
+
 # ---- wording ---------------------------------------------------------------
 
 @router.get("/findings/{finding_id}/draft", response_class=HTMLResponse)

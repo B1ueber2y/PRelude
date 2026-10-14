@@ -1,0 +1,18 @@
+<div id="code" class="code-wrap">
+  {%- set step = 20 -%}
+  {%- set first = f.start_line or f.line -%}
+  {% if code.more_above %}
+  <button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start - step }}&end={{ code.end }}" hx-target="#code" hx-swap="outerHTML">▲ {{ [step, code.start - 1] | min }} more lines</button>
+  {% endif %}
+  <pre class="code" aria-label="Code around the finding">
+  {%- for row in code.rows -%}
+  <span class="ln {{ 'add' if row.kind == '+' else ('del' if row.kind == '-' else '') }} {{ 'hit' if row.no and first <= row.no <= f.line }}"><span class="no">{{ row.no or '' }}</span><span class="mk">{{ row.kind }}</span>{{ row.text }}</span>
+  {%- endfor -%}
+  </pre>
+  {% if code.more_below %}
+  <button class="expand" hx-get="/findings/{{ f.id }}/code?start={{ code.start }}&end={{ code.end + step }}" hx-target="#code" hx-swap="outerHTML">▼ {{ [step, code.total - code.end] | min }} more lines</button>
+  {% endif %}
+  {% if code.more_above or code.more_below %}
+  <button class="expand subtle" hx-get="/findings/{{ f.id }}/code?start=1&end={{ code.total }}" hx-target="#code" hx-swap="outerHTML">Show whole file ({{ code.total }} lines)</button>
+  {% endif %}
+</div>

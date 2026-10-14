@@ -24,7 +24,9 @@
   <p class="callout warn small">This line isn't part of the PR diff, so it will be added as a comment on the file instead of the line.</p>
   {% endif %}
 
-  {% if snippet %}
+  {% if code %}
+  {% include "_code.html" %}
+  {% elif snippet %}
   <pre class="code" aria-label="Code around the finding">
   {%- for dl in snippet -%}
   <span class="ln {{ 'add' if dl.kind == '+' else ('del' if dl.kind == '-' else '') }} {{ 'hit' if (f.side == 'RIGHT' and dl.new_no == f.line) or (f.side == 'LEFT' and dl.old_no == f.line) }}"><span class="no">{{ dl.new_no if dl.new_no is not none else dl.old_no }}</span><span class="mk">{{ dl.kind }}</span>{{ dl.text }}</span>

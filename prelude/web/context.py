@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .. import drafting
+from ..codeview import CodeView, build, read_head_file
 from ..config import Config, size_label
 from ..db import Store
 from ..diffmap import FileDiff, parse_diff
@@ -88,6 +89,17 @@ class Web:
         r = self.store.get_review(review_id)
         return parse_diff(r["diff"] or "") if r else {}
 
+    def code_view(self, f, r, start: int | None = None, end: int | None = None) -> CodeView | None:
+        """The PR's version of the file around the finding, or None (then the diff snippet is shown)."""
+        if f["side"] != "RIGHT" or not f["line"] or not r["worktree"]:
+            return None
+        lines = read_head_file(r["worktree"], f["path"])
+        if lines is None:
+            return None
+        fd = self._diff_files(r["id"], r["head_sha"]).get(f["path"])
+        first = f["start_line"] or f["line"]
+        return build(lines, fd, start if start is not None else first - 6, end if end is not None else f["line"] + 6)
+
     def finding_context(self, finding_id: int, **extra) -> dict:
         f = self.finding_or_404(finding_id)
         r = self.review_or_404(f["review_id"])
@@ -99,6 +111,7 @@ class Web:
             "f": f,
             "r": r,
             "snippet": fd.snippet(f["line"], f["side"]) if (fd and f["line"]) else [],
+            "code": self.code_view(f, r),
             "draft": current_draft(f),
             "edited": f["user_draft"] is not None and f["user_draft"] != f["claude_comment"],
             "messages": self.store.messages_for(f["id"]),

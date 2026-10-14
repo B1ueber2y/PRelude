@@ -383,3 +383,21 @@ textarea { resize: none; line-height: 1.45; }
 .unlock { display: flex; gap: 8px; margin-top: 16px; }
 .unlock input { flex: 1; min-width: 0; }
 .review-card.is-older { opacity: 0.6; }
+
+.code-wrap { margin: 14px -16px; }
+.code-wrap .code { margin: 0; }
+@media (min-width: 640px) { .code-wrap { margin: 14px 0; } }
+.expand {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+  font: 600 0.85rem/1.4 var(--mono);
+  text-align: left;
+  cursor: pointer;
+}
+.expand.subtle { background: var(--surface); color: var(--muted); font-family: inherit; }
