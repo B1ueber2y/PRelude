@@ -31,7 +31,11 @@ def install(app: FastAPI, w: Web) -> None:
                 return PlainTextResponse("Invalid key", status_code=401)
             resp = RedirectResponse(request.url.path or "/", status_code=303)
             resp.set_cookie(
-                COOKIE, key, max_age=60 * 60 * 24 * 365, httponly=True, samesite="strict",
+                COOKIE,
+                key,
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                samesite="strict",
                 secure=request.headers.get("x-forwarded-proto") == "https",
             )
             return resp

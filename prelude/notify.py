@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 class NotifyConfig:
     ntfy_topic: str | None = None
     ntfy_server: str = "https://ntfy.sh"
-    include_details: bool = False   # repo name and PR title in the message
+    include_details: bool = False  # repo name and PR title in the message
     open_url: str = "http://localhost:8787"
 
 
@@ -32,8 +32,9 @@ def _http_send(url: str, body: bytes, headers: dict[str, str]) -> None:
     urllib.request.urlopen(req, timeout=15).close()
 
 
-def send(cfg: NotifyConfig, title: str, message: str, *, path: str = "/", tags: str = "",
-         sender: Sender | None = None) -> bool:
+def send(
+    cfg: NotifyConfig, title: str, message: str, *, path: str = "/", tags: str = "", sender: Sender | None = None
+) -> bool:
     if not cfg.ntfy_topic:
         return False
     headers = {"Title": title, "Click": cfg.open_url.rstrip("/") + path}
@@ -56,5 +57,11 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
         n = len(findings)
         msg = f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "") + detail
         return send(cfg, "Review ready", msg, path=f"/reviews/{review['id']}", tags="mag", sender=sender)
-    return send(cfg, "Review failed", "Open PRelude for details" + detail, path=f"/reviews/{review['id']}",
-                tags="warning", sender=sender)
+    return send(
+        cfg,
+        "Review failed",
+        "Open PRelude for details" + detail,
+        path=f"/reviews/{review['id']}",
+        tags="warning",
+        sender=sender,
+    )

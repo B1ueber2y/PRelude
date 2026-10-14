@@ -24,8 +24,13 @@ def _scope(scope: str) -> str:
 
 
 def _ctx(w: Web, scope: str, **extra) -> dict:
-    return {"scope": scope, "title": title(scope), "doc": w.memory.read(scope),
-            "messages": w.store.memory_messages(scope), **extra}
+    return {
+        "scope": scope,
+        "title": title(scope),
+        "doc": w.memory.read(scope),
+        "messages": w.store.memory_messages(scope),
+        **extra,
+    }
 
 
 @router.get("/memory", response_class=HTMLResponse)

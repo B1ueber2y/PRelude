@@ -50,9 +50,7 @@ def _env() -> dict[str, str]:
 
 
 def auth_status() -> dict[str, Any]:
-    out = subprocess.run(
-        [claude_bin(), "auth", "status"], capture_output=True, text=True, timeout=60, env=_env()
-    )
+    out = subprocess.run([claude_bin(), "auth", "status"], capture_output=True, text=True, timeout=60, env=_env())
     try:
         return json.loads(out.stdout)
     except json.JSONDecodeError:
@@ -93,9 +91,7 @@ def _base_args(model: str | None, resume: str | None, fork: bool) -> list[str]:
 
 def _check(result: dict[str, Any]) -> None:
     if result.get("is_error") or result.get("subtype") not in (None, "success"):
-        raise ClaudeError(
-            f"Claude run failed ({result.get('subtype')}): {str(result.get('result') or result)[:1000]}"
-        )
+        raise ClaudeError(f"Claude run failed ({result.get('subtype')}): {str(result.get('result') or result)[:1000]}")
 
 
 def run_json(
@@ -113,15 +109,15 @@ def run_json(
     if schema is not None:
         args += ["--json-schema", json.dumps(schema)]
     try:
-        out = subprocess.run(
-            args, input=prompt, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=_env()
-        )
+        out = subprocess.run(args, input=prompt, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=_env())
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"Claude run timed out after {timeout}s") from e
     try:
         result = json.loads(out.stdout)
     except json.JSONDecodeError as e:
-        raise ClaudeError(f"unexpected output from claude (exit {out.returncode}): {(out.stderr or out.stdout)[-1500:]}") from e
+        raise ClaudeError(
+            f"unexpected output from claude (exit {out.returncode}): {(out.stderr or out.stdout)[-1500:]}"
+        ) from e
     _check(result)
     return RunResult(
         session_id=result["session_id"],
@@ -145,11 +141,19 @@ def run_stream(
 ) -> RunResult:
     """Run and stream text deltas to `on_text` as they arrive."""
     args = _base_args(model, resume, fork) + [
-        "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
     ]
     proc = subprocess.Popen(
-        args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        cwd=cwd, text=True, env=_env(),
+        args,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        text=True,
+        env=_env(),
     )
     assert proc.stdin and proc.stdout
     proc.stdin.write(prompt)

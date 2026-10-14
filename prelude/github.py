@@ -130,9 +130,17 @@ class GitHubReader:
             owner, repo = item["repository_url"].rsplit("/", 2)[-2:]
             if self.cfg.only_repo and f"{owner}/{repo}".lower() != self.cfg.only_repo.lower():
                 continue
-            items.append({"owner": owner, "repo": repo, "number": item["number"],
-                          "author": item["user"]["login"], "draft": bool(item.get("draft")),
-                          "created_at": item.get("created_at") or "", "updated_at": item.get("updated_at") or ""})
+            items.append(
+                {
+                    "owner": owner,
+                    "repo": repo,
+                    "number": item["number"],
+                    "author": item["user"]["login"],
+                    "draft": bool(item.get("draft")),
+                    "created_at": item.get("created_at") or "",
+                    "updated_at": item.get("updated_at") or "",
+                }
+            )
         return items
 
     def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:

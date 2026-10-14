@@ -34,14 +34,18 @@ def test_block_list_covers_author_and_requester():
     t = cfg(repos={"org/app": "all_prs"}, requesters={"block": ["bot"]})
     assert decide(t, "me", pr(author="bot")) == (False, "author bot is blocked")
     assert decide(t, "me", pr(slug="org/web", direct_requesters={"bot"})) == (
-        False, "only blocked people requested you")
+        False,
+        "only blocked people requested you",
+    )
     assert decide(t, "me", pr(slug="org/web", direct_requesters={"bot", "bob"})) == (True, "requested by bob")
 
 
 def test_always_list_overrides_never():
     t = cfg(repos={"org/legacy": "never"}, requesters={"always": ["boss"]})
     assert decide(t, "me", pr(slug="org/legacy", direct_requesters={"boss"})) == (
-        True, "requested by boss (always list)")
+        True,
+        "requested by boss (always list)",
+    )
 
 
 def test_team_requests():

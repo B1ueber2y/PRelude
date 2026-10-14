@@ -24,8 +24,13 @@ def _cmd_review(args: argparse.Namespace) -> int:
         if args.again and previous is None:
             print("No earlier review of this PR; doing a normal review.")
         review_id = start_review(
-            store, cfg, ref, trigger_reason="manual (cli)", reviewers=args.reviewers,
-            previous_review_id=previous["id"] if previous else None, mode=args.again or "full",
+            store,
+            cfg,
+            ref,
+            trigger_reason="manual (cli)",
+            reviewers=args.reviewers,
+            previous_review_id=previous["id"] if previous else None,
+            mode=args.again or "full",
         )
     except (ValueError, RepoNotAllowed) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -64,8 +69,10 @@ def _cmd_show(args: argparse.Namespace) -> int:
 def _cmd_list(_args: argparse.Namespace) -> int:
     cfg = load_config()
     for r in Store(cfg.db_path).list_reviews():
-        print(f"#{r['id']:<4} {r['status']:<8} {r['owner']}/{r['repo']}#{r['number']}  "
-              f"{r['pending']}/{r['total']} pending  {r['title'] or ''}")
+        print(
+            f"#{r['id']:<4} {r['status']:<8} {r['owner']}/{r['repo']}#{r['number']}  "
+            f"{r['pending']}/{r['total']} pending  {r['title'] or ''}"
+        )
     return 0
 
 
@@ -185,10 +192,18 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("review", help="review a PR now and print the findings")
     s.add_argument("pr", help="PR link (https://github.com/OWNER/REPO/pull/N) or OWNER/REPO#N")
-    s.add_argument("-n", "--reviewers", type=int, default=None,
-                   help="independent reviewers, merged by a meta-reviewer; 0 = by PR size (default: config)")
-    s.add_argument("--again", choices=("full", "changes"),
-                   help="re-review after the last review: the whole PR again, or only the new commits")
+    s.add_argument(
+        "-n",
+        "--reviewers",
+        type=int,
+        default=None,
+        help="independent reviewers, merged by a meta-reviewer; 0 = by PR size (default: config)",
+    )
+    s.add_argument(
+        "--again",
+        choices=("full", "changes"),
+        help="re-review after the last review: the whole PR again, or only the new commits",
+    )
     s.set_defaults(fn=_cmd_review)
 
     s = sub.add_parser("show", help="print a stored review")
@@ -211,10 +226,12 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(fn=_cmd_serve)
 
     sub.add_parser("notify-setup", help="create an ntfy topic for phone notifications").set_defaults(
-        fn=_cmd_notify_setup)
+        fn=_cmd_notify_setup
+    )
     sub.add_parser("notify-test", help="send a test notification").set_defaults(fn=_cmd_notify_test)
     sub.add_parser("check", help="dry run: which open PRs the triggers would review, and why").set_defaults(
-        fn=_cmd_check)
+        fn=_cmd_check
+    )
 
     for name, help_text in (
         ("start", "run the web UI in the background until `prelude stop`"),

@@ -82,7 +82,13 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     gd = ["--git-dir", str(bare)]
 
     _git(
-        *_GIT_AUTH, *gd, "fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin",
+        *_GIT_AUTH,
+        *gd,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--filter=blob:none",
+        "origin",
         f"+refs/pull/{number}/head:refs/prelude/pr/{number}",
         f"+refs/heads/{pr.base_ref}:refs/prelude/base/{pr.base_ref}",
     )

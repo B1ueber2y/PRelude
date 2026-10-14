@@ -19,7 +19,7 @@ class TriggerConfigError(ValueError):
 @dataclass
 class TriggerConfig:
     enabled: bool = False
-    poll_minutes: int = 10
+    poll_minutes: int = 5
     default_mode: str = "on_request"
     repos: dict[str, str] = field(default_factory=dict)
     since: dict[str, str] = field(default_factory=dict)  # pattern -> ISO date for all_prs repos
@@ -45,7 +45,7 @@ class TriggerConfig:
                 repos[key] = str(value)
         t = cls(
             enabled=bool(raw.get("enabled", False)),
-            poll_minutes=max(2, int(raw.get("poll_minutes", 10))),
+            poll_minutes=max(2, int(raw.get("poll_minutes", 5))),
             default_mode=str(raw.get("default_mode", "on_request")),
             repos=repos,
             since=since,
@@ -81,17 +81,18 @@ class TriggerConfig:
 
 @dataclass
 class Candidate:
-    slug: str                                   # OWNER/REPO
+    slug: str  # OWNER/REPO
     number: int
     author: str
     draft: bool = False
-    created_at: str = ""                        # ISO timestamp
+    created_at: str = ""  # ISO timestamp
     direct_requesters: set[str] = field(default_factory=set)  # requested you personally
-    team_requesters: set[str] = field(default_factory=set)    # requested a team you're on
+    team_requesters: set[str] = field(default_factory=set)  # requested a team you're on
 
 
-def decide(t: TriggerConfig, me: str, c: Candidate, since: str | None = None,
-           own_since: str | None = None) -> tuple[bool, str]:
+def decide(
+    t: TriggerConfig, me: str, c: Candidate, since: str | None = None, own_since: str | None = None
+) -> tuple[bool, str]:
     """Whether to review `c` automatically, and why (shown on the review).
 
     `since` / `own_since` (ISO dates) limit all_prs repos and your own PRs to PRs opened from

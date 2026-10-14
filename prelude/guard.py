@@ -14,6 +14,5 @@ def check_repo(cfg: Config, owner: str, repo: str) -> None:
         return
     if f"{owner}/{repo}".lower() != cfg.only_repo.lower():
         raise RepoNotAllowed(
-            f"{owner}/{repo} is not allowed: PRelude is restricted to {cfg.only_repo} "
-            "(only_repo in config.yaml)"
+            f"{owner}/{repo} is not allowed: PRelude is restricted to {cfg.only_repo} (only_repo in config.yaml)"
         )

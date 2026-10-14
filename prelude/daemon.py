@@ -46,7 +46,10 @@ def start(cfg: Config) -> str:
     with open(_logfile(cfg), "ab") as log:
         proc = subprocess.Popen(
             [sys.executable, "-m", "prelude.cli", "serve"],
-            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
     _pidfile(cfg).write_text(str(proc.pid))
     for _ in range(40):

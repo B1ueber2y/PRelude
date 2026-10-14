@@ -55,7 +55,7 @@ github_drafts:
 #   my-org/web: {mode: all_prs, since: 2026-10-01}
 triggers:
   enabled: false
-  poll_minutes: 10
+  poll_minutes: 5
   default_mode: on_request        # for repos not listed
   repos: {}
   requesters:
@@ -191,7 +191,8 @@ def load_config(data_dir: Path | None = None) -> Config:
             reviewers_by_size=[
                 (row.get("max_lines"), _reviewers(row.get("reviewers", 1)) or 1)
                 for row in (claude_raw.get("reviewers_by_size") or [])
-            ] or list(DEFAULT_BY_SIZE),
+            ]
+            or list(DEFAULT_BY_SIZE),
             lenses=[str(x) for x in (claude_raw.get("lenses") or DEFAULT_LENSES)],
             review_timeout_seconds=int(claude_raw.get("review_timeout_seconds", 1500)),
             discuss_timeout_seconds=int(claude_raw.get("discuss_timeout_seconds", 900)),

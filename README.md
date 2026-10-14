@@ -92,5 +92,5 @@ expose the local server privately (for example with `tailscale serve`).
 
 ```bash
 .venv/bin/pytest
-.venv/bin/ruff check prelude tests
+scripts/format.sh        # ruff format + lint fixes; CI checks both
 ```

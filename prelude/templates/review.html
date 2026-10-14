@@ -10,7 +10,11 @@
   {% if r.body %}
   <details class="description"><summary>Author's description</summary><div class="prose">{{ r.body | text }}</div></details>
   {% endif %}
-  {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}{% if r.reviewers > 1 %} · {{ r.reviewers }} reviewers + meta-review{% endif %}</div>{% endif %}
+  {% if r.trigger_reason %}
+  {%- set auto = r.trigger_reason.startswith('auto:') -%}
+  {%- set why = r.trigger_reason[5:].strip() if auto else r.trigger_reason -%}
+  <div class="meta">Started: {{ 'Auto' if auto else 'Manual' }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %} · {{ why }}</div>
+  {%- endif %}
 </section>
 
 {% if latest and latest.id != r.id %}

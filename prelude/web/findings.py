@@ -35,6 +35,7 @@ def code(w: WebDep, request: Request, finding_id: int, start: int, end: int):
 
 # ---- wording ---------------------------------------------------------------
 
+
 @router.get("/findings/{finding_id}/draft", response_class=HTMLResponse)
 def show_draft(w: WebDep, request: Request, finding_id: int, compact: bool = False):
     return w.render(request, "_draft.html", w.finding_context(finding_id, compact=compact))
@@ -69,6 +70,7 @@ def use_proposal(w: WebDep, message_id: int):
 
 # ---- status ----------------------------------------------------------------
 
+
 @router.post("/findings/{finding_id}/discard")
 def discard(w: WebDep, request: Request, finding_id: int):
     f = w.finding_or_404(finding_id)
@@ -80,9 +82,12 @@ def discard(w: WebDep, request: Request, finding_id: int):
     if w.wants_card(request, finding_id):
         return w.card(request, finding_id)
     next_id = w.finding_context(finding_id)["next_id"]
-    return Response(status_code=204, headers={
-        "HX-Redirect": f"/findings/{next_id}" if next_id else f"/reviews/{f['review_id']}",
-    })
+    return Response(
+        status_code=204,
+        headers={
+            "HX-Redirect": f"/findings/{next_id}" if next_id else f"/reviews/{f['review_id']}",
+        },
+    )
 
 
 @router.post("/findings/{finding_id}/restore")
@@ -119,6 +124,7 @@ def github_remove(w: WebDep, request: Request, finding_id: int):
 
 
 # ---- discussion ------------------------------------------------------------
+
 
 @router.get("/findings/{finding_id}/thread", response_class=HTMLResponse)
 def thread(w: WebDep, request: Request, finding_id: int):
@@ -169,5 +175,7 @@ def stream(w: WebDep, finding_id: int):
             w.broker.unsubscribe(finding_id, q)
 
     return StreamingResponse(
-        events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -25,18 +25,41 @@ REVIEW_SCHEMA = {
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "path", "line", "side", "severity", "category", "title",
-                    "assessment", "evidence", "confidence", "suggested_comment",
+                    "path",
+                    "line",
+                    "side",
+                    "severity",
+                    "category",
+                    "title",
+                    "assessment",
+                    "evidence",
+                    "confidence",
+                    "suggested_comment",
                 ],
                 "properties": {
                     "path": {"type": "string", "description": "Repo-relative path of the file the comment belongs on."},
-                    "line": {"type": "integer", "description": "Line number in the PR's head version (RIGHT side) or base version (LEFT side)."},
-                    "start_line": {"type": "integer", "description": "Optional first line of a multi-line range ending at `line`."},
+                    "line": {
+                        "type": "integer",
+                        "description": "Line number in the PR's head version (RIGHT side) or base version (LEFT side).",
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Optional first line of a multi-line range ending at `line`.",
+                    },
                     "side": {"type": "string", "enum": ["RIGHT", "LEFT"]},
                     "severity": {"type": "string", "enum": SEVERITIES},
                     "category": {
                         "type": "string",
-                        "enum": ["correctness", "security", "reliability", "performance", "api", "maintainability", "testing", "other"],
+                        "enum": [
+                            "correctness",
+                            "security",
+                            "reliability",
+                            "performance",
+                            "api",
+                            "maintainability",
+                            "testing",
+                            "other",
+                        ],
                     },
                     "title": {"type": "string", "description": "Short headline, under 80 characters."},
                     "assessment": {
@@ -71,16 +94,26 @@ REVIEW_SCHEMA = {
 MERGE_SCHEMA = copy.deepcopy(REVIEW_SCHEMA)
 _merged_item = MERGE_SCHEMA["properties"]["findings"]["items"]
 _merged_item["properties"]["found_by"] = {
-    "type": "integer", "description": "How many of the independent reviewers raised this problem.",
+    "type": "integer",
+    "description": "How many of the independent reviewers raised this problem.",
 }
 _merged_item["required"] = [*_merged_item["required"], "found_by"]
 
 
-def merge_prompt(*, slug: str, title: str, reports: list[dict], changed_files: list[str], diff: str,
-                 diff_inlined: bool, memory: str = "", previous: str = "") -> str:
+def merge_prompt(
+    *,
+    slug: str,
+    title: str,
+    reports: list[dict],
+    changed_files: list[str],
+    diff: str,
+    diff_inlined: bool,
+    memory: str = "",
+    previous: str = "",
+) -> str:
     files = "\n".join(f"- {f}" for f in changed_files) or "(none)"
     blocks = "\n\n".join(
-        f"<report reviewer=\"{i}\">\n{json.dumps(r, indent=1)}\n</report>" for i, r in enumerate(reports, start=1)
+        f'<report reviewer="{i}">\n{json.dumps(r, indent=1)}\n</report>' for i, r in enumerate(reports, start=1)
     )
     return f"""You are the meta-reviewer for pull request {slug} ("{title}"). {len(reports)} reviewers
 reviewed it independently; their reports are below. Produce the single review the human
@@ -124,9 +157,12 @@ OUTCOMES = {
 
 def previous_section(*, mode: str, old_head: str, findings: list[dict], changes: str | None) -> str:
     """What a re-review needs to know about the last review of this PR."""
-    lines = "\n".join(
-        f"- {f['title']} ({f['path']}:{f['line']}): {OUTCOMES.get(f['status'], f['status'])}" for f in findings
-    ) or "- (no findings)"
+    lines = (
+        "\n".join(
+            f"- {f['title']} ({f['path']}:{f['line']}): {OUTCOMES.get(f['status'], f['status'])}" for f in findings
+        )
+        or "- (no findings)"
+    )
     common = f"""This PR was reviewed before, at commit {old_head[:12]}. Findings from that review and what
 the reviewer did with them:
 {lines}
@@ -300,8 +336,9 @@ LEARN_SCHEMA = {
 }
 
 
-def learn_prompt(*, repo: str, title: str, path: str, claude_comment: str, outcome: str,
-                 discussion: str, existing: str) -> str:
+def learn_prompt(
+    *, repo: str, title: str, path: str, claude_comment: str, outcome: str, discussion: str, existing: str
+) -> str:
     return f"""You maintain a code reviewer's review memory: short rules PRelude follows in future
 reviews. The reviewer just handled one of PRelude's findings. Decide whether it reveals a
 lasting, general preference worth remembering.

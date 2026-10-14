@@ -37,9 +37,7 @@ def test_requires_subscription_login(fake_claude, monkeypatch):
 def test_stream_delivers_text_and_activity(fake_claude, monkeypatch, tmp_path):
     monkeypatch.setenv("FAKE_CLAUDE_REPLY", "Hello there, reviewer.")
     chunks, tools = [], []
-    result = claude.run_stream(
-        "hi", tmp_path, on_text=chunks.append, on_activity=tools.append, resume="abc", fork=True
-    )
+    result = claude.run_stream("hi", tmp_path, on_text=chunks.append, on_activity=tools.append, resume="abc", fork=True)
     assert "".join(chunks) == "Hello there, reviewer."
     assert tools == ["Read"]
     assert result.text == "Hello there, reviewer."

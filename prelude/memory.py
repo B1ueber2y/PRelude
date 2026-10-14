@@ -82,7 +82,7 @@ class Memory:
         if p := self.principles():
             parts.append(f"<reviewer_principles>\n{p}\n</reviewer_principles>")
         if n := self.repo_notes(owner, repo):
-            parts.append(f"<repo_notes repo=\"{owner}/{repo}\">\n{n}\n</repo_notes>")
+            parts.append(f'<repo_notes repo="{owner}/{repo}">\n{n}\n</repo_notes>')
         if st := self.read(STYLE):
             parts.append(f"<comment_style>\n{st}\n</comment_style>")
         if style_examples:

@@ -25,8 +25,13 @@ log = logging.getLogger(__name__)
 
 
 def start_review(
-    store: Store, cfg: Config, ref: PrRef, trigger_reason: str = "manual", reviewers: int | None = None,
-    previous_review_id: int | None = None, mode: str = "full",
+    store: Store,
+    cfg: Config,
+    ref: PrRef,
+    trigger_reason: str = "manual",
+    reviewers: int | None = None,
+    previous_review_id: int | None = None,
+    mode: str = "full",
 ) -> int:
     """Record a queued review. Raises RepoNotAllowed before anything is stored.
 
@@ -37,8 +42,16 @@ def start_review(
     if mode not in ("full", "changes"):
         raise ValueError(f"unknown review mode {mode!r}")
     n = max(0, min(8, cfg.claude.reviewers if reviewers is None else reviewers))  # 0 = by PR size
-    return store.create_review(ref.owner, ref.repo, ref.number, ref.url, trigger_reason, reviewers=n,
-                               previous_review_id=previous_review_id, mode=mode)
+    return store.create_review(
+        ref.owner,
+        ref.repo,
+        ref.number,
+        ref.url,
+        trigger_reason,
+        reviewers=n,
+        previous_review_id=previous_review_id,
+        mode=mode,
+    )
 
 
 def _normalize(raw: dict[str, Any], files: dict) -> dict[str, Any]:
@@ -83,15 +96,27 @@ class _Job:
 
     def run(self, prompt: str, schema: dict) -> claude.RunResult:
         return claude.run_json(
-            prompt, self.co.worktree, schema=schema, model=self.cfg.claude.model,
+            prompt,
+            self.co.worktree,
+            schema=schema,
+            model=self.cfg.claude.model,
             timeout=self.cfg.claude.review_timeout_seconds,
         )
 
     def review_prompt(self, lens: str | None = None) -> str:
         return review_prompt(
-            slug=self.ref.slug, title=self.pr.title, author=self.pr.author, base_ref=self.pr.base_ref,
-            head_ref=self.pr.head_ref, body=self.pr.body, changed_files=self.co.changed_files,
-            diff=self.co.diff, diff_inlined=self.inline, memory=self.memory, lens=lens, previous=self.previous,
+            slug=self.ref.slug,
+            title=self.pr.title,
+            author=self.pr.author,
+            base_ref=self.pr.base_ref,
+            head_ref=self.pr.head_ref,
+            body=self.pr.body,
+            changed_files=self.co.changed_files,
+            diff=self.co.diff,
+            diff_inlined=self.inline,
+            memory=self.memory,
+            lens=lens,
+            previous=self.previous,
         )
 
 
@@ -121,10 +146,19 @@ def _panel(job: _Job, n: int) -> tuple[dict, claude.RunResult, float, list[dict]
         raise claude.ClaudeError(f"all {n} reviewers failed")
 
     job.progress(f"Meta-reviewer is merging {len(reports)} reports")
-    result = job.run(merge_prompt(
-        slug=job.ref.slug, title=job.pr.title, reports=reports, changed_files=job.co.changed_files,
-        diff=job.co.diff, diff_inlined=job.inline, memory=job.memory, previous=job.previous,
-    ), MERGE_SCHEMA)
+    result = job.run(
+        merge_prompt(
+            slug=job.ref.slug,
+            title=job.pr.title,
+            reports=reports,
+            changed_files=job.co.changed_files,
+            diff=job.co.diff,
+            diff_inlined=job.inline,
+            memory=job.memory,
+            previous=job.previous,
+        ),
+        MERGE_SCHEMA,
+    )
     return _structured(result), result, cost + (result.cost_usd or 0.0), reports
 
 
@@ -148,7 +182,11 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
     try:
         check_repo(cfg, ref.owner, ref.repo)
         store.update_review(
-            review_id, status="running", progress="Checking Claude login", error=None, runner_pid=os.getpid(),
+            review_id,
+            status="running",
+            progress="Checking Claude login",
+            error=None,
+            runner_pid=os.getpid(),
         )
         claude.ensure_logged_in()
 
@@ -156,17 +194,31 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         pr = (github or GitHubReader(cfg)).pull_request(ref)
         n = row["reviewers"] or cfg.reviewers_for(pr.changed_lines)
         store.update_review(
-            review_id, title=pr.title, body=pr.body, author=pr.author, base_ref=pr.base_ref,
-            base_sha=pr.base_sha, head_sha=pr.head_sha, reviewers=n, changed_lines=pr.changed_lines,
+            review_id,
+            title=pr.title,
+            body=pr.body,
+            author=pr.author,
+            base_ref=pr.base_ref,
+            base_sha=pr.base_sha,
+            head_sha=pr.head_sha,
+            reviewers=n,
+            changed_lines=pr.changed_lines,
         )
 
         store.update_review(review_id, progress="Checking out the PR")
         co = prepare_checkout(cfg, pr)
         store.update_review(review_id, worktree=str(co.worktree), merge_base=co.merge_base, diff=co.diff)
 
-        job = _Job(store, cfg, review_id, ref, pr, co,
-                   memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
-                   previous=_previous(store, cfg, row, pr.head_sha))
+        job = _Job(
+            store,
+            cfg,
+            review_id,
+            ref,
+            pr,
+            co,
+            memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
+            previous=_previous(store, cfg, row, pr.head_sha),
+        )
         reports = None
         if n > 1:
             out, result, cost, reports = _panel(job, n)
@@ -176,8 +228,13 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         files = parse_diff(co.diff)
         store.add_findings(review_id, [_normalize(f, files) for f in out["findings"] if isinstance(f, dict)])
         store.update_review(
-            review_id, status="done", progress=None, error=None, summary=out.get("summary") or "",
-            claude_session_id=result.session_id, cost_usd=cost,
+            review_id,
+            status="done",
+            progress=None,
+            error=None,
+            summary=out.get("summary") or "",
+            claude_session_id=result.session_id,
+            cost_usd=cost,
             reports=None if reports is None else json.dumps(reports),
         )
     except Exception as e:  # recorded for the UI; the server keeps running

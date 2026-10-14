@@ -22,15 +22,26 @@ __all__ = ["COOKIE", "create_app", "serve"]
 
 log = logging.getLogger(__name__)
 
-MANIFEST = json.dumps({
-    "name": "PRelude", "short_name": "PRelude", "start_url": "/", "display": "standalone",
-    "background_color": "#0f1115", "theme_color": "#0f1115",
-    "icons": [{"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
-})
+MANIFEST = json.dumps(
+    {
+        "name": "PRelude",
+        "short_name": "PRelude",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0f1115",
+        "theme_color": "#0f1115",
+        "icons": [{"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
+    }
+)
 
 
 def create_app(
-    cfg: Config, store: Store | None = None, *, review_runner=None, learner=None, writer: DraftWriter | None = None,
+    cfg: Config,
+    store: Store | None = None,
+    *,
+    review_runner=None,
+    learner=None,
+    writer: DraftWriter | None = None,
     watch: bool = False,
 ) -> FastAPI:
     store = store or Store(cfg.db_path)

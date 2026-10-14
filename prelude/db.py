@@ -125,15 +125,30 @@ class Store:
         self.path = path
         with self.connect() as c:
             c.executescript(SCHEMA)
-            _add_missing_columns(c, "findings", {
-                "github_review_id": "TEXT", "github_comment_id": "TEXT", "drafted_body": "TEXT",
-                "found_by": "INTEGER",
-            })
+            _add_missing_columns(
+                c,
+                "findings",
+                {
+                    "github_review_id": "TEXT",
+                    "github_comment_id": "TEXT",
+                    "drafted_body": "TEXT",
+                    "found_by": "INTEGER",
+                },
+            )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
-            _add_missing_columns(c, "reviews", {
-                "reviewers": "INTEGER NOT NULL DEFAULT 1", "reports": "TEXT", "changed_lines": "INTEGER",
-                "runner_pid": "INTEGER", "previous_review_id": "INTEGER", "body": "TEXT", "mode": "TEXT NOT NULL DEFAULT 'full'",
-            })
+            _add_missing_columns(
+                c,
+                "reviews",
+                {
+                    "reviewers": "INTEGER NOT NULL DEFAULT 1",
+                    "reports": "TEXT",
+                    "changed_lines": "INTEGER",
+                    "runner_pid": "INTEGER",
+                    "previous_review_id": "INTEGER",
+                    "body": "TEXT",
+                    "mode": "TEXT NOT NULL DEFAULT 'full'",
+                },
+            )
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -156,8 +171,10 @@ class Store:
 
     def set_setting(self, key: str, value: str) -> None:
         with self.connect() as c:
-            c.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
-                      (key, value, value))
+            c.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, value, value),
+            )
 
     # ---- watched PRs (automatic triggers) ----------------------------------
 
@@ -172,8 +189,10 @@ class Store:
         with self.connect() as c:
             c.execute("INSERT OR IGNORE INTO watched (owner, repo, number) VALUES (?, ?, ?)", (owner, repo, number))
             cols = ", ".join(f"{k} = ?" for k in fields)
-            c.execute(f"UPDATE watched SET {cols} WHERE owner = ? AND repo = ? AND number = ?",
-                      (*fields.values(), owner, repo, number))
+            c.execute(
+                f"UPDATE watched SET {cols} WHERE owner = ? AND repo = ? AND number = ?",
+                (*fields.values(), owner, repo, number),
+            )
 
     def auto_reviews_since(self, since: float) -> int:
         with self.connect() as c:
@@ -184,8 +203,15 @@ class Store:
     # ---- reviews -----------------------------------------------------------
 
     def create_review(
-        self, owner: str, repo: str, number: int, url: str, trigger_reason: str, reviewers: int = 1,
-        previous_review_id: int | None = None, mode: str = "full",
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        url: str,
+        trigger_reason: str,
+        reviewers: int = 1,
+        previous_review_id: int | None = None,
+        mode: str = "full",
     ) -> int:
         now = time.time()
         with self.connect() as c:
@@ -222,7 +248,8 @@ class Store:
         with self.connect() as c:
             return c.execute(
                 "SELECT * FROM reviews WHERE owner = ? AND repo = ? AND number = ?"
-                + (" AND status = 'done'" if done_only else "") + " ORDER BY id DESC LIMIT 1",
+                + (" AND status = 'done'" if done_only else "")
+                + " ORDER BY id DESC LIMIT 1",
                 (owner, repo, number),
             ).fetchone()
 
@@ -240,9 +267,7 @@ class Store:
     def fail_stale_reviews(self) -> int:
         """Fail reviews whose process is gone; another process may still be running some."""
         with self.connect() as c:
-            rows = c.execute(
-                "SELECT id, runner_pid FROM reviews WHERE status IN ('queued', 'running')"
-            ).fetchall()
+            rows = c.execute("SELECT id, runner_pid FROM reviews WHERE status IN ('queued', 'running')").fetchall()
             stale = [r["id"] for r in rows if not _alive(r["runner_pid"])]
             for rid in stale:
                 c.execute(
@@ -264,10 +289,23 @@ class Store:
                     " category, title, assessment, evidence, confidence, claude_comment, found_by, created_at,"
                     " updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        review_id, i, f["path"], f.get("line"), f.get("start_line"), f.get("side", "RIGHT"),
-                        int(bool(f.get("in_diff"))), f["severity"], f.get("category"), f["title"],
-                        f["assessment"], json.dumps(f.get("evidence") or []), f.get("confidence"),
-                        f["suggested_comment"], f.get("found_by"), now, now,
+                        review_id,
+                        i,
+                        f["path"],
+                        f.get("line"),
+                        f.get("start_line"),
+                        f.get("side", "RIGHT"),
+                        int(bool(f.get("in_diff"))),
+                        f["severity"],
+                        f.get("category"),
+                        f["title"],
+                        f["assessment"],
+                        json.dumps(f.get("evidence") or []),
+                        f.get("confidence"),
+                        f["suggested_comment"],
+                        f.get("found_by"),
+                        now,
+                        now,
                     ),
                 )
 
@@ -311,9 +349,7 @@ class Store:
 
     def messages_for(self, finding_id: int) -> list[sqlite3.Row]:
         with self.connect() as c:
-            return c.execute(
-                "SELECT * FROM messages WHERE finding_id = ? ORDER BY id", (finding_id,)
-            ).fetchall()
+            return c.execute("SELECT * FROM messages WHERE finding_id = ? ORDER BY id", (finding_id,)).fetchall()
 
     def get_message(self, message_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
@@ -322,8 +358,14 @@ class Store:
     # ---- memory chat -------------------------------------------------------
 
     def add_memory_message(
-        self, scope: str, role: str, content: str, *,
-        new_document: str | None = None, prev_document: str | None = None, finding_id: int | None = None,
+        self,
+        scope: str,
+        role: str,
+        content: str,
+        *,
+        new_document: str | None = None,
+        prev_document: str | None = None,
+        finding_id: int | None = None,
     ) -> int:
         with self.connect() as c:
             cur = c.execute(

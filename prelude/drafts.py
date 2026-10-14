@@ -18,12 +18,14 @@ from .guard import check_repo
 
 GRAPHQL = "https://api.github.com/graphql"
 
-ALLOWED_MUTATIONS = frozenset({
-    "addPullRequestReview",
-    "addPullRequestReviewThread",
-    "updatePullRequestReviewComment",
-    "deletePullRequestReviewComment",
-})
+ALLOWED_MUTATIONS = frozenset(
+    {
+        "addPullRequestReview",
+        "addPullRequestReviewThread",
+        "updatePullRequestReviewComment",
+        "deletePullRequestReviewComment",
+    }
+)
 
 _MUTATION_CALL = re.compile(r"\b([a-zA-Z]+)\s*\(\s*input\s*:")
 
@@ -86,7 +88,10 @@ class DraftWriter:
 
     def pending_review(self, owner: str, repo: str, number: int, commit: str) -> str:
         """The viewer's pending review on the PR, created if needed."""
-        data = self._call(owner, repo, """
+        data = self._call(
+            owner,
+            repo,
+            """
             query($owner: String!, $repo: String!, $number: Int!) {
               repository(owner: $owner, name: $repo) {
                 pullRequest(number: $number) {
@@ -94,25 +99,41 @@ class DraftWriter:
                   reviews(states: PENDING, first: 20) { nodes { id viewerDidAuthor } }
                 }
               }
-            }""", {"owner": owner, "repo": repo, "number": number})
+            }""",
+            {"owner": owner, "repo": repo, "number": number},
+        )
         pr = data["repository"]["pullRequest"]
         for r in pr["reviews"]["nodes"]:
             if r["viewerDidAuthor"]:
                 return r["id"]
-        data = self._call(owner, repo, """
+        data = self._call(
+            owner,
+            repo,
+            """
             mutation($pr: ID!, $commit: GitObjectID!) {
               addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit}) {
                 pullRequestReview { id state }
               }
-            }""", {"pr": pr["id"], "commit": commit})
+            }""",
+            {"pr": pr["id"], "commit": commit},
+        )
         review = data["addPullRequestReview"]["pullRequestReview"]
         if review["state"] != "PENDING":
             raise NotPending(f"new review is {review['state']}, expected PENDING")
         return review["id"]
 
     def add_comment(
-        self, owner: str, repo: str, review_id: str, *, path: str, body: str,
-        line: int | None, side: str = "RIGHT", start_line: int | None = None, file_level: bool = False,
+        self,
+        owner: str,
+        repo: str,
+        review_id: str,
+        *,
+        path: str,
+        body: str,
+        line: int | None,
+        side: str = "RIGHT",
+        start_line: int | None = None,
+        file_level: bool = False,
     ) -> str:
         variables: dict = {"review": review_id, "path": path, "body": body}
         if file_level or line is None:
@@ -123,15 +144,22 @@ class DraftWriter:
             if start_line:
                 fields += ", startLine: $startLine, startSide: $side"
                 variables["startLine"] = start_line
-        decls = "$review: ID!, $path: String!, $body: String!" + (
-            ", $line: Int!, $side: DiffSide!" if "line" in variables else ""
-        ) + (", $startLine: Int!" if "startLine" in variables else "")
-        data = self._call(owner, repo, f"""
+        decls = (
+            "$review: ID!, $path: String!, $body: String!"
+            + (", $line: Int!, $side: DiffSide!" if "line" in variables else "")
+            + (", $startLine: Int!" if "startLine" in variables else "")
+        )
+        data = self._call(
+            owner,
+            repo,
+            f"""
             mutation({decls}) {{
               addPullRequestReviewThread(input: {{pullRequestReviewId: $review, path: $path, body: $body, {fields}}}) {{
                 thread {{ comments(first: 1) {{ nodes {{ id }} }} }}
               }}
-            }}""", variables)
+            }}""",
+            variables,
+        )
         thread = data["addPullRequestReviewThread"]["thread"]
         if thread is None:
             raise DraftError("GitHub rejected the comment location")
@@ -139,30 +167,50 @@ class DraftWriter:
         return thread["comments"]["nodes"][0]["id"]
 
     def comment_body(self, owner: str, repo: str, comment_id: str) -> str | None:
-        data = self._call(owner, repo, """
-            query($id: ID!) { node(id: $id) { ... on PullRequestReviewComment { body } } }""", {"id": comment_id})
+        data = self._call(
+            owner,
+            repo,
+            """
+            query($id: ID!) { node(id: $id) { ... on PullRequestReviewComment { body } } }""",
+            {"id": comment_id},
+        )
         node = data.get("node")
         return node["body"] if node else None
 
     def update_comment(self, owner: str, repo: str, review_id: str, comment_id: str, body: str) -> None:
         self.assert_pending(owner, repo, review_id)
-        self._call(owner, repo, """
+        self._call(
+            owner,
+            repo,
+            """
             mutation($id: ID!, $body: String!) {
               updatePullRequestReviewComment(input: {pullRequestReviewCommentId: $id, body: $body}) {
                 pullRequestReviewComment { id }
               }
-            }""", {"id": comment_id, "body": body})
+            }""",
+            {"id": comment_id, "body": body},
+        )
 
     def delete_comment(self, owner: str, repo: str, review_id: str, comment_id: str) -> None:
         self.assert_pending(owner, repo, review_id)
-        self._call(owner, repo, """
+        self._call(
+            owner,
+            repo,
+            """
             mutation($id: ID!) {
               deletePullRequestReviewComment(input: {id: $id}) { pullRequestReview { id } }
-            }""", {"id": comment_id})
+            }""",
+            {"id": comment_id},
+        )
 
     def assert_pending(self, owner: str, repo: str, review_id: str) -> None:
-        data = self._call(owner, repo, """
-            query($id: ID!) { node(id: $id) { ... on PullRequestReview { state } } }""", {"id": review_id})
+        data = self._call(
+            owner,
+            repo,
+            """
+            query($id: ID!) { node(id: $id) { ... on PullRequestReview { state } } }""",
+            {"id": review_id},
+        )
         state = (data.get("node") or {}).get("state")
         if state != "PENDING":
             raise NotPending(f"the GitHub review is {state or 'gone'}; it was submitted or deleted")

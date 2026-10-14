@@ -25,8 +25,14 @@ LAST_ERROR = "poll_error"
 
 
 class Poller:
-    def __init__(self, store: Store, cfg: Config, reader: GitHubReader | None = None,
-                 run: Callable[[int], None] | None = None, sender: notify.Sender | None = None):
+    def __init__(
+        self,
+        store: Store,
+        cfg: Config,
+        reader: GitHubReader | None = None,
+        run: Callable[[int], None] | None = None,
+        sender: notify.Sender | None = None,
+    ):
         self.store, self.cfg = store, cfg
         self.reader = reader or GitHubReader(cfg)
         self.run = run or (lambda review_id: run_review(store, cfg, review_id))
@@ -72,10 +78,21 @@ class Poller:
         t = self.cfg.triggers
         pattern = t.repo_pattern(f"{owner}/{repo}")
         since = self.since(pattern) if pattern and t.repos[pattern] == "all_prs" else None
-        ok, reason = decide(t, self._me, Candidate(
-            slug=f"{owner}/{repo}", number=number, author=item["author"], draft=pr.draft,
-            created_at=item.get("created_at", ""), direct_requesters=direct, team_requesters=team,
-        ), since=since, own_since=self.since(OWN))
+        ok, reason = decide(
+            t,
+            self._me,
+            Candidate(
+                slug=f"{owner}/{repo}",
+                number=number,
+                author=item["author"],
+                draft=pr.draft,
+                created_at=item.get("created_at", ""),
+                direct_requesters=direct,
+                team_requesters=team,
+            ),
+            since=since,
+            own_since=self.since(OWN),
+        )
         return pr, ok, reason
 
     def poll_once(self) -> list[int]:
@@ -92,8 +109,15 @@ class Poller:
                 if seen and seen["head_sha"] == pr.head_sha:
                     self.store.set_watched(owner, repo, number, updated_at=item.get("updated_at"))
                     continue  # nothing new since last time
-                self.store.set_watched(owner, repo, number, head_sha=pr.head_sha, updated_at=item.get("updated_at"),
-                                       decision="review" if ok else "skip", reason=reason)
+                self.store.set_watched(
+                    owner,
+                    repo,
+                    number,
+                    head_sha=pr.head_sha,
+                    updated_at=item.get("updated_at"),
+                    decision="review" if ok else "skip",
+                    reason=reason,
+                )
                 if not ok:
                     continue
                 if seen and seen["reviewed_sha"]:

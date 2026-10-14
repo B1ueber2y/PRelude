@@ -31,7 +31,9 @@ def test_github_reader_is_get_only():
 
 
 def test_only_drafts_module_writes_to_github():
-    writers = {p.name for p in PACKAGE.rglob("*.py") if re.search(r'method\s*=\s*"(POST|PUT|PATCH|DELETE)"', p.read_text())}
+    writers = {
+        p.name for p in PACKAGE.rglob("*.py") if re.search(r'method\s*=\s*"(POST|PUT|PATCH|DELETE)"', p.read_text())
+    }
     assert writers == {"drafts.py", "notify.py"}
     notify = (PACKAGE / "notify.py").read_text()
     assert "github" not in notify.lower()  # notifications go to ntfy only

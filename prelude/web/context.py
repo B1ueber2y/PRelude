@@ -117,7 +117,8 @@ class Web:
             "draft": current_draft(f),
             "edited": f["user_draft"] is not None and f["user_draft"] != f["claude_comment"],
             "code": self.code_view(f, r, (f["start_line"] or f["line"] or 1) - 3, (f["line"] or 1) + 3)
-            if f["status"] != "discarded" else None,
+            if f["status"] != "discarded"
+            else None,
             "drafts_enabled": self.cfg.drafts.enabled,
         }
 

@@ -67,8 +67,15 @@ def done_review(store, tmp_path):
     wt = tmp_path / "wt"
     wt.mkdir()
     store.update_review(
-        rid, status="done", title="Add auth", author="someone", head_sha="abc", diff=DIFF,
-        summary="Adds auth.", claude_session_id="review-session", worktree=str(wt),
+        rid,
+        status="done",
+        title="Add auth",
+        author="someone",
+        head_sha="abc",
+        diff=DIFF,
+        summary="Adds auth.",
+        claude_session_id="review-session",
+        worktree=str(wt),
     )
     second = dict(FINDING, severity="low", title="Second finding", line=2)
     store.add_findings(rid, [FINDING, second])

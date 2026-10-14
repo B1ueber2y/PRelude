@@ -41,7 +41,8 @@ def chat(store: Store, cfg: Config, scope: str, text: str) -> None:
         claude.ensure_logged_in()
         transcript = "".join(f"\n{'Reviewer' if m['role'] == 'user' else 'You'}: {m['content']}" for m in history)
         prompt = memory_chat_prompt(
-            what=describe(scope), document=memory.read(scope),
+            what=describe(scope),
+            document=memory.read(scope),
             history=f"\nEarlier in this conversation:{transcript}\n" if transcript else "",
             user_message=text,
         )
@@ -53,8 +54,11 @@ def chat(store: Store, cfg: Config, scope: str, text: str) -> None:
             if changed:
                 memory.write(scope, new)
         store.add_memory_message(
-            scope, "assistant", out.get("reply") or "Done.",
-            new_document=memory.read(scope) if changed else None, prev_document=prev if changed else None,
+            scope,
+            "assistant",
+            out.get("reply") or "Done.",
+            new_document=memory.read(scope) if changed else None,
+            prev_document=prev if changed else None,
         )
     except Exception as e:
         store.add_memory_message(scope, "error", f"{type(e).__name__}: {e}"[:2000])
@@ -89,9 +93,17 @@ def learn_style_from_edit(store: Store, cfg: Config, finding_id: int) -> str | N
             return None
         memory = Memory(cfg)
         claude.ensure_logged_in()
-        out = _run(cfg, memory, style_from_edit_prompt(
-            style=memory.read(STYLE), suggested=f["claude_comment"], edited=f["user_draft"],
-        ), STYLE_SCHEMA, timeout=300)
+        out = _run(
+            cfg,
+            memory,
+            style_from_edit_prompt(
+                style=memory.read(STYLE),
+                suggested=f["claude_comment"],
+                edited=f["user_draft"],
+            ),
+            STYLE_SCHEMA,
+            timeout=300,
+        )
         return _save(store, memory, STYLE, out.get("updated_style"), out.get("summary") or "", finding_id)
     except Exception:
         log.warning("learning style from finding %s failed", finding_id, exc_info=True)
@@ -104,12 +116,26 @@ def init_style(store: Store, cfg: Config, repo: str, comments: list[str]) -> str
     claude.ensure_logged_in()
     text = "\n\n".join(f"<comment>{c.strip()}</comment>" for c in comments if c.strip())
     out = _run(cfg, memory, style_from_history_prompt(repo=repo, comments=text), STYLE_SCHEMA)
-    return _save(store, memory, STYLE, out.get("updated_style"), out.get("summary") or "", None,
-                 note=f"Initialized from {len(comments)} past comments on {repo}")
+    return _save(
+        store,
+        memory,
+        STYLE,
+        out.get("updated_style"),
+        out.get("summary") or "",
+        None,
+        note=f"Initialized from {len(comments)} past comments on {repo}",
+    )
 
 
-def _save(store: Store, memory: Memory, scope: str, new: str | None, summary: str, finding_id: int | None,
-          note: str | None = None) -> str | None:
+def _save(
+    store: Store,
+    memory: Memory,
+    scope: str,
+    new: str | None,
+    summary: str,
+    finding_id: int | None,
+    note: str | None = None,
+) -> str | None:
     if not new or not new.strip():
         return None
     with _write_lock:
@@ -119,7 +145,12 @@ def _save(store: Store, memory: Memory, scope: str, new: str | None, summary: st
         memory.write(scope, new)
         label = note or summary or "Updated"
         store.add_memory_message(
-            scope, "learned", label, new_document=memory.read(scope), prev_document=prev, finding_id=finding_id,
+            scope,
+            "learned",
+            label,
+            new_document=memory.read(scope),
+            prev_document=prev,
+            finding_id=finding_id,
         )
     return summary or label
 
@@ -134,16 +165,29 @@ def learn_from_finding(store: Store, cfg: Config, finding_id: int, action: str) 
         repo = f"{r['owner']}/{r['repo']}"
         msgs = [m for m in store.messages_for(finding_id) if m["role"] != "error"][-6:]
         discussion = (
-            "Discussion:\n" + "\n".join(f"{'Reviewer' if m['role'] == 'user' else 'PRelude'}: {m['content']}" for m in msgs)
-            if msgs else ""
+            "Discussion:\n"
+            + "\n".join(f"{'Reviewer' if m['role'] == 'user' else 'PRelude'}: {m['content']}" for m in msgs)
+            if msgs
+            else ""
         )
         memory = Memory(cfg)
         existing = "\n".join(filter(None, [memory.read(GLOBAL), memory.read(repo)]))
         claude.ensure_logged_in()
-        out = _run(cfg, memory, learn_prompt(
-            repo=repo, title=f["title"], path=f["path"], claude_comment=f["claude_comment"],
-            outcome=_outcome(f, action), discussion=discussion, existing=existing,
-        ), LEARN_SCHEMA, timeout=300)
+        out = _run(
+            cfg,
+            memory,
+            learn_prompt(
+                repo=repo,
+                title=f["title"],
+                path=f["path"],
+                claude_comment=f["claude_comment"],
+                outcome=_outcome(f, action),
+                discussion=discussion,
+                existing=existing,
+            ),
+            LEARN_SCHEMA,
+            timeout=300,
+        )
         lesson = (out.get("lesson") or "").strip()
         if not lesson:
             return None
@@ -152,7 +196,12 @@ def learn_from_finding(store: Store, cfg: Config, finding_id: int, action: str) 
             prev = memory.read(scope)
             memory.remember(scope, lesson)
             store.add_memory_message(
-                scope, "learned", lesson, new_document=memory.read(scope), prev_document=prev, finding_id=finding_id,
+                scope,
+                "learned",
+                lesson,
+                new_document=memory.read(scope),
+                prev_document=prev,
+                finding_id=finding_id,
             )
         return lesson
     except Exception:
@@ -171,7 +220,10 @@ def _outcome(f, action: str) -> str:
 def _run(cfg: Config, memory: Memory, prompt: str, schema: dict, timeout: int | None = None) -> dict:
     memory.dir.mkdir(parents=True, exist_ok=True)
     result = claude.run_json(
-        prompt, memory.dir, schema=schema, model=cfg.claude.model,
+        prompt,
+        memory.dir,
+        schema=schema,
+        model=cfg.claude.model,
         timeout=timeout or cfg.claude.discuss_timeout_seconds,
     )
     return result.structured if isinstance(result.structured, dict) else {}

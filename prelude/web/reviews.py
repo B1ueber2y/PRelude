@@ -25,14 +25,19 @@ router = APIRouter()
 
 def _index(request: Request, w: Web, **extra) -> HTMLResponse:
     last_poll = w.store.setting(LAST_POLL, "")
-    return w.render(request, "index.html", {
-        "reviews": w.store.list_reviews(), "only_repo": w.cfg.only_repo,
-        "default_reviewers": w.cfg.claude.reviewers,
-        "watching": w.cfg.triggers.enabled and hasattr(request.app.state, "poller"),
-        "last_poll": float(last_poll) if last_poll else None,
-        "poll_error": w.store.setting(LAST_ERROR, ""),
-        **extra,
-    })
+    return w.render(
+        request,
+        "index.html",
+        {
+            "reviews": w.store.list_reviews(),
+            "only_repo": w.cfg.only_repo,
+            "default_reviewers": w.cfg.claude.reviewers,
+            "watching": w.cfg.triggers.enabled and hasattr(request.app.state, "poller"),
+            "last_poll": float(last_poll) if last_poll else None,
+            "poll_error": w.store.setting(LAST_ERROR, ""),
+            **extra,
+        },
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -61,17 +66,21 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str = "pendin
     findings = w.store.findings_for(review_id)
     counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "discarded")}
     counts["all"] = len(findings)
-    return w.render(request, "review.html", {
-        "r": r,
-        "cards": [w.card_context(f, r) for f in findings if show == "all" or f["status"] == show],
-        "show": show,
-        "counts": counts,
-        "drafts_enabled": w.cfg.drafts.enabled,
-        "prefix_on": drafting.prefix_on(w.store),
-        "prefix": w.cfg.drafts.prefix,
-        "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
-        "new_commits": _has_new_commits(w, r),
-    })
+    return w.render(
+        request,
+        "review.html",
+        {
+            "r": r,
+            "cards": [w.card_context(f, r) for f in findings if show == "all" or f["status"] == show],
+            "show": show,
+            "counts": counts,
+            "drafts_enabled": w.cfg.drafts.enabled,
+            "prefix_on": drafting.prefix_on(w.store),
+            "prefix": w.cfg.drafts.prefix,
+            "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
+            "new_commits": _has_new_commits(w, r),
+        },
+    )
 
 
 def _has_new_commits(w: Web, r) -> bool:
@@ -85,8 +94,13 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
     r = w.review_or_404(review_id)
     try:
         new_id = start_review(
-            w.store, w.cfg, PrRef(r["owner"], r["repo"], r["number"]), trigger_reason=f"re-review ({mode}) on phone",
-            reviewers=r["reviewers"], previous_review_id=review_id, mode=mode,
+            w.store,
+            w.cfg,
+            PrRef(r["owner"], r["repo"], r["number"]),
+            trigger_reason=f"re-review ({mode}) on phone",
+            reviewers=r["reviewers"],
+            previous_review_id=review_id,
+            mode=mode,
         )
     except (ValueError, RepoNotAllowed) as e:
         return w.flash(str(e))

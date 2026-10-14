@@ -68,12 +68,16 @@ def test_no_lesson_changes_nothing(cfg, store, done_review, fake_claude, monkeyp
 def test_style_learns_from_edit(cfg, store, done_review, fake_claude, monkeypatch, memory):
     f = store.findings_for(done_review)[0]
     store.update_finding(f["id"], user_draft="401 when missing?")
-    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"updated_style": "- Terse questions.", "summary": "terse"}))
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED", json.dumps({"updated_style": "- Terse questions.", "summary": "terse"})
+    )
     assert memory_agent.learn_style_from_edit(store, cfg, f["id"]) == "terse"
     assert memory.read(STYLE) == "- Terse questions."
 
 
-def test_memory_chat_applies_immediately_and_undo_checks_conflicts(client, cfg, store, fake_claude, monkeypatch, memory):
+def test_memory_chat_applies_immediately_and_undo_checks_conflicts(
+    client, cfg, store, fake_claude, monkeypatch, memory
+):
     monkeypatch.setenv(
         "FAKE_CLAUDE_STRUCTURED", json.dumps({"reply": "Added it.", "updated_document": "- Skip naming nits."})
     )
@@ -101,12 +105,24 @@ def test_memory_pages_and_manual_edit(client, done_review, memory):
 
 def test_comments_by_filters_author_and_prs(cfg):
     pages = {
-        "/pulls/comments": [{"user": {"login": "me"}, "body": "inline", "created_at": "2"},
-                            {"user": {"login": "other"}, "body": "x", "created_at": "3"}],
-        "/issues/comments": [{"user": {"login": "Me"}, "body": "on pr", "created_at": "4",
-                              "html_url": "https://github.com/o/r/pull/1#c"},
-                             {"user": {"login": "me"}, "body": "on issue", "created_at": "5",
-                              "html_url": "https://github.com/o/r/issues/2#c"}],
+        "/pulls/comments": [
+            {"user": {"login": "me"}, "body": "inline", "created_at": "2"},
+            {"user": {"login": "other"}, "body": "x", "created_at": "3"},
+        ],
+        "/issues/comments": [
+            {
+                "user": {"login": "Me"},
+                "body": "on pr",
+                "created_at": "4",
+                "html_url": "https://github.com/o/r/pull/1#c",
+            },
+            {
+                "user": {"login": "me"},
+                "body": "on issue",
+                "created_at": "5",
+                "html_url": "https://github.com/o/r/issues/2#c",
+            },
+        ],
     }
     gh = GitHubReader(cfg, token="t")
     gh._get = lambda owner, repo, path: pages[path.split("?")[0]]

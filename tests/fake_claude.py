@@ -28,20 +28,39 @@ fmt = args[args.index("--output-format") + 1] if "--output-format" in args else 
 
 if fmt == "json":
     structured = os.environ.get("FAKE_CLAUDE_STRUCTURED")
-    print(json.dumps({
-        "type": "result", "subtype": "success", "is_error": False, "session_id": session,
-        "result": reply, "total_cost_usd": 0.01,
-        "structured_output": json.loads(structured) if structured else None,
-    }))
+    print(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "session_id": session,
+                "result": reply,
+                "total_cost_usd": 0.01,
+                "structured_output": json.loads(structured) if structured else None,
+            }
+        )
+    )
 elif fmt == "stream-json":
+
     def emit(obj):
         print(json.dumps(obj), flush=True)
 
     emit({"type": "system", "subtype": "init", "session_id": session})
-    emit({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "tool_use", "name": "Read"}}})
+    emit(
+        {
+            "type": "stream_event",
+            "event": {"type": "content_block_start", "content_block": {"type": "tool_use", "name": "Read"}},
+        }
+    )
     emit({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "text"}}})
     for i in range(0, len(reply), 7):
-        emit({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": reply[i:i + 7]}}})
+        emit(
+            {
+                "type": "stream_event",
+                "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": reply[i : i + 7]}},
+            }
+        )
     emit({"type": "result", "subtype": "success", "is_error": False, "session_id": session, "result": reply})
 else:
     print(reply)

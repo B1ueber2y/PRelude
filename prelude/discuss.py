@@ -93,9 +93,14 @@ def post_message(store: Store, cfg: Config, broker: Broker, finding_id: int, tex
         resume, fork = own_session, False
     else:
         prompt = discuss_first_prompt(
-            ordinal=finding["ordinal"], title=finding["title"], path=finding["path"], line=finding["line"],
-            assessment=finding["assessment"], claude_comment=finding["claude_comment"],
-            current_draft=current_draft(finding), user_message=text,
+            ordinal=finding["ordinal"],
+            title=finding["title"],
+            path=finding["path"],
+            line=finding["line"],
+            assessment=finding["assessment"],
+            claude_comment=finding["claude_comment"],
+            current_draft=current_draft(finding),
+            user_message=text,
             memory=Memory(cfg).prompt_section(review["owner"], review["repo"], store.recent_edits()),
         )
         resume, fork = review["claude_session_id"], True
@@ -111,8 +116,14 @@ def post_message(store: Store, cfg: Config, broker: Broker, finding_id: int, tex
 
 
 def _reply(
-    store: Store, cfg: Config, broker: Broker, finding_id: int, prompt: str,
-    worktree: Path, resume: str, fork: bool,
+    store: Store,
+    cfg: Config,
+    broker: Broker,
+    finding_id: int,
+    prompt: str,
+    worktree: Path,
+    resume: str,
+    fork: bool,
 ) -> None:
     session_id = None
     changed_mind = False
@@ -120,10 +131,13 @@ def _reply(
     try:
         claude.ensure_logged_in()
         result = claude.run_stream(
-            prompt, worktree,
+            prompt,
+            worktree,
             on_text=lambda s: broker.publish(finding_id, Event("text", s)),
             on_activity=lambda name: broker.publish(finding_id, Event("activity", name)),
-            model=cfg.claude.model, resume=resume, fork=fork,
+            model=cfg.claude.model,
+            resume=resume,
+            fork=fork,
             timeout=cfg.claude.discuss_timeout_seconds,
         )
         session_id = result.session_id

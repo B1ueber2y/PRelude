@@ -65,7 +65,7 @@ def test_review_and_finding_pages(client, done_review, store):
     page = client.get(f"/findings/{f1['id']}")
     assert "Could we return 401" in page.text
     assert 'class="ln add hit"' in page.text  # snippet highlights the finding's line
-    assert f'/findings/{f2["id"]}' in page.text  # next link
+    assert f"/findings/{f2['id']}" in page.text  # next link
 
 
 def test_edit_keeps_claude_original(client, done_review, store):
@@ -90,9 +90,7 @@ def test_discard_and_restore(client, done_review, store):
     assert store.get_finding(f1["id"])["status"] == "pending"
 
 
-def test_discussion_forks_then_continues_and_never_edits_draft(
-    client, done_review, store, fake_claude, monkeypatch
-):
+def test_discussion_forks_then_continues_and_never_edits_draft(client, done_review, store, fake_claude, monkeypatch):
     monkeypatch.setenv(
         "FAKE_CLAUDE_REPLY", "Fair. Shorter:\n```comment\nPlease return 401 here.\n```\nVERDICT: revised"
     )

@@ -8,7 +8,7 @@ from prelude.triggers import TriggerConfig
 
 class FakeReader:
     def __init__(self):
-        self.prs = {}          # number -> dict(author, head, draft, direct, team)
+        self.prs = {}  # number -> dict(author, head, draft, direct, team)
         self.queries = []
 
     def viewer_login(self):
@@ -16,8 +16,18 @@ class FakeReader:
 
     def search_prs(self, query):
         self.queries.append(query)
-        return [{"owner": "B1ueber2y", "repo": "PRelude", "number": n, "author": p["author"], "draft": p["draft"],
-                 "created_at": p["created"], "updated_at": p["updated"]} for n, p in self.prs.items()]
+        return [
+            {
+                "owner": "B1ueber2y",
+                "repo": "PRelude",
+                "number": n,
+                "author": p["author"],
+                "draft": p["draft"],
+                "created_at": p["created"],
+                "updated_at": p["updated"],
+            }
+            for n, p in self.prs.items()
+        ]
 
     def pull_request(self, ref):
         self.detail_calls = getattr(self, "detail_calls", 0) + 1
@@ -30,8 +40,9 @@ class FakeReader:
 
     def add(self, number, author="alice", head="h1", draft=False, direct=(), team=(), created="2999-01-01T00:00:00Z"):
         updated = f"u-{head}-{sorted(direct)}"
-        self.prs[number] = dict(author=author, head=head, draft=draft, direct=direct, team=team, created=created,
-                                updated=updated)
+        self.prs[number] = dict(
+            author=author, head=head, draft=draft, direct=direct, team=team, created=created, updated=updated
+        )
 
 
 @pytest.fixture
@@ -85,8 +96,8 @@ def test_all_prs_repos_are_searched(poller, reader, cfg):
 
 def test_all_prs_ignores_prs_opened_before_watching(poller, reader, cfg, store):
     cfg.triggers.repos = {"b1ueber2y/prelude": "all_prs"}
-    reader.add(1, created="2000-01-01T00:00:00Z")                   # already open when watching began
-    reader.add(2, created="2000-01-01T00:00:00Z", direct=["bob"])   # old, but you were asked
+    reader.add(1, created="2000-01-01T00:00:00Z")  # already open when watching began
+    reader.add(2, created="2000-01-01T00:00:00Z", direct=["bob"])  # old, but you were asked
     (rid,) = poller.poll_once()
     assert store.get_review(rid)["number"] == 2
     assert store.watched("B1ueber2y", "PRelude", 1)["reason"].startswith("opened before")
@@ -95,8 +106,9 @@ def test_all_prs_ignores_prs_opened_before_watching(poller, reader, cfg, store):
 def test_explicit_since_date(poller, reader, cfg):
     from prelude.triggers import TriggerConfig
 
-    cfg.triggers = TriggerConfig.from_raw({"enabled": True, "repos": {
-        "B1ueber2y/PRelude": {"mode": "all_prs", "since": "1999-01-01"}}})
+    cfg.triggers = TriggerConfig.from_raw(
+        {"enabled": True, "repos": {"B1ueber2y/PRelude": {"mode": "all_prs", "since": "1999-01-01"}}}
+    )
     reader.add(1, created="2000-01-01T00:00:00Z")
     assert len(poller.poll_once()) == 1
     assert "created:>=1999-01-01" in reader.queries[-1]

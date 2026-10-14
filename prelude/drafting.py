@@ -44,11 +44,22 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None
     review_id = writer.pending_review(r["owner"], r["repo"], r["number"], r["head_sha"])
     body = body_for(store, cfg, f)
     comment_id = writer.add_comment(
-        r["owner"], r["repo"], review_id, path=f["path"], body=body, line=f["line"], side=f["side"],
-        start_line=f["start_line"], file_level=not f["in_diff"],
+        r["owner"],
+        r["repo"],
+        review_id,
+        path=f["path"],
+        body=body,
+        line=f["line"],
+        side=f["side"],
+        start_line=f["start_line"],
+        file_level=not f["in_diff"],
     )
     store.update_finding(
-        finding_id, status="drafted", github_review_id=review_id, github_comment_id=comment_id, drafted_body=body,
+        finding_id,
+        status="drafted",
+        github_review_id=review_id,
+        github_comment_id=comment_id,
+        drafted_body=body,
     )
 
 

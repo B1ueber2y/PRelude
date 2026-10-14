@@ -14,8 +14,21 @@ class FakeReader:
         self.additions = additions
 
     def pull_request(self, ref):
-        return PullRequest(ref, "Add auth", "body", "someone", "open", False, "main", "b" * 40, "feat", "a" * 40,
-                           ref.url, additions=self.additions, deletions=0)
+        return PullRequest(
+            ref,
+            "Add auth",
+            "body",
+            "someone",
+            "open",
+            False,
+            "main",
+            "b" * 40,
+            "feat",
+            "a" * 40,
+            ref.url,
+            additions=self.additions,
+            deletions=0,
+        )
 
 
 @pytest.fixture
