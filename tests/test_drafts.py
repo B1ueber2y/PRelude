@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from prelude import drafting
 from prelude.drafts import DraftError, DraftWriter, NotPending, check_query
 from prelude.guard import RepoNotAllowed
-from prelude.server import COOKIE, create_app
+from prelude.web import COOKIE, create_app
 
 
 class FakeGitHub:
@@ -154,3 +154,12 @@ def test_add_all(client, store, done_review, github):
     assert {f["status"] for f in store.findings_for(done_review)} == {"drafted"}
     page = client.get(f"/reviews/{done_review}?show=drafted")
     assert "Missing token is accepted" in page.text and "Review and submit on GitHub" in page.text
+
+
+def test_using_claudes_wording_updates_the_draft(client, store, done_review, github):
+    f = store.findings_for(done_review)[0]
+    client.post(f"/findings/{f['id']}/github/add")
+    mid = store.add_message(f["id"], "assistant", "Shorter:", proposal="401 if missing?")
+    client.post(f"/messages/{mid}/use")
+    (comment,) = github.comments.values()
+    assert comment["body"] == "AI review with PRelude: 401 if missing?"

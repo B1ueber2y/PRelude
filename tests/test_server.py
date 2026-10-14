@@ -4,7 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from prelude.server import COOKIE, create_app
+from prelude.web import COOKIE, create_app
 
 
 @pytest.fixture

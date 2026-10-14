@@ -102,7 +102,7 @@ def _cmd_style_init(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    from .server import serve
+    from .web import serve
 
     cfg = load_config()
     serve(cfg, host=args.host, port=args.port)

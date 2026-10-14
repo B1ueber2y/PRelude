@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from prelude import memory_agent
 from prelude.github import GitHubReader
 from prelude.memory import GLOBAL, STYLE, Memory
-from prelude.server import COOKIE, create_app
+from prelude.web import COOKIE, create_app
 
 
 @pytest.fixture
