@@ -26,6 +26,41 @@ Nothing is published by PRelude. Accepted comments land in your *pending* GitHub
 you read them in place and submit it yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
+## Built on Claude Code
+
+PRelude is a harness around [Claude Code](https://claude.com/claude-code), not a model or
+reviewer of its own. Every review, discussion and memory update is a headless run of the
+official `claude` CLI, using your own Claude Code login (a Claude subscription); PRelude
+supplies the prompts, the read-only sandbox and the workflow around the results:
+
+- **Claude Code does the thinking:** reading the PR and the surrounding code, finding
+  problems, drafting comments, and answering when you push back.
+- **PRelude does everything else:** deciding what to review, checking out the PR read-only,
+  running independent reviewers and merging their reports, keeping one conversation per
+  finding (forked Claude Code sessions), learning your preferences, the phone UI, and
+  writing drafts to GitHub only when you say so.
+
+So review quality follows Claude Code's, and usage counts against your Claude plan.
+
+### Use within Anthropic's terms
+
+PRelude is an independent project, not made or endorsed by Anthropic, and this section is
+not legal advice. Read Anthropic's current terms yourself, in particular the
+[Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
+page and the terms for your plan. As of writing, that page:
+
+- allows an end user to sign in to the unmodified Claude Code binary with their own
+  subscription — the way PRelude is meant to be used: by you, on your machine, with your
+  own login;
+- says products or services built on Claude should use API key authentication, and that
+  subscription credentials may not be used on behalf of other users — so **don't host
+  PRelude for other people on your subscription**;
+- says Pro and Max usage limits assume ordinary, individual usage — automatic reviews of
+  many PRs or large reviewer panels may go beyond that, so keep usage modest (see
+  `max_reviews_per_day` and the reviewer settings).
+
+If you want to use PRelude for a team or at scale, check with Anthropic first.
+
 ## What it does
 
 - **Investigates, not just diffs.** Claude explores the repository around the change
@@ -42,11 +77,14 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
   edit and discuss — like a colleague who learns from your feedback — and every change
   can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
 - **Built for the phone.** A small installable web app, served privately from your own
-  machine.
+  machine, with notifications when a review is ready.
+- **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
+  default), PRelude watches your repos for new PRs and review requests whenever it's
+  running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
 
-Status: early development. Reviewing, editing, discarding, discussing, memory and GitHub
-drafts work (drafts are off until enabled in `config.yaml`); automatic review triggers
-and notifications are next.
+Status: early, but in daily use. Reviews (single or panels), editing, discarding,
+discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
+`config.yaml`), and phone notifications (via ntfy) all work.
 
 ## Requirements
 
@@ -71,13 +109,17 @@ to a single repository during development.
 ```bash
 .venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review from the terminal
 .venv/bin/prelude review -n 3 OWNER/REPO#123                     # 3 reviewers + meta-reviewer
-.venv/bin/prelude                                                # start the web UI (127.0.0.1:8787); Ctrl+C stops it
+.venv/bin/prelude                                                # run the web UI (127.0.0.1:8787); Ctrl+C stops it
+.venv/bin/prelude start | stop | status                          # the same, in the background
+.venv/bin/prelude check                                          # dry run: which PRs the triggers would review
+.venv/bin/prelude notify-setup                                   # phone notifications via the ntfy app
 .venv/bin/prelude url                                            # link that unlocks the UI on a device
 .venv/bin/prelude style-init OWNER/REPO                          # learn your comment style
 ```
 
-Open the `prelude url` link once on each device; it sets a cookie. To use it from a phone,
-expose the local server privately (for example with `tailscale serve`).
+Open the `prelude url` link once on each device; it sets a cookie. PRelude only listens on
+localhost; to use it from a phone, forward the port over SSH (for example a local port
+forward in an SSH app such as Termius) or another private tunnel such as `tailscale serve`.
 
 ## Safety
 
