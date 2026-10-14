@@ -156,7 +156,7 @@ def run_review(store: Store, cfg: Config, review_id: int, github: GitHubReader |
         pr = (github or GitHubReader(cfg)).pull_request(ref)
         n = row["reviewers"] or cfg.reviewers_for(pr.changed_lines)
         store.update_review(
-            review_id, title=pr.title, author=pr.author, base_ref=pr.base_ref,
+            review_id, title=pr.title, body=pr.body, author=pr.author, base_ref=pr.base_ref,
             base_sha=pr.base_sha, head_sha=pr.head_sha, reviewers=n, changed_lines=pr.changed_lines,
         )
 

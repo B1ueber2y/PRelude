@@ -6,7 +6,12 @@
 <section class="review-head">
   <div class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
   <h1>{{ r.title or 'Pull request' }}</h1>
-  {% if r.summary %}<details class="summary"><summary><span class="clamp">{{ r.summary | text }}</span></summary><div class="prose">{{ r.summary | text }}</div></details>{% endif %}
+  {% if r.summary %}
+  <details class="summary"><summary><span class="label">Summary</span><span class="clamp">{{ r.summary | text }}</span></summary><span class="label">Summary</span><div class="prose">{{ r.summary | text }}</div></details>
+  {% endif %}
+  {% if r.body %}
+  <details class="description"><summary>Author's description</summary><div class="prose">{{ r.body | text }}</div></details>
+  {% endif %}
   {% if r.trigger_reason %}<div class="meta">Started: {{ r.trigger_reason }}{% if r.reviewers > 1 %} · {{ r.reviewers }} reviewers + meta-review{% endif %}</div>{% endif %}
 </section>
 

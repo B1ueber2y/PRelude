@@ -541,3 +541,7 @@ body { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
 .more > summary::-webkit-details-marker { display: none; }
 .more[open] > summary { background: var(--surface-2); }
 .more > .btn { position: absolute; right: 0; top: 30px; z-index: 5; background: var(--surface); border: 1px solid var(--border); white-space: nowrap; padding: 0 12px; }
+.summary .label { display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.description { margin: 4px 0 6px; }
+.description > summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.description .prose { margin-top: 6px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.92rem; max-height: 40vh; overflow: auto; }

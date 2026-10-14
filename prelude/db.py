@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   number INTEGER NOT NULL,
   url TEXT NOT NULL,
   title TEXT,
+  body TEXT,                               -- the author's PR description
   author TEXT,
   base_ref TEXT,
   base_sha TEXT,
@@ -129,7 +130,7 @@ class Store:
             })
             _add_missing_columns(c, "reviews", {
                 "reviewers": "INTEGER NOT NULL DEFAULT 1", "reports": "TEXT", "changed_lines": "INTEGER",
-                "runner_pid": "INTEGER", "previous_review_id": "INTEGER", "mode": "TEXT NOT NULL DEFAULT 'full'",
+                "runner_pid": "INTEGER", "previous_review_id": "INTEGER", "body": "TEXT", "mode": "TEXT NOT NULL DEFAULT 'full'",
             })
 
     @contextmanager
