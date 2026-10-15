@@ -99,6 +99,21 @@ code { font-family: var(--mono); font-size: 0.88em; }
 h1 { font-size: 1.3rem; line-height: 1.3; margin: 6px 0 4px; letter-spacing: -0.01em; }
 h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
 .section-title { margin-top: 24px; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.section-head .section-title { margin-bottom: 8px; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; margin-bottom: 6px; }
+.seg button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.seg button.on { background: var(--text); color: var(--bg); }
 
 .new-review label { display: block; font-weight: 600; margin-bottom: 8px; }
 .row { display: flex; gap: 8px; }
