@@ -44,7 +44,7 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
 
 PRelude fits wherever you'd want a careful second reviewer:
 
-- **Review your own PRs before anyone else does.** Open a PR and have PRelude review it
+- **Review your own PRs during your own development.** Open a PR and have PRelude review it
   (paste the link, or turn on `triggers` and your own non-draft PRs are reviewed
   automatically). Fix what's right, push, tap **Review again → Changes only**, and repeat
   until the re-review comes back clean. This pairs well with a coding
