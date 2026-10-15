@@ -141,18 +141,16 @@ PRelude serves its web UI on `127.0.0.1:8787` only, and runs nothing until you s
 
 ### 3. Open it on a computer
 
-Run `.venv/bin/prelude url` and open the link it prints
-(`http://127.0.0.1:8787/?key=…`). It sets a cookie for that address, so afterwards
-`http://127.0.0.1:8787` is enough in that browser (`localhost` counts as a different
-address). On a laptop the review page is a split view: the findings on the left, the
-selected one on the right; `j`/`k` move between them and `a`/`e`/`d` add, edit or discard.
+Run `.venv/bin/prelude url` and open the link once (`http://127.0.0.1:8787/?key=…`); after
+that `http://127.0.0.1:8787` is enough in that browser (`localhost` won't work).
 
-If PRelude runs on another machine (say a desktop at work), forward the port from your
-laptop and use the same link:
+From a laptop, when PRelude runs on another machine: in a terminal **on the laptop**, run
+`ssh -N -L 8787:127.0.0.1:8787 you@that-machine` and keep it open, then open the
+`prelude url` link (run it on the machine) **in the laptop's browser**. If the page
+can't be reached, the tunnel isn't up.
 
-```bash
-ssh -L 8787:127.0.0.1:8787 you@that-machine
-```
+On a laptop the review page is a split view; `j`/`k` move between findings and `a`/`e`/`d`
+add, edit or discard.
 
 ### 4. (Optional) Set up your phone
 
