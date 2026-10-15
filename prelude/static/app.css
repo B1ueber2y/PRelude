@@ -604,3 +604,19 @@ table.stats .bar em { position: absolute; left: 10px; top: 6px; font-style: norm
 .pr-merged { color: #8250df; background: color-mix(in srgb, #8250df 14%, transparent); }
 .pr-closed { color: var(--muted); }
 .closed-pr { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+.repo-add select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 8px;
+}
+.repo-card .card-top .repo { color: var(--text); font-weight: 600; }
+.repo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; }
+.repo-controls .seg { margin-bottom: 0; }
+.repo-controls .since { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; }
+.repo-controls .since input { width: auto; padding: 4px 8px; }
+.repo-card .card-top .btn.danger { margin-left: auto; min-height: 28px; padding: 0; }
+.saved { color: var(--accent); }

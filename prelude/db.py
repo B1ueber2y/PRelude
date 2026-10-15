@@ -552,6 +552,12 @@ class Store:
         with self.connect() as c:
             return [r[0] for r in c.execute("SELECT DISTINCT review_id FROM findings WHERE status = 'drafted'")]
 
+    def repo_activity(self) -> dict[str, tuple[int, float]]:
+        """OWNER/REPO -> (number of reviews, when the latest one started)."""
+        with self.connect() as c:
+            rows = c.execute("SELECT owner, repo, COUNT(*), MAX(created_at) FROM reviews GROUP BY owner, repo")
+            return {f"{o}/{r}": (n, last) for o, r, n, last in rows}
+
     def reviewed_repos(self) -> list[tuple[str, str]]:
         with self.connect() as c:
             return [(r[0], r[1]) for r in c.execute("SELECT DISTINCT owner, repo FROM reviews ORDER BY owner, repo")]
