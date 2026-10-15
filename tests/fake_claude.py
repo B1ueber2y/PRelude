@@ -2,9 +2,13 @@
 """Stand-in for the `claude` CLI in tests.
 
 Env: FAKE_CLAUDE_LOG (append argv/env as JSON lines), FAKE_CLAUDE_REPLY (reply text),
-FAKE_CLAUDE_STRUCTURED (JSON for structured_output), FAKE_CLAUDE_AUTH (authMethod or "none").
+FAKE_CLAUDE_STRUCTURED (JSON for structured_output), FAKE_CLAUDE_AUTH (authMethod or "none"),
+FAKE_CLAUDE_ERROR (fail the run with the reply as its message).
+With ANTHROPIC_API_KEY set it reports API-key auth, like the real CLI; the log records a hash of
+the key, never the key.
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -16,9 +20,16 @@ log = os.environ.get("FAKE_CLAUDE_LOG")
 prompt = "" if args[:2] == ["auth", "status"] else sys.stdin.read()
 if log:
     with open(log, "a") as f:
-        f.write(json.dumps({"args": args, "env_keys": sorted(os.environ), "prompt": prompt}) + "\n")
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        key_hash = hashlib.sha256(key.encode()).hexdigest() if key else None
+        f.write(
+            json.dumps({"args": args, "env_keys": sorted(os.environ), "key_sha256": key_hash, "prompt": prompt}) + "\n"
+        )
 
 if args[:2] == ["auth", "status"]:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        print(json.dumps({"loggedIn": True, "authMethod": "api_key", "apiKeySource": "ANTHROPIC_API_KEY"}))
+        sys.exit(0)
     method = os.environ.get("FAKE_CLAUDE_AUTH", "claude.ai")
     print(json.dumps({"loggedIn": method != "none", "authMethod": method}))
     sys.exit(0)
@@ -43,6 +54,11 @@ if left > 0:
     sys.exit(1)
 reply = os.environ.get("FAKE_CLAUDE_REPLY", "Looks right to me.\nVERDICT: confirmed")
 fmt = args[args.index("--output-format") + 1] if "--output-format" in args else "text"
+if os.environ.get("FAKE_CLAUDE_ERROR"):  # the run fails with FAKE_CLAUDE_REPLY as its message
+    print(
+        json.dumps({"type": "result", "subtype": "success", "is_error": True, "session_id": session, "result": reply})
+    )
+    sys.exit(1)
 
 if fmt == "json":
     structured = os.environ.get("FAKE_CLAUDE_STRUCTURED")

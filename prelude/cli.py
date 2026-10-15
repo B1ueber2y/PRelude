@@ -52,7 +52,8 @@ def _print_review(store: Store, review_id: int) -> int:
         print(f"no review #{review_id}", file=sys.stderr)
         return 1
     print(f"\n#{r['id']} {r['owner']}/{r['repo']}#{r['number']} {r['title'] or ''}")
-    usage = f"  usage: ≈ ${r['cost_usd']:.2f} API-equivalent (not billed on a subscription)" if r["cost_usd"] else ""
+    # The mode may have changed since; on a subscription this isn't billed, on an API key it is.
+    usage = f"  usage: ≈ ${r['cost_usd']:.2f} at API prices" if r["cost_usd"] else ""
     print(f"status: {r['status']}{usage}")
     if r["error"]:
         print(f"error: {r['error']}")
@@ -279,16 +280,45 @@ def _cmd_discuss(args: argparse.Namespace) -> int:
 
 
 def _cmd_auth(_args: argparse.Namespace) -> int:
-    status = claude.auth_status()
-    safe = {k: status.get(k) for k in ("loggedIn", "authMethod", "subscriptionType")}
+    cfg = load_config()
+    auth = claude.auth_for(cfg)
+    print(f"mode: {auth.mode} (claude.auth in config.yaml)")
+    status = claude.auth_status(auth)
+    safe = {k: status.get(k) for k in ("loggedIn", "authMethod", "apiKeySource", "subscriptionType")}
     print(json.dumps(safe, indent=2))
     try:
-        claude.ensure_logged_in()
-        print("OK: PRelude can run reviews with this login.")
+        claude.ensure_logged_in(auth)
+        what = "this API key (billed per token)" if auth.mode == claude.API_KEY else "this login"
+        print(f"OK: PRelude can run reviews with {what}.")
         return 0
     except claude.ClaudeNotLoggedIn as e:
         print(f"blocked: {e}")
         return 1
+
+
+def _cmd_api_key(args: argparse.Namespace) -> int:
+    """Store or remove the API key for claude.auth: api_key (never printed)."""
+    import getpass
+
+    cfg = load_config()
+    path = cfg.data_dir / claude.KEY_FILE
+    if args.remove:
+        path.unlink(missing_ok=True)
+        print("API key removed.")
+        return 0
+    key = getpass.getpass("Anthropic API key (input hidden): ").strip()
+    if not key:
+        print("No key entered; nothing changed.")
+        return 1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(key + "\n")
+    os.chmod(path, 0o600)  # also when the file already existed
+    print(f"Saved to {path} (readable only by you).")
+    if cfg.claude.auth != claude.API_KEY:
+        print("PRelude still uses your subscription; set `claude: {auth: api_key}` in config.yaml to use the key.")
+    return 0
 
 
 def _cmd_style_init(args: argparse.Namespace) -> int:
@@ -451,7 +481,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("finding_id", type=int)
     s.add_argument("action")
     s.set_defaults(fn=_cmd_learn)
-    sub.add_parser("auth", help="check the Claude login PRelude will use").set_defaults(fn=_cmd_auth)
+    sub.add_parser("auth", help="check the Claude login or API key PRelude will use").set_defaults(fn=_cmd_auth)
+    s = sub.add_parser("api-key", help="store an Anthropic API key for claude.auth: api_key (input hidden)")
+    s.add_argument("--remove", action="store_true", help="delete the stored key")
+    s.set_defaults(fn=_cmd_api_key)
     sub.add_parser("url", help="print the web UI link (with access key)").set_defaults(fn=_cmd_url)
 
     s = sub.add_parser("style-init", help="write your comment style guide from past comments on a repo")

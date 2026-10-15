@@ -91,7 +91,8 @@ discussing, memory, GitHub drafts and automatic review triggers (both off until 
 ## Requirements
 
 - Python 3.12+
-- [Claude Code](https://claude.com/claude-code) logged in with a Claude subscription (`claude auth status`)
+- [Claude Code](https://claude.com/claude-code) logged in with a Claude subscription (`claude auth status`),
+  or an Anthropic API key (see below)
 - GitHub CLI logged in (`gh auth status`)
 
 ## Setup
@@ -105,6 +106,22 @@ python3 -m venv .venv
 Data (database, checkouts, memory, config) lives in `.prelude-data/` unless `PRELUDE_HOME`
 is set. Edit `.prelude-data/config.yaml` to change settings; `only_repo` restricts PRelude
 to a single repository during development.
+
+### Subscription or API key
+
+By default PRelude runs on your Claude Code login (`claude.auth: subscription`): reviews
+use up part of your plan's limits and cost nothing extra. To use an Anthropic API key
+instead, which is billed per token in the Claude Console and recommended for heavy use:
+
+```bash
+.venv/bin/prelude api-key     # paste the key (hidden); stored in .prelude-data/ readable only by you
+```
+
+then set `auth: api_key` under `claude:` in `config.yaml` and restart PRelude
+(`prelude auth` shows which one is in use). An `ANTHROPIC_API_KEY` in PRelude's own
+environment takes precedence over the stored key. Use a key made just for PRelude, with a
+spending limit set in the Console. Some plans include monthly API credits that cover
+`claude -p` with a key from your linked Console organization; check your plan.
 
 ## Usage
 
@@ -137,8 +154,13 @@ forward in an SSH app such as Termius) or another private tunnel such as `tailsc
 
 - Claude runs headlessly with read-only tools (`Read`, `Grep`, `Glob`) in a read-only
   checkout, with settings, hooks, plugins and MCP servers disabled, so code in the
-  reviewed repository is never executed. API-key variables are removed from its
-  environment, so runs always use the subscription login.
+  reviewed repository is never executed. Only the credential you chose reaches it: on the
+  subscription, API-key variables are removed; with `claude.auth: api_key`, only that key
+  is passed (in its environment, never on the command line), and any verbatim copy of it
+  is removed from errors and from everything a run returns. Claude can still read its own
+  environment and files, as it can your subscription login, so a PR written to trick it
+  could try to get the key out in some disguised form; use a dedicated key with a spending
+  limit, and you still read every comment before you submit it.
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment); submitting a review is not possible from PRelude, and tests enforce it.
 
