@@ -253,7 +253,6 @@ def _cmd_discuss(args: argparse.Namespace) -> int:
         while (ev := events.get()).kind not in ("done", "error"):
             if ev.kind == "text":
                 print(ev.data, end="", flush=True)
-        replying.join()  # it may still be updating memory from the reply
     except KeyboardInterrupt:
         store.release_thread(f["id"])  # the reply dies with this process; don't leave the thread busy
         print("\nStopped. Your message is saved; ask again to get a reply.", file=sys.stderr)
@@ -266,6 +265,12 @@ def _cmd_discuss(args: argparse.Namespace) -> int:
     if reply["proposal"]:
         print(f"\nClaude proposes:\n{textwrap.indent(reply['proposal'], '  ')}")
         print(f"Use it: prelude edit {args.review} {args.number} --claude")
+    if replying.is_alive():
+        print("Updating memory…", file=sys.stderr)
+        try:
+            replying.join()
+        except KeyboardInterrupt:
+            print("Skipped the memory update; the reply is saved.", file=sys.stderr)
     return 0
 
 
