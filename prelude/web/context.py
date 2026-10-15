@@ -15,13 +15,13 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from .. import drafting
+from .. import triage
 from ..codeview import CodeView, build, read_head_file
 from ..config import Config, size_label
 from ..db import Store
 from ..diffmap import FileDiff, parse_diff
 from ..discuss import Broker, current_draft
-from ..drafts import DraftError, DraftWriter
+from ..drafts import DraftWriter
 from ..github import GitHubReader
 from ..memory import Memory
 from ..textfmt import render_text
@@ -131,12 +131,8 @@ class Web:
 
     def refuse_if_posted(self, finding_id: int) -> HTMLResponse | None:
         """Posted comments live on GitHub now, and dropped ones belong to a closed PR: read-only."""
-        status = self.finding_or_404(finding_id)["status"]
-        if status == "posted":
-            return self.flash("This comment is already posted on GitHub; change it there.")
-        if status == "dropped":
-            return self.flash("This PR was closed before the comment was posted.")
-        return None
+        why = triage.refusal(self.finding_or_404(finding_id))
+        return self.flash(why) if why else None
 
     @staticmethod
     def wants_card(request: Request, finding_id: int) -> bool:
@@ -169,23 +165,10 @@ class Web:
     # ---- actions -----------------------------------------------------------
 
     def set_draft(self, finding_id: int, text: str | None, *, learn: bool = True) -> str | None:
-        """Set the reviewer's wording (None = Claude's), learn from it, and sync any GitHub draft.
-
-        Returns an error message if the GitHub draft couldn't be updated.
-        """
-        f = self.finding_or_404(finding_id)
-        if f["status"] in ("posted", "dropped"):
-            return "This comment can't be changed any more (posted, or its PR was closed)."
-        text = text.strip() if text is not None else None
-        user_draft = None if text is None or text == f["claude_comment"] else text
-        self.store.update_finding(finding_id, user_draft=user_draft)
-        if learn and user_draft is not None and user_draft != f["user_draft"]:
-            self.learn(finding_id, "edit")
-        try:
-            drafting.sync(self.store, self.cfg, self.writer, finding_id)
-        except DraftError as e:
-            return str(e)
-        return None
+        self.finding_or_404(finding_id)
+        return triage.set_wording(
+            self.store, self.cfg, self.writer, finding_id, text, learn=self.learn if learn else None
+        )
 
 
 def web(request: Request) -> Web:
