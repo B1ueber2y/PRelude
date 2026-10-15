@@ -123,3 +123,27 @@ def test_bad_input_changes_nothing(client, data):
     before = text(client.cfg)
     page = client.post("/repos", data=data).text
     assert 'class="error"' in page and text(client.cfg) == before
+
+
+def test_legend_says_when_own_prs_are_reviewed(client):
+    page = client.get("/repos").text
+    assert "when someone asks for your review, plus your own PRs" in page and "not even your own PRs" in page
+    client.cfg.triggers.own_prs = False
+    page = client.get("/repos").text
+    assert "plus your own PRs" not in page and "<strong>never</strong>: nothing." in page
+    client.cfg.triggers.always = {"alice"}  # their requests are reviewed even in never repos
+    assert "nothing, except requests from your always list" in client.get("/repos").text
+
+
+def test_last_activity_counts_reviewers_added_later(client, store):
+    import time
+
+    rid = store.create_review("cvg", "limap", 1, "u", "t")
+    store.update_review(rid, created_at=time.time() - 8 * 3600, finished_at=time.time() - 120)
+    page = client.get("/repos").text
+    assert "last 2 min ago" in page and "last 8 h ago" not in page
+
+
+def test_cap_toggle_says_it_is_for_your_own_prs(client):
+    page = client.get("/repos").text
+    assert "my PRs skip the cap" in page and "cap exempt" not in page.lower().replace("cap_exempt", "")
