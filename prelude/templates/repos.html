@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Repos · PRelude{% endblock %}
+{% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
+{% block content %}
+<div id="repos-body" hx-target="#repos-body" hx-select="#repos-body" hx-swap="outerHTML">
+<h1>Repos</h1>
+<p class="hint">
+  Automatic reviews are <strong>{{ 'on' if t.enabled else 'off' }}</strong>{% if not t.enabled %} (turn on <code>triggers.enabled</code> in config.yaml and restart){% endif %}.
+  Repos not listed: <strong>{{ t.default_mode | replace('_', ' ') }}</strong>. Cap: {{ t.max_reviews_per_day }} automatic reviews a day.
+</p>
+<p class="hint">
+  <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review · <strong>never</strong>: not even your own PRs.
+  <strong>Cap exempt</strong>: your own PRs there don't count toward the cap.
+</p>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if saved %}<p class="hint saved">Saved {{ saved }}.</p>{% endif %}
+
+<form class="repo-add" hx-post="/repos">
+  <div class="row">
+    <input name="slug" placeholder="owner/repo or owner/*" autocomplete="off" autocapitalize="off" required
+           value="{{ slug if error else '' }}">
+    <select name="mode" aria-label="Mode">
+      {% for m in modes %}<option value="{{ m }}" {{ 'selected' if m == 'all_prs' }}>{{ m | replace('_', ' ') }}</option>{% endfor %}
+    </select>
+    <button class="btn primary small" type="submit">Add</button>
+  </div>
+</form>
+
+<h2 class="section-title">Watched</h2>
+{% if not rows %}<p class="empty-line">No repos listed yet.</p>{% endif %}
+<ul class="list">
+{% for r in rows %}
+  <li class="card repo-card">
+    <div class="card-top">
+      <span class="repo">{{ r.slug }}</span>
+      <button class="btn small ghost danger" hx-post="/repos" hx-vals='{"slug": "{{ r.slug }}", "action": "remove"}'
+              hx-confirm="Stop listing {{ r.slug }}? It falls back to {{ t.default_mode | replace('_', ' ') }}.">Remove</button>
+    </div>
+    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}</div>
+    <div class="repo-controls">
+      <div class="seg" role="group" aria-label="Mode for {{ r.slug }}">
+        {% for m in modes %}
+        <button class="{{ 'on' if m == r.mode }}" hx-post="/repos"
+                hx-vals='{"slug": "{{ r.slug }}", "mode": "{{ m }}", "since": "{{ r.since or '' }}"}'>{{ m | replace('_', ' ') }}</button>
+        {% endfor %}
+      </div>
+      {% if r.mode == 'all_prs' %}
+      <label class="since">since
+        <input type="date" name="since" value="{{ r.since or '' }}" hx-post="/repos" hx-trigger="change"
+               hx-vals='{"slug": "{{ r.slug }}", "mode": "all_prs"}'>
+      </label>
+      {% endif %}
+      <label class="toggle" title="Your own PRs here don't count toward the daily cap">
+        <input type="checkbox" {{ 'checked' if r.exempt }} hx-post="/repos" hx-trigger="change"
+               hx-vals='js:{slug: "{{ r.slug }}", action: "exempt", exempt: event.target.checked ? "1" : "0"}'>
+        cap exempt
+      </label>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+
+{% if others %}
+<h2 class="section-title">Reviewed, not listed</h2>
+<ul class="list">
+{% for r in others %}
+  <li class="card repo-card">
+    <div class="card-top">
+      <span class="repo">{{ r.slug }}</span>
+      <span class="tag">default ({{ t.default_mode | replace('_', ' ') }})</span>
+    </div>
+    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}</div>
+    <div class="repo-controls">
+      <div class="seg" role="group" aria-label="Mode for {{ r.slug }}">
+        {% for m in modes %}
+        <button hx-post="/repos" hx-vals='{"slug": "{{ r.slug }}", "mode": "{{ m }}"}'>{{ m | replace('_', ' ') }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+</div>
+{% endblock %}
