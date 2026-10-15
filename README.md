@@ -6,9 +6,9 @@
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
 </p>
 <p align="center"><strong>Phone</strong><br>
-  <img src="docs/images/home.png" width="250" alt="The review list, one card per PR">
-  <img src="docs/images/review.png" width="250" alt="A review: summary, actions and the first finding with its code">
-  <img src="docs/images/finding.png" width="250" alt="One finding: the code, why Claude flagged it, and your wording">
+  <img src="docs/images/home.png" width="32%" alt="The review list, one card per PR">
+  <img src="docs/images/review.png" width="32%" alt="A review: summary, actions and the first finding with its code">
+  <img src="docs/images/finding.png" width="32%" alt="One finding: the code, why Claude flagged it, and your wording">
 </p>
 
 AI reviewers are good at finding problems and bad at knowing which ones matter to *you*.
