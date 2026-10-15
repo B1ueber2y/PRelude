@@ -18,7 +18,7 @@ from ..drafts import DraftWriter
 from ..github import GitHubReader
 from ..review import add_reviewers, run_review
 from ..workspace import prune_checkouts
-from . import auth, findings, memory, reviews
+from . import auth, findings, memory, repos, reviews
 from .auth import COOKIE
 from .context import PACKAGE, Web
 
@@ -87,7 +87,7 @@ def create_app(
     def manifest():
         return Response(MANIFEST, media_type="application/manifest+json")
 
-    for module in (reviews, findings, memory):
+    for module in (reviews, findings, memory, repos):
         app.include_router(module.router)
 
     if watch and cfg.triggers.enabled:

@@ -109,6 +109,9 @@ October 2026:
 - **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
   default), PRelude watches your repos for new PRs and review requests whenever it's
   running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
+  The **Repos** page lists the watched repos; add one, switch it between all PRs / on
+  request / never, or exempt your own PRs there from the daily cap. Changes are saved to
+  `config.yaml`, comments included.
 
 Status: early, but in daily use. Reviews (single or panels), editing, discarding,
 discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
