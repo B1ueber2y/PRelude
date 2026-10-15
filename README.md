@@ -79,7 +79,7 @@ October 2026:
   guide reviews every new PR on a subscription token, and the help center says `claude -p`
   can be used "with your subscription limits". PRelude does the same on your machine: it
   runs the unmodified `claude` CLI under your own login and never reads or stores your
-  Claude credentials.
+  subscription login (in API-key mode it keeps only the key you give it).
 - **Don't run it for other people.** Subscriptions may not be shared or used "on behalf of"
   other users, and products built on Claude should use an API key. Keep PRelude personal:
   your login, your machine, your reviews. For heavier or team use, switch to an
