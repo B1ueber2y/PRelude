@@ -12,7 +12,7 @@ from .. import drafting, prstate, stats
 from ..drafts import DraftError
 from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
-from ..poller import LAST_ERROR, LAST_POLL
+from ..poller import LAST_ERROR, LAST_POLL, next_cap_slot, reviews_toward_cap
 from ..review import start_review
 from .context import Web, WebDep
 
@@ -48,6 +48,9 @@ def _index(request: Request, w: Web, **extra) -> HTMLResponse:
             "default_reviewers": w.cfg.claude.reviewers,
             "watching": w.cfg.triggers.enabled and hasattr(request.app.state, "poller"),
             "last_poll": float(last_poll) if last_poll else None,
+            "cap_used": reviews_toward_cap(w.store, w.cfg.triggers),
+            "cap": w.cfg.triggers.max_reviews_per_day,
+            "next_slot": next_cap_slot(w.store, w.cfg.triggers),
             "poll_error": w.store.setting(LAST_ERROR, ""),
             **extra,
         },

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -37,6 +38,15 @@ def ago(timestamp: float) -> str:
     return "just now"
 
 
+def until(timestamp: float) -> str:
+    """Time left in its largest unit only, rounded up so the wait is never understated."""
+    seconds = max(0.0, timestamp - time.time())
+    for unit, size, limit in (("s", 1, 60), ("min", 60, 60), ("h", 3600, 24)):
+        if (n := math.ceil(seconds / size)) < limit:
+            return f"{max(1, n)} {unit}"
+    return f"{math.ceil(seconds / 86400)} d"
+
+
 @cache
 def static_url(name: str) -> str:
     """Versioned URL so phones never keep a stale copy after an update."""
@@ -52,6 +62,7 @@ def make_templates() -> Jinja2Templates:
     templates.env.filters["text"] = render_text
     templates.env.filters["size_label"] = size_label
     templates.env.filters["ago"] = ago
+    templates.env.filters["until"] = until
     return templates
 
 

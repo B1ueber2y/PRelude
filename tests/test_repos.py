@@ -147,3 +147,51 @@ def test_last_activity_counts_reviewers_added_later(client, store):
 def test_cap_toggle_says_it_is_for_your_own_prs(client):
     page = client.get("/repos").text
     assert "my PRs skip the cap" in page and "cap exempt" not in page.lower().replace("cap_exempt", "")
+
+
+def test_cap_usage_by_repo_and_next_free_slot(client, store):
+    import time
+
+    def auto(owner, repo, reason, hours_ago):
+        rid = store.create_review(owner, repo, 1, "u", f"auto: {reason}")
+        store.update_review(rid, created_at=time.time() - hours_ago * 3600)
+
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 20)  # frees up in ~4 h
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 1)
+    auto("colmap", "colmap", "new PR in colmap/colmap (all_prs)", 2)
+    auto("B1ueber2y", "PRelude", "your PR", 1)  # exempt: doesn't count
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 30)  # outside the window
+    page = client.get("/repos").text
+    assert "<strong>3/20</strong>" in page and "frees up" not in page  # room left: nothing to wait for
+
+    def capped(slug):
+        rest = page[page.index(f">{slug}<") :]
+        return rest[: rest.index("toward the cap")].rsplit("<strong>", 1)[1]
+
+    assert capped("cvg/limap").startswith("2<") and capped("colmap/colmap").startswith("1<")
+
+
+def test_next_slot_when_the_cap_is_full_or_exceeded(store):
+    import time
+
+    from prelude.poller import next_cap_slot
+    from prelude.triggers import TriggerConfig
+
+    now = time.time()
+    for hours_ago in (20, 10, 5):
+        rid = store.create_review("o", "r", 1, "u", "auto: new PR in o/r (all_prs)")
+        store.update_review(rid, created_at=now - hours_ago * 3600)
+    t = TriggerConfig.from_raw({"max_reviews_per_day": 3})
+    assert abs(next_cap_slot(store, t) - (now + 4 * 3600)) < 5  # the oldest ages out
+    t.max_reviews_per_day = 2  # over the cap: two must age out before there's room
+    assert abs(next_cap_slot(store, t) - (now + 14 * 3600)) < 5
+    t.max_reviews_per_day = 4
+    assert next_cap_slot(store, t) is None
+    t.max_reviews_per_day = 0
+    assert next_cap_slot(store, t) is None
+
+
+def test_a_cap_of_zero_says_it_pauses_reviews(client):
+    client.cfg.triggers.max_reviews_per_day = 0
+    page = client.get("/repos").text
+    assert "<strong>0/0</strong>" in page and "a cap of 0 pauses" in page
