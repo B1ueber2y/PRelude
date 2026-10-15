@@ -78,3 +78,27 @@ def test_discuss_prints_the_reply_and_its_proposal(run, store, done_review, fake
     run("edit", done_review, 1, "--claude")
     assert store.findings_for(done_review)[0]["user_draft"] == "Please return 401 here."
     assert run.learned == []  # Claude's words teach nothing about the reviewer's style
+
+
+def test_commands_check_the_findings_state(run, store, done_review):
+    run("discard", done_review, 1)
+    code, out = run("undraft", done_review, 1)
+    assert code == 1 and "not in your draft" in out and store.findings_for(done_review)[0]["status"] == "discarded"
+    assert "already discarded" in run("discard", done_review, 1)[1] and len(run.learned) == 1
+
+
+def test_a_failed_editor_changes_nothing(run, store, done_review, monkeypatch):
+    monkeypatch.setenv("EDITOR", "false")
+    code, out = run("edit", done_review, 1)
+    assert code == 2 and "editor didn't finish" in out and "Traceback" not in out
+    assert store.findings_for(done_review)[0]["user_draft"] is None
+
+
+def test_interrupted_discussion_frees_the_thread(run, store, done_review, monkeypatch):
+    import queue
+
+    monkeypatch.setattr(queue.Queue, "get", lambda self, *a, **k: (_ for _ in ()).throw(KeyboardInterrupt))
+    f = store.findings_for(done_review)[0]
+    monkeypatch.setattr("prelude.discuss.threading.Thread.start", lambda self: None)  # no reply runs
+    code, out = run("discuss", done_review, 1, "Really?")
+    assert code == 130 and "Stopped" in out and not store.thread(f["id"])["busy"]

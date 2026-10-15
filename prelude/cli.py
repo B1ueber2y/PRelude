@@ -166,8 +166,12 @@ def _cmd_draft(args: argparse.Namespace) -> int:
                 drafting.add(store, cfg, writer, f["id"])
                 print(f"{f['ordinal']}: in your GitHub draft")
             elif args.cmd == "undraft":
+                if f["status"] != "drafted":
+                    raise DraftError(f"not in your draft ({f['status']})")
                 drafting.remove(store, cfg, writer, f["id"])
                 print(f"{f['ordinal']}: back to review")
+            elif f["status"] == "discarded":
+                print(f"{f['ordinal']}: already discarded")
             else:
                 drafting.remove(store, cfg, writer, f["id"], new_status="discarded")
                 _learn_later(f["id"], "discard")
@@ -225,6 +229,8 @@ def _edit_in_editor(text: str) -> str | None:
     try:
         subprocess.run([*shlex.split(os.environ.get("EDITOR") or "vi"), str(path)], check=True)
         new = path.read_text().strip()
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise UsageError(f"the editor didn't finish ({e}); nothing changed. Or use --text.") from e
     finally:
         path.unlink(missing_ok=True)
     return None if not new or new == text.strip() else new
@@ -238,20 +244,23 @@ def _cmd_discuss(args: argparse.Namespace) -> int:
     (f,) = _findings(store, args.review, [args.number])
     broker = Broker()
     try:
-        post_message(store, cfg, broker, f["id"], args.message)
+        replying = post_message(store, cfg, broker, f["id"], args.message)
     except (ValueError, DiscussionBusy) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     events = broker.subscribe(f["id"])
-    while True:
-        ev = events.get()
-        if ev.kind == "text":
-            print(ev.data, end="", flush=True)
-        elif ev.kind == "error":
-            print(f"\nerror: {ev.data}", file=sys.stderr)
-            return 1
-        elif ev.kind == "done":
-            break
+    try:
+        while (ev := events.get()).kind not in ("done", "error"):
+            if ev.kind == "text":
+                print(ev.data, end="", flush=True)
+        replying.join()  # it may still be updating memory from the reply
+    except KeyboardInterrupt:
+        store.release_thread(f["id"])  # the reply dies with this process; don't leave the thread busy
+        print("\nStopped. Your message is saved; ask again to get a reply.", file=sys.stderr)
+        return 130
+    if ev.kind == "error":
+        print(f"\nerror: {ev.data}", file=sys.stderr)
+        return 1
     reply = store.messages_for(f["id"])[-1]
     print()
     if reply["proposal"]:
