@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections import Counter
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -33,21 +32,11 @@ def _review_list(w: Web) -> dict:
     `earlier` maps a PR to (hidden reviews, findings in them still to go), so nothing waiting is hidden silently.
     """
     latest_only = w.store.setting(LATEST_ONLY, "1") == "1"
-    reviews = w.store.list_reviews(limit=200 if latest_only else 50)
-    earlier: dict[tuple, tuple[int, int]] = {}
-    if latest_only:
-        newest, count, to_go = {}, Counter(), Counter()
-        for r in reviews:
-            key = (r["owner"], r["repo"], r["number"])
-            count[key] += 1
-            to_go[key] += r["pending"] + r["drafted"]
-            if key not in newest or r["id"] > newest[key]["id"]:
-                newest[key] = r
-        reviews = [r for r in reviews if newest[(r["owner"], r["repo"], r["number"])] is r][:50]
-        earlier = {
-            k: (n - 1, to_go[k] - newest[k]["pending"] - newest[k]["drafted"]) for k, n in count.items() if n > 1
-        }
-    return {"reviews": reviews, "latest_only": latest_only, "earlier": earlier}
+    return {
+        "reviews": w.store.list_reviews(latest_only=latest_only),
+        "latest_only": latest_only,
+        "earlier": w.store.earlier_reviews() if latest_only else {},
+    }
 
 
 def _index(request: Request, w: Web, **extra) -> HTMLResponse:
