@@ -2,6 +2,12 @@
 
 **Review the AI review comments before they reach the author.**
 
+<p align="center">
+  <img src="docs/images/review.png" width="250" alt="A review: summary, actions and the first finding with its code">
+  <img src="docs/images/finding.png" width="250" alt="One finding: the code, why Claude flagged it, and your wording">
+  <img src="docs/images/home.png" width="250" alt="The review list, one card per PR">
+</p>
+
 AI reviewers are good at finding problems and bad at knowing which ones matter to *you*.
 Posting their output straight onto a pull request is noisy; pasting it into one long chat
 is unmanageable. PRelude treats an AI review the way we treat code: as a proposal that
@@ -42,8 +48,9 @@ PRelude fits wherever you'd want a careful second reviewer:
   more later with **+N**) and see which problems several reviewers found independently.
 - **Answer review requests faster.** When a colleague requests your review, a draft is
   waiting by the time you look; you keep, reword or drop each comment and submit.
-- **First pass on contributions to a project you maintain.** Watch a few repos and let
-  PRelude prepare a review of each new PR; contributors only see what you approved.
+- **First pass on contributions to a project you maintain.** Add your repos on the
+  **Repos** page and PRelude prepares a review of each new PR; contributors only see what
+  you approved.
 
 All of it works from the phone, or from the terminal (`prelude findings`, `prelude draft`,
 `prelude discard`, … see [Usage](#usage)).
