@@ -70,7 +70,7 @@ triggers:
 # Phone notifications via the ntfy app. Run `prelude notify-setup` to create a topic.
 notify:
   ntfy_topic: null
-  include_details: false          # repo and PR title in messages (ntfy.sh is a public server)
+  details: ref                    # none, ref (owner/repo#123) or full (also the PR title); ntfy.sh is public
   open_url: http://localhost:8787
 
 server:
@@ -211,12 +211,19 @@ def load_config(data_dir: Path | None = None) -> Config:
         notify=NotifyConfig(
             ntfy_topic=(raw.get("notify") or {}).get("ntfy_topic") or None,
             ntfy_server=str((raw.get("notify") or {}).get("ntfy_server", "https://ntfy.sh")),
-            include_details=bool((raw.get("notify") or {}).get("include_details", False)),
+            details=_notify_details(raw.get("notify") or {}),
             open_url=str((raw.get("notify") or {}).get("open_url", "http://localhost:8787")),
         ),
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,
     )
+
+
+def _notify_details(raw: dict) -> str:
+    if "include_details" in raw and "details" not in raw:  # older configs
+        return "full" if raw["include_details"] is True else "none"
+    value = str(raw.get("details", "ref"))
+    return value if value in ("none", "ref", "full") else "ref"
 
 
 def _reviewers(value) -> int:

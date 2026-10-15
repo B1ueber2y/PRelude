@@ -114,17 +114,23 @@ def test_explicit_since_date(poller, reader, cfg):
     assert "created:>=1999-01-01" in reader.queries[-1]
 
 
-def test_notifications_say_little_by_default(cfg, sent):
+def test_notification_detail_levels(cfg, sent):
     cfg.notify.ntfy_topic = "topic"
-    review = {"id": 3, "status": "done", "owner": "o", "repo": "secret-repo", "number": 1, "title": "Private"}
+    review = {"id": 3, "status": "done", "owner": "o", "repo": "r", "number": 7, "title": "Private"}
     findings = [{"severity": "high"}, {"severity": "low"}]
-    review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
-    url, body, headers = sent[-1]
-    assert url == "https://ntfy.sh/topic" and body == b"2 findings (1 high)"
-    assert headers["Click"] == "http://localhost:8787/reviews/3"
-    cfg.notify.include_details = True
-    review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
-    assert b"secret-repo" in sent[-1][1]
+    bodies = {}
+    for level in ("none", "ref", "full"):
+        cfg.notify.details = level
+        review_finished(cfg.notify, review, findings, sender=lambda *a: sent.append(a))
+        bodies[level] = sent[-1][1]
+    assert bodies == {
+        "none": b"2 findings (1 high)",
+        "ref": b"o/r#7 \xc2\xb7 2 findings (1 high)",
+        "full": b"o/r#7 Private \xc2\xb7 2 findings (1 high)",
+    }
+    url, _, headers = sent[-1]
+    assert url == "https://ntfy.sh/topic" and headers["Click"] == "http://localhost:8787/reviews/3"
+    assert headers["Tags"] == "mag,r"
     cfg.notify.ntfy_topic = None
     assert send(cfg.notify, "t", "m", sender=lambda *a: sent.append(a)) is False
 
@@ -146,7 +152,7 @@ def test_unchanged_prs_cost_no_extra_requests(poller, reader):
     assert reader.detail_calls == calls  # nothing changed: only the searches ran
 
 
-def test_failure_notification_says_what_broke_without_details(cfg, sent):
+def test_failure_notification_says_what_broke(cfg, sent):
     cfg.notify.ntfy_topic = "t"
     review = {
         "id": 4,
@@ -157,6 +163,9 @@ def test_failure_notification_says_what_broke_without_details(cfg, sent):
         "title": "T",
         "error": "Couldn't check out the PR: git fetch failed for github.com/o/secret",
     }
+    review_finished(cfg.notify, review, [], sender=lambda *a: sent.append(a))
+    assert sent[-1][1] == "o/secret#1 · Couldn't check out the PR".encode()
+    cfg.notify.details = "none"
     review_finished(cfg.notify, review, [], sender=lambda *a: sent.append(a))
     assert sent[-1][1] == b"Couldn't check out the PR"
 
