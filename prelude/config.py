@@ -47,9 +47,10 @@ claude:
 # Claude reads the changed files with its tools instead.
 max_inline_diff_chars: 150000
 
-# Adding comments to your pending GitHub review. Off until you turn it on.
+# Comments go only into your pending GitHub review (you submit it yourself on GitHub).
+# Set enabled: false to keep PRelude from writing to GitHub at all.
 github_drafts:
-  enabled: false
+  enabled: true
   auto: true                      # new findings start in your draft; you remove what you don't want
   prefix: "AI review with PRelude:"
 
@@ -124,7 +125,7 @@ class ServerConfig:
 
 @dataclass
 class DraftsConfig:
-    enabled: bool = False
+    enabled: bool = True
     auto: bool = True
     prefix: str = "AI review with PRelude:"
 
@@ -212,7 +213,7 @@ def load_config(data_dir: Path | None = None) -> Config:
             allowed_tailscale_user=server_raw.get("allowed_tailscale_user"),
         ),
         drafts=DraftsConfig(
-            enabled=bool(drafts_raw.get("enabled", False)),
+            enabled=bool(drafts_raw.get("enabled", True)),
             auto=bool(drafts_raw.get("auto", True)),
             prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
         ),

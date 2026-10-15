@@ -40,6 +40,7 @@ def never_real_claude(monkeypatch):
 def cfg(tmp_path):
     cfg = load_config(tmp_path / "data")
     cfg.only_repo = "B1ueber2y/PRelude"  # tests stay on this repo, as an extra guard
+    cfg.drafts.enabled = False  # no GitHub writes unless a test turns them on
     return cfg
 
 

@@ -126,7 +126,7 @@ October 2026:
   `config.yaml`, comments included.
 
 Status: early, but in daily use. Reviews (single or panels), editing, discarding,
-discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
+discussing, memory, GitHub drafts, automatic review triggers (off until enabled in
 `config.yaml`), and phone notifications (via ntfy) all work.
 
 ## Install and run
@@ -172,7 +172,7 @@ laptop and use the same link:
 ssh -L 8787:127.0.0.1:8787 you@that-machine
 ```
 
-### 4. Set up your phone
+### 4. (Optional) Set up your phone
 
 1. **Reach it privately.** PRelude never listens on the network. Forward the port from the
    phone: in an SSH app such as Termius, add the machine as a host and a *local port
@@ -185,11 +185,11 @@ ssh -L 8787:127.0.0.1:8787 you@that-machine
    `.venv/bin/prelude notify-test`. You get a notification when a review is ready;
    `notify.details` in `config.yaml` sets how much it says (ntfy.sh is a public server).
 
-### 5. Turn things on
+### 5. Drafts and automatic reviews
 
-- **GitHub drafts:** set `github_drafts.enabled: true` so comments can go into your pending
-  GitHub review (new findings then start there; `github_drafts.auto: false` to add them
-  yourself).
+- **GitHub drafts** are on out of the box: new findings start in your pending GitHub review,
+  which only you see until you submit it. Set `github_drafts.auto: false` to add them
+  yourself, or `github_drafts.enabled: false` to keep PRelude from writing to GitHub at all.
 - **Limited automatic reviews:** set `triggers.enabled: true` and restart; then choose repos
   on the **Repos** page. They're capped at `triggers.max_reviews_per_day` (20 by default,
   over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
