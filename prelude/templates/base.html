@@ -34,9 +34,17 @@
         }
       } catch (e) {}
       q.addEventListener("change", function () {
-        var typing = Array.prototype.some.call(document.querySelectorAll("textarea, input[type=text], input[type=url]"),
+        var fields = "textarea, input:not([type]), input[type=text], input[type=url], input[type=search]";
+        var typing = Array.prototype.some.call(document.querySelectorAll(fields),
           function (el) { return el.value !== el.defaultValue; });
-        if (sync() && !typing) location.reload();  // else the next page uses the new layout
+        // While something is typed, keep this layout (and the cookie that matches it) until the
+        // next in-app navigation, which then gets the new layout.
+        if (!typing && sync()) location.reload();
+        else pending = true;
+      });
+      var pending = false;
+      document.addEventListener("htmx:beforeRequest", function (e) {
+        if (pending && e.detail.boosted) { sync(); pending = false; }
       });
     })();
   </script>
