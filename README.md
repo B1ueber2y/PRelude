@@ -1,6 +1,6 @@
 # PRelude
 
-**Meta-review a panel of independent AI code reviewers before their comments land on the PR**, especially useful during your own development (a harness around [Claude Code](#built-on-claude-code)).
+**Meta-review a panel of independent AI code reviewers before their comments land on the PR**, to help your own development and review process (a harness around [Claude Code](#built-on-claude-code)).
 
 A small personal project built on Claude Code. **Note that for code review as a team, Anthropic's
 [Code Review](https://code.claude.com/docs/en/code-review) is the natural choice and this project
