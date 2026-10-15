@@ -98,6 +98,12 @@ October 2026:
   usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
   modest. PRelude doesn't retry when Claude reports a usage limit.
+- **A companion to Anthropic's tools, not a replacement.** Anthropic offers [Code
+  Review](https://code.claude.com/docs/en/code-review) for Team and Enterprise plans, and an
+  open-source GitHub Action. PRelude is a free, non-commercial tool for one person's own
+  reviews: every review it runs is Claude Code usage on your own plan or API key, and its
+  focus is you deciding which comments reach the author. It isn't offered as a service. For
+  team review, use Anthropic's products.
 
 ## Install and run
 
