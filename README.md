@@ -1,10 +1,6 @@
 # PRelude
 
-**Review the AI review comments before they reach the author.**
-
-A harness around [Claude Code](https://claude.com/claude-code): Claude Code does the
-reviewing, under your own login; PRelude adds the workflow around it (see
-[Built on Claude Code](#built-on-claude-code)).
+**Review the AI review comments before they reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
 <p align="center">
   <img src="docs/images/home.png" width="250" alt="The review list, one card per PR">
