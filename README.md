@@ -29,7 +29,7 @@ sees. It works the way you'd review a change:
 | A contributor opens a PR | Claude proposes a set of review comments             |
 | Approve                  | **Add** the comment to your GitHub draft review      |
 | Suggest changes          | **Edit** the wording                                 |
-| Comment thread           | **Discuss** it with Claude, one thread per comment   |
+| Comment thread           | **Discuss** it with Claude, many threads at once     |
 | Reject                   | **Discard** it                                       |
 | Release                  | You add your own comments and submit on GitHub       |
 | The contributor improves | PRelude **remembers** your principles and style      |
@@ -40,7 +40,7 @@ you can see. New comments start there and you discard the ones you don't want (w
 comments of your own and submit the review yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
-You don't have to wait for Claude's reply in a discussion: send, move on to the next
+**Discussions run in parallel.** You don't wait for Claude's reply: send, move on to the next
 comment, and come back. Each PR has a discussion page that indexes every live comment as a
 thread, with the ones that have a new reply first, plus threads of your own about anything
 else in the PR. Claude replies to all of them in parallel (with a phone notification if you set
