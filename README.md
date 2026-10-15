@@ -61,10 +61,10 @@ PRelude fits wherever you'd want a careful second reviewer:
 - **Answer review requests faster.** With `triggers` on, when a colleague requests your
   review, a draft is waiting by the time you look; you keep, reword or drop each comment
   and submit.
-- **Ask Claude about a PR while you work through it.** On the PR's discussion page, ask
-  how a change works, whether a case is covered, or push back on several comments at once.
-  Each question is its own thread and they run in parallel: ask, move on, and come back
-  to the answers.
+- **Ask Claude about a PR while you work through it.** On the PR's discussion page, every
+  comment is a thread (push back there and Claude can revise or withdraw it), and so is
+  each question of your own, like how a change works or whether a case is covered. They
+  run in parallel: ask, move on, and come back to the answers.
 - **First pass on contributions to a project you maintain.** Turn on `triggers`, add your
   repos on the **Repos** page, and PRelude prepares a review of each new PR; contributors
   only see what you approved.
