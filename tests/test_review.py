@@ -53,6 +53,7 @@ def test_single_reviewer(cfg, store, checkout, fake_claude, monkeypatch):
     review.run_review(store, cfg, rid, github=FakeReader())
     r = store.get_review(rid)
     assert r["status"] == "done" and r["reports"] is None and r["finished_at"]
+    assert store.watched("B1ueber2y", "PRelude", 1)["reviewed_sha"] == "a" * 40  # the poller won't redo it
     (f,) = store.findings_for(rid)
     assert f["in_diff"] and f["found_by"] is None
     assert len(runs(fake_claude)) == 1
@@ -82,6 +83,7 @@ def test_failed_review_is_recorded(cfg, store, checkout, fake_claude, monkeypatc
     review.run_review(store, cfg, rid, github=FakeReader())
     r = store.get_review(rid)
     assert r["status"] == "failed" and r["error"].startswith("Claude login needed: ")
+    assert store.watched("B1ueber2y", "PRelude", 1) is None  # a failed review doesn't count as reviewed
     assert "Traceback" in r["error_detail"]
     (report,) = (cfg.data_dir / "errors").glob("*.txt")
     text = report.read_text()
