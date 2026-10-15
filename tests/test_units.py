@@ -173,5 +173,6 @@ def test_notify_details_setting():
     assert _notify_details({}) == "ref"
     assert _notify_details({"details": "none"}) == "none"
     assert _notify_details({"include_details": True}) == "full"
-    assert _notify_details({"include_details": False}) == "ref"
+    assert _notify_details({"include_details": False}) == "none"  # an explicit opt-out stays one
+    assert _notify_details({"include_details": False, "details": "ref"}) == "ref"
     assert _notify_details({"details": "bogus"}) == "ref"
