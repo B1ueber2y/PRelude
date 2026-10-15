@@ -223,13 +223,17 @@ class Store:
                 (*fields.values(), owner, repo, number),
             )
 
-    def auto_reviews_since(self, since: float) -> int:
+    def auto_reviewed_repos_since(self, since: float) -> list[str]:
+        """OWNER/REPO of each automatic review started since then (one entry per review)."""
         with self.connect() as c:
-            return c.execute(
-                "SELECT COUNT(*) FROM reviews WHERE trigger_reason LIKE 'auto:%' AND status != 'skipped'"
-                " AND created_at >= ?",
-                (since,),
-            ).fetchone()[0]
+            return [
+                f"{o}/{r}"
+                for o, r in c.execute(
+                    "SELECT owner, repo FROM reviews WHERE trigger_reason LIKE 'auto:%' AND status != 'skipped'"
+                    " AND created_at >= ?",
+                    (since,),
+                )
+            ]
 
     # ---- reviews -----------------------------------------------------------
 

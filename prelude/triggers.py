@@ -30,6 +30,7 @@ class TriggerConfig:
     team_requests: bool = True
     skip_draft_prs: bool = True
     max_reviews_per_day: int = 20
+    cap_exempt: set[str] = field(default_factory=set)  # repo patterns whose reviews don't count toward the cap
     requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
 
     @classmethod
@@ -57,6 +58,7 @@ class TriggerConfig:
             team_requests=bool(raw.get("team_requests", True)),
             skip_draft_prs=bool(raw.get("skip_draft_prs", True)),
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
+            cap_exempt={str(x).lower() for x in raw.get("cap_exempt") or []},
             requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
         )
         t.validate()
@@ -82,6 +84,9 @@ class TriggerConfig:
             return slug
         matches = [p for p in self.repos if fnmatchcase(slug, p)]
         return max(matches, key=lambda p: len(p.replace("*", ""))) if matches else None
+
+    def counts_toward_cap(self, slug: str) -> bool:
+        return not any(fnmatchcase(slug.lower(), p) for p in self.cap_exempt)
 
     def repo_mode(self, slug: str) -> str:
         pattern = self.repo_pattern(slug)
