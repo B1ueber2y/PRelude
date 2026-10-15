@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS findings (
   drafted_body TEXT,                       -- body as last written to GitHub
   found_by INTEGER,                        -- reviewers who raised it (multi-reviewer runs)
   added_later INTEGER NOT NULL DEFAULT 0,  -- found by reviewers added after the first run
+  acted_at REAL,                           -- last change to its status or wording
+  action TEXT,                             -- what that change was: drafted, discarded, edited, ...
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
@@ -182,6 +184,8 @@ class Store:
                     "found_by": "INTEGER",
                     "added_later": "INTEGER NOT NULL DEFAULT 0",
                     "auto_drafted": "INTEGER NOT NULL DEFAULT 0",
+                    "acted_at": "REAL",
+                    "action": "TEXT",
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
@@ -356,25 +360,56 @@ class Store:
                 (owner, repo, number),
             ).fetchone()
 
-    def list_reviews(self, limit: int = 50, *, latest_only: bool = False) -> list[sqlite3.Row]:
-        """Most recently started or finished first (open PRs before closed ones).
-
-        `latest_only` keeps each PR's newest review.
+    def list_reviews(self, limit: int = 50, *, latest_only: bool = False) -> list[dict[str, Any]]:
+        """Open PRs before closed ones, then latest activity first: a review starting or finishing,
+        a comment changing, or a discussion message. Each row gets `activity_at` and `activity`
+        (what happened). Each review has its own activity; with `latest_only`, which keeps each PR's
+        newest review, that one has the whole PR's.
         """
         where = f"WHERE r.id IN ({_NEWEST_PER_PR})" if latest_only else ""
         with self.connect() as c:
-            return c.execute(
-                "SELECT r.*,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total,"
-                " r.id = (SELECT MAX(x.id) FROM reviews x WHERE x.owner = r.owner AND x.repo = r.repo"
-                " AND x.number = r.number) AS newest"
-                f" FROM reviews r {where} ORDER BY COALESCE(r.pr_state, 'open') != 'open',"
-                " MAX(r.created_at, COALESCE(r.finished_at, 0)) DESC, r.id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            rows = [
+                dict(r)
+                for r in c.execute(
+                    "SELECT r.*,"
+                    " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
+                    " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
+                    " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
+                    " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total,"
+                    " r.id = (SELECT MAX(x.id) FROM reviews x WHERE x.owner = r.owner AND x.repo = r.repo"
+                    f" AND x.number = r.number) AS newest FROM reviews r {where}"
+                )
+            ]
+            events = self._events(c)
+        for r in rows:
+            pr = (r["owner"], r["repo"], r["number"])
+            mine = [
+                e
+                for e in events.get(pr, [])
+                if e[2] == r["id"] or (r["newest"] and (latest_only or e[2] is None))  # PR threads: its newest
+            ]
+            r["activity_at"], r["activity"], _ = max(mine, default=(r["created_at"], "started", r["id"]))
+        rows.sort(key=lambda r: ((r["pr_state"] or "open") != "open", -r["activity_at"], -r["id"]))
+        return rows[:limit]
+
+    @staticmethod
+    def _events(c: sqlite3.Connection) -> dict[tuple[str, str, int], list[tuple[float, str, int | None]]]:
+        """PR -> (time, what happened, review or None) for everything that happened on it."""
+        events: dict[tuple[str, str, int], list[tuple[float, str, int | None]]] = {}
+        queries = (
+            f"SELECT owner, repo, number, created_at, {_REVIEW_EVENT}, id FROM reviews",
+            f"SELECT owner, repo, number, finished_at, {_REVIEW_EVENT}, id FROM reviews WHERE finished_at IS NOT NULL",
+            "SELECT r.owner, r.repo, r.number, MAX(f.acted_at), f.action, r.id FROM findings f"
+            " JOIN reviews r ON r.id = f.review_id WHERE f.acted_at IS NOT NULL GROUP BY r.id",
+            "SELECT r.owner, r.repo, r.number, MAX(m.created_at), 'discussed', r.id FROM messages m"
+            " JOIN findings f ON f.id = m.finding_id JOIN reviews r ON r.id = f.review_id GROUP BY r.id",
+            "SELECT owner, repo, number, MAX(m.created_at), 'discussed', NULL FROM chat_messages m"
+            " JOIN chats c ON c.id = m.chat_id GROUP BY owner, repo, number",
+        )
+        for q in queries:
+            for owner, repo, number, at, what, review_id in c.execute(q):
+                events.setdefault((owner, repo, number), []).append((at, what, review_id))
+        return events
 
     def earlier_reviews(self) -> dict[tuple[str, str, int], tuple[int, int]]:
         """Per PR: how many reviews are older than its newest, and their findings still open."""
@@ -469,7 +504,7 @@ class Store:
 
     def update_finding_if(self, finding_id: int, expected: dict[str, Any], **fields: Any) -> bool:
         """Update only if the finding still has the `expected` values; False if someone changed it first."""
-        fields["updated_at"] = time.time()
+        fields.update(_action(fields))
         cols = ", ".join(f"{k} = ?" for k in fields)
         cond = "".join(f" AND {k} IS ?" for k in expected)  # IS: also matches NULL
         with self.connect() as c:
@@ -479,7 +514,7 @@ class Store:
             return cur.rowcount == 1
 
     def update_finding(self, finding_id: int, **fields: Any) -> None:
-        fields["updated_at"] = time.time()
+        fields.update(_action(fields))
         cols = ", ".join(f"{k} = ?" for k in fields)
         with self.connect() as c:
             c.execute(f"UPDATE findings SET {cols} WHERE id = ?", (*fields.values(), finding_id))
@@ -611,10 +646,11 @@ class Store:
         re-review was shown them and reports again the ones still present, so it replaces them."""
         with self.connect() as c:
             return c.execute(
-                "UPDATE findings SET status = 'superseded', updated_at = ? WHERE status = 'pending'"
+                "UPDATE findings SET status = 'superseded', updated_at = ?1, acted_at = ?1, action = 'replaced'"
+                " WHERE status = 'pending'"
                 " AND user_draft IS NULL AND verdict IS NULL"
                 " AND NOT EXISTS (SELECT 1 FROM messages WHERE finding_id = findings.id)"
-                " AND review_id = (SELECT previous_review_id FROM reviews WHERE id = ?)",
+                " AND review_id = (SELECT previous_review_id FROM reviews WHERE id = ?2)",
                 (time.time(), review_id),
             ).rowcount
 
@@ -780,6 +816,32 @@ class Store:
         with self.connect() as c:
             c.execute("INSERT OR IGNORE INTO threads (finding_id, busy) VALUES (?, 0)", (finding_id,))
             c.execute("UPDATE threads SET seen_at = ? WHERE finding_id = ?", (time.time(), finding_id))
+
+
+_REVIEW_EVENT = (
+    "CASE status WHEN 'done' THEN 'reviewed' WHEN 'failed' THEN 'review failed'"
+    " WHEN 'skipped' THEN 'skipped' ELSE 'started' END"
+)
+
+ACTIONS = {
+    "drafted": "drafted",
+    "discarded": "discarded",
+    "posted": "posted",
+    "pending": "back to review",
+    "superseded": "replaced",
+    "dropped": "dropped",
+}
+
+
+def _action(fields: dict[str, Any]) -> dict[str, Any]:
+    """Timestamps for an update, and which action it was if it changes the status or wording."""
+    now = time.time()
+    out: dict[str, Any] = {"updated_at": now}
+    if "status" in fields:
+        out.update(acted_at=now, action=ACTIONS.get(fields["status"], fields["status"]))
+    elif "user_draft" in fields:
+        out.update(acted_at=now, action="edited")
+    return out
 
 
 def _alive(pid: int | None) -> bool:

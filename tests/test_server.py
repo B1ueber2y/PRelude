@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 from prelude.web import COOKIE, create_app
 
+from .conftest import FINDING as FINDING_FOR_ORDER
+
 
 @pytest.fixture
 def client(cfg, store):
@@ -353,3 +355,29 @@ def test_request_log_never_has_the_access_key():
     )
     HideKey().filter(record)
     assert "s3cret" not in record.getMessage() and "/?key=<hidden>&x=1" in record.getMessage()
+
+
+def test_any_activity_moves_its_pr_up_the_home_list(client, done_review, store, monkeypatch):
+    clock = [time.time() + 3600]  # an hour after the reviews were made
+    monkeypatch.setattr("prelude.db.time.time", lambda: clock[0])
+    later = store.create_review("B1ueber2y", "PRelude", 2, "https://github.com/B1ueber2y/PRelude/pull/2", "test")
+    store.update_review(later, status="done", finished_at=clock[0])
+    assert [r["number"] for r in store.list_reviews()] == [2, 1]
+    clock[0] += 120
+    store.add_message(store.findings_for(done_review)[0]["id"], "user", "Really?")
+    assert [r["number"] for r in store.list_reviews()] == [1, 2]
+    assert "discussed just now" in client.get("/reviews/rows").text
+
+    clock[0] += 120
+    store.add_findings(later, [dict(FINDING_FOR_ORDER)])
+    clock[0] += 120
+    store.update_finding(store.findings_for(later)[0]["id"], status="discarded")  # triage counts too
+    assert [(r["number"], r["activity"]) for r in store.list_reviews()] == [(2, "discarded"), (1, "discussed")]
+
+    clock[0] += 120
+    store.add_message(store.findings_for(done_review)[0]["id"], "user", "Back to this one")
+    assert [r["number"] for r in store.list_reviews(latest_only=True)] == [1, 2]
+    clock[0] += 120
+    chat_id = store.create_chat(store.get_review(later))
+    store.add_chat_message(chat_id, "user", "And this one?")
+    assert [r["number"] for r in store.list_reviews(latest_only=True)] == [2, 1]
