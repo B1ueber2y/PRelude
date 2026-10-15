@@ -306,10 +306,20 @@ class Store:
             return cur.rowcount == 1
 
     def delete_review(self, review_id: int) -> None:
-        """Remove a review and its findings and discussions (GitHub is not touched)."""
+        """Remove a review and its findings and discussions, and the PR's threads with its last review.
+
+        GitHub is not touched."""
         with self.connect() as c:
             c.execute("UPDATE reviews SET previous_review_id = NULL WHERE previous_review_id = ?", (review_id,))
+            pr = c.execute("SELECT owner, repo, number FROM reviews WHERE id = ?", (review_id,)).fetchone()
             c.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+            if (
+                pr
+                and not c.execute(
+                    "SELECT 1 FROM reviews WHERE owner = ? AND repo = ? AND number = ?", tuple(pr)
+                ).fetchone()
+            ):  # the PR's last review: nothing links to its discussion space any more
+                c.execute("DELETE FROM chats WHERE owner = ? AND repo = ? AND number = ?", tuple(pr))
 
     def worktrees_in_use(self) -> set[str]:
         with self.connect() as c:
@@ -673,6 +683,13 @@ class Store:
     def try_lock_chat(self, chat_id: int) -> bool:
         with self.connect() as c:
             return c.execute("UPDATE chats SET busy = 1 WHERE id = ? AND busy = 0", (chat_id,)).rowcount == 1
+
+    def release_chat(self, chat_id: int, session_id: str | None = None) -> None:
+        with self.connect() as c:
+            c.execute(
+                "UPDATE chats SET busy = 0, session_id = COALESCE(?, session_id), updated_at = ? WHERE id = ?",
+                (session_id, time.time(), chat_id),
+            )
 
     def delete_chat(self, chat_id: int) -> None:
         with self.connect() as c:

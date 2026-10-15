@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from prelude import notify
 from tests.test_server import client, discussion_calls  # noqa: F401  (fixture)
 
@@ -88,6 +90,7 @@ def test_thread_outlives_its_review_and_keeps_its_checkout(client, done_review, 
     review = store.get_review(done_review)
     chat_id = store.create_chat(review)
     store.add_chat_message(chat_id, "user", "Hi")
+    store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")
     store.delete_review(done_review)
     assert review["worktree"] in store.worktrees_in_use()
     assert "Hi" in client.get(PAGE).text
@@ -101,3 +104,42 @@ def test_no_threads_before_a_finished_review(client, store):  # noqa: F811
     assert "once a review of this PR has finished" in page
     assert "no finished review" in client.post("/prs/B1ueber2y/PRelude/2/discuss", data={"text": "Hi"}).text
     assert client.get("/prs/B1ueber2y/PRelude/3/discuss").status_code == 404
+
+
+def test_failed_first_reply_frees_the_thread_and_the_retry_keeps_the_question(
+    client,  # noqa: F811
+    done_review,
+    store,
+    fake_claude,
+    monkeypatch,
+):
+    monkeypatch.setenv("FAKE_CLAUDE_ERROR", "1")
+    client.post(PAGE, data={"text": "Who calls run_review?"})
+    chat_id = store.chats_for("B1ueber2y", "PRelude", 1)[0]["id"]
+    c = wait_replied(store, chat_id)
+    assert c["session_id"] is None and store.chat_messages(chat_id)[-1]["role"] == "error"
+
+    monkeypatch.delenv("FAKE_CLAUDE_ERROR")
+    client.post(f"/chats/{chat_id}/messages", data={"text": "Try again?"})
+    wait_replied(store, chat_id)
+    call = discussion_calls(fake_claude)[-1]
+    assert "--fork-session" in call["args"] and "Who calls run_review?" in call["prompt"]
+
+
+def test_lock_is_released_when_starting_a_reply_fails(client, done_review, store, monkeypatch):  # noqa: F811
+    from prelude import chat
+
+    chat_id = store.create_chat(store.get_review(done_review))
+    monkeypatch.setattr(chat, "chat_first_prompt", lambda **k: 1 / 0)
+    with pytest.raises(ZeroDivisionError):
+        chat.post_message(store, client.app.state.web.cfg, client.app.state.web.chat_broker, chat_id, "Hi")
+    assert store.get_chat(chat_id)["busy"] == 0
+
+
+def test_threads_go_with_the_prs_last_review(store, done_review):
+    again = store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")
+    chat_id = store.create_chat(store.get_review(done_review))
+    store.delete_review(done_review)
+    assert store.get_chat(chat_id) is not None  # still reachable from the other review
+    store.delete_review(again)
+    assert store.get_chat(chat_id) is None

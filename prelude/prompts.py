@@ -457,7 +457,16 @@ CHAT_FORMAT = """Reply format:
 - You can't change code or post on GitHub. If they want a comment, write it out for them."""
 
 
-def chat_first_prompt(*, user_message: str, newer_commits: bool, memory: str = "") -> str:
+def chat_first_prompt(
+    *, user_message: str, newer_commits: bool, earlier: list[str] | None = None, memory: str = ""
+) -> str:
+    retry = (
+        "\nYour replies to their earlier messages in this thread didn't go through. They asked:\n"
+        + "\n".join(f"<message>\n{m}\n</message>" for m in earlier)
+        + "\n"
+        if earlier
+        else ""
+    )
     newer = (
         "\nThe PR has new commits since your review; you only see the reviewed commit, so say so if it matters.\n"
         if newer_commits
@@ -466,7 +475,7 @@ def chat_first_prompt(*, user_message: str, newer_commits: bool, memory: str = "
     return f"""The reviewer wants to talk about this pull request with you. This is a new thread in
 the PR's discussion space: other threads run separately, so only answer what is asked here.
 It isn't limited to your findings: anything about the PR, the code or the review is fair game.
-{newer}
+{newer}{retry}
 Reviewer:
 {user_message}
 

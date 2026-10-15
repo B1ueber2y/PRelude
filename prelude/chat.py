@@ -45,35 +45,39 @@ def post_message(store: Store, cfg: Config, broker: Broker, chat_id: int, text: 
         raise KeyError(chat_id)
     if not store.try_lock_chat(chat_id):
         raise DiscussionBusy("Claude is still replying to the previous message")
-    store.add_chat_message(chat_id, "user", text)
-    store.update_chat(chat_id, seen_at=time.time())
-    broker.reset(chat_id)
-
-    if chat["session_id"]:
-        prompt, resume, fork = chat_followup_prompt(user_message=text), chat["session_id"], False
-    else:
-        latest = store.latest_review_for(chat["owner"], chat["repo"], chat["number"], done_only=False)
-        prompt = chat_first_prompt(
-            user_message=text,
-            newer_commits=bool(latest and latest["head_sha"] and latest["head_sha"] != chat["head_sha"]),
-            memory=Memory(cfg).prompt_section(chat["owner"], chat["repo"], store.recent_edits()),
+    try:
+        earlier = [m["content"] for m in store.chat_messages(chat_id) if m["role"] == "user"]
+        store.add_chat_message(chat_id, "user", text)
+        store.update_chat(chat_id, seen_at=time.time())
+        broker.reset(chat_id)
+        if chat["session_id"]:
+            prompt, resume, fork = chat_followup_prompt(user_message=text), chat["session_id"], False
+        else:  # the first message, or no reply has come through yet: start from the review again
+            latest = store.latest_review_for(chat["owner"], chat["repo"], chat["number"], done_only=False)
+            prompt = chat_first_prompt(
+                user_message=text,
+                earlier=earlier,
+                newer_commits=bool(latest and latest["head_sha"] and latest["head_sha"] != chat["head_sha"]),
+                memory=Memory(cfg).prompt_section(chat["owner"], chat["repo"], store.recent_edits()),
+            )
+            resume, fork = chat["base_session_id"], True
+        t = threading.Thread(
+            target=_reply,
+            args=(store, cfg, broker, chat_id, prompt, Path(chat["worktree"]), resume, fork),
+            daemon=True,
+            name=f"chat-{chat_id}",
         )
-        resume, fork = chat["base_session_id"], True
-
-    t = threading.Thread(
-        target=_reply,
-        args=(store, cfg, broker, chat_id, prompt, Path(chat["worktree"]), resume, fork),
-        daemon=True,
-        name=f"chat-{chat_id}",
-    )
-    t.start()
+        t.start()
+    except BaseException:
+        store.release_chat(chat_id)
+        raise
     return t
 
 
 def _reply(
     store: Store, cfg: Config, broker: Broker, chat_id: int, prompt: str, worktree: Path, resume: str, fork: bool
 ) -> None:
-    final, ok = Event("done"), False
+    final, ok, session_id = Event("done"), False, None
     try:
         auth = claude.auth_for(cfg)
         claude.ensure_logged_in(auth)
@@ -89,14 +93,16 @@ def _reply(
             auth=auth,
         )
         store.add_chat_message(chat_id, "assistant", result.text.strip())
-        store.update_chat(chat_id, session_id=result.session_id, busy=0)
-        ok = True
+        session_id, ok = result.session_id, True
     except Exception as e:
         log.exception("reply in discussion thread %s failed", chat_id)
-        store.add_chat_message(chat_id, "error", f"{type(e).__name__}: {e}"[:2000])
-        store.update_chat(chat_id, busy=0)
         final = Event("error", str(e)[:500])
+        try:
+            store.add_chat_message(chat_id, "error", f"{type(e).__name__}: {e}"[:2000])
+        except Exception:
+            log.exception("couldn't record the failure")
     finally:
+        store.release_chat(chat_id, session_id)
         broker.publish(chat_id, final)
     chat = store.get_chat(chat_id)
     if chat:  # you may have left: tell you it's ready
