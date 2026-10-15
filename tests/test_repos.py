@@ -166,9 +166,9 @@ def test_cap_usage_by_repo_and_next_free_slot(client, store):
 
     def capped(slug):
         rest = page[page.index(f">{slug}<") :]
-        return rest[: rest.index("toward the cap")].rsplit("<strong>", 1)[1]
+        return rest[: rest.index("-review cap")].rsplit("used <strong>", 1)[1]
 
-    assert capped("cvg/limap").startswith("2<") and capped("colmap/colmap").startswith("1<")
+    assert capped("cvg/limap") == "2</strong> of the 20" and capped("colmap/colmap") == "1</strong> of the 20"
 
 
 def test_next_slot_when_the_cap_is_full_or_exceeded(store):
