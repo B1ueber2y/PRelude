@@ -115,3 +115,21 @@ def test_draft_keeps_an_auto_draft(run, store, done_review):
     code, out = run("draft", done_review, 1)
     assert code == 0 and "kept in your GitHub draft" in out
     assert store.get_finding(f["id"])["auto_drafted"] == 0 and len(run.github.comments) == 1
+
+
+def test_draft_reports_losing_to_a_supersede(run, store, done_review, monkeypatch):
+    from prelude import drafting
+    from prelude.config import load_config
+
+    cfg = load_config()
+    f = store.findings_for(done_review)[0]
+    drafting.auto_add(store, cfg, drafts.DraftWriter(cfg), [f["id"]])
+    real = store.update_finding_if
+
+    def superseded_first(finding_id, expected, **fields):
+        real(finding_id, {"status": "drafted"}, status="superseded")
+        return real(finding_id, expected, **fields)
+
+    monkeypatch.setattr(type(store), "update_finding_if", lambda self, *a, **k: superseded_first(*a, **k))
+    code, out = run("draft", done_review, 1)
+    assert code == 1 and "replaced this comment" in out and "kept in" not in out

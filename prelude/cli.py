@@ -165,6 +165,9 @@ def _cmd_draft(args: argparse.Namespace) -> int:
                 raise DraftError(why)
             if args.cmd == "draft":
                 drafting.add(store, cfg, writer, f["id"])
+                now = store.get_finding(f["id"])
+                if now["status"] != "drafted" or now["auto_drafted"]:  # e.g. a re-review replaced it meanwhile
+                    raise DraftError(triage.refusal(now) or f"not kept ({now['status']})")
                 print(f"{f['ordinal']}: {'kept in' if f['auto_drafted'] else 'added to'} your GitHub draft")
             elif args.cmd == "undraft":
                 if f["status"] != "drafted":
