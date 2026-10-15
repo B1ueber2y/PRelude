@@ -133,7 +133,10 @@
     const pane = document.getElementById("pane");
     if (e.key === "Escape") {
       const cancel = pane.querySelector('[data-key="esc"]');
-      if (cancel) { e.preventDefault(); cancel.click(); }
+      const typing = e.target.closest("input, textarea, select, [contenteditable]");
+      if (e.isComposing || !cancel || (typing && !cancel.form.contains(e.target))) return;
+      e.preventDefault();
+      cancel.click();
       return;
     }
     if (e.target.closest("input, textarea, select, [contenteditable]")) return;

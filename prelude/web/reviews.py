@@ -88,7 +88,8 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
 def review_page(w: WebDep, request: Request, review_id: int, show: str | None = None, f: int | None = None):
     r = w.review_or_404(review_id)
-    _refresh_in_background(w, review_id)
+    if request.headers.get("HX-Target") != "pane":  # just another finding in the laptop pane
+        _refresh_in_background(w, review_id)
     findings = w.store.findings_for(review_id)
     counts = {s: sum(1 for x in findings if x["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)

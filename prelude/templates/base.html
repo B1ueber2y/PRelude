@@ -33,7 +33,11 @@
           sessionStorage.removeItem("prelude-wide-reload");
         }
       } catch (e) {}
-      q.addEventListener("change", function () { if (sync()) location.reload(); });
+      q.addEventListener("change", function () {
+        var typing = Array.prototype.some.call(document.querySelectorAll("textarea, input[type=text], input[type=url]"),
+          function (el) { return el.value !== el.defaultValue; });
+        if (sync() && !typing) location.reload();  // else the next page uses the new layout
+      });
     })();
   </script>
   <script src="{{ static('htmx.min.js') }}" defer></script>

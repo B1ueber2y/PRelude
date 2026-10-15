@@ -43,14 +43,36 @@ def test_a_finding_no_longer_in_the_tab_moves_on_to_the_next():
     assert _pick([], [1], 1) is None
 
 
-def test_discarding_in_the_pane_refreshes_the_split_view(client, store, done_review):
+def test_discarding_in_the_pane_moves_on_to_the_next_finding(client, store, done_review):
     client.cookies.set(WIDE_COOKIE, "1")
-    f = store.findings_for(done_review)[0]
-    r = client.post(f"/findings/{f['id']}/discard", headers={"X-Pane": "1"})
-    assert r.status_code == 204 and r.headers["HX-Refresh"] == "true"
-    assert store.get_finding(f["id"])["status"] == "discarded"
-    page = client.get(f"/reviews/{done_review}?show=pending&f={f['id']}").text  # what the refresh loads
-    assert f'data-finding-id="{store.findings_for(done_review)[1]["id"]}"' in page
+    first, second = store.findings_for(done_review)
+    base = f"http://testserver/reviews/{done_review}"
+    for show in ("pending", "all"):  # in "All" the discarded finding stays in the list
+        store.update_finding(first["id"], status="pending")
+        r = client.post(
+            f"/findings/{first['id']}/discard",
+            headers={"X-Pane": "1", "HX-Current-URL": f"{base}?show={show}&f={first['id']}"},
+        )
+        assert (
+            r.status_code == 204 and r.headers["HX-Redirect"] == f"/reviews/{done_review}?show={show}&f={second['id']}"
+        )
+        assert store.get_finding(first["id"])["status"] == "discarded"
+    r = client.post(
+        f"/findings/{second['id']}/discard", headers={"X-Pane": "1", "HX-Current-URL": f"{base}?show=pending"}
+    )
+    assert r.headers["HX-Redirect"] == f"/reviews/{done_review}?show=pending"  # nothing left to review
+
+
+def test_loading_a_finding_into_the_pane_skips_the_github_refresh(client, done_review, monkeypatch):
+    from prelude.web import reviews
+
+    refreshed = []
+    monkeypatch.setattr(reviews, "_refresh_in_background", lambda w, rid: refreshed.append(rid))
+    client.cookies.set(WIDE_COOKIE, "1")
+    client.get(f"/reviews/{done_review}", headers={"HX-Request": "true", "HX-Target": "pane"})
+    assert refreshed == []
+    client.get(f"/reviews/{done_review}")
+    assert refreshed == [done_review]
 
 
 def test_reviews_still_running_keep_the_simple_layout(client, store, done_review):
