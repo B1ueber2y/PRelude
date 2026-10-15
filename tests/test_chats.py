@@ -37,7 +37,12 @@ def test_threads_fork_the_review_then_continue_their_own(client, done_review, st
     assert len(store.chat_messages(b)) == 2  # the other thread is untouched
 
     page = client.get(PAGE).text
-    assert "Who calls run_review?" in page and "Is the migration safe?" in page and "3 replies" in page and "1 reply" in page
+    assert (
+        "Who calls run_review?" in page
+        and "Is the migration safe?" in page
+        and "3 replies" in page
+        and "1 reply" in page
+    )
 
 
 def test_unread_replies_show_until_opened(client, done_review, store, fake_claude):  # noqa: F811
