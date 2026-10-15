@@ -18,9 +18,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = """\
 # PRelude configuration.
 
-# Development guard: while set, PRelude refuses to read, review or write any
-# GitHub repository except this one. Remove (or set to "") to lift it.
-only_repo: B1ueber2y/PRelude
+# Optional guard: set to OWNER/REPO and PRelude refuses to read, review or write any
+# other GitHub repository (useful while trying it out).
+only_repo: null
 
 # Claude settings. `model: null` uses Claude Code's default model.
 claude:
@@ -47,9 +47,10 @@ claude:
 # Claude reads the changed files with its tools instead.
 max_inline_diff_chars: 150000
 
-# Adding comments to your pending GitHub review. Off until you turn it on.
+# Comments go only into your pending GitHub review (you submit it yourself on GitHub).
+# Set enabled: false to keep PRelude from writing to GitHub at all.
 github_drafts:
-  enabled: false
+  enabled: true
   auto: true                      # new findings start in your draft; you remove what you don't want
   prefix: "AI review with PRelude:"
 
@@ -76,7 +77,7 @@ triggers:
 notify:
   ntfy_topic: null
   details: ref                    # none, ref (owner/repo#123) or full (also the PR title); ntfy.sh is public
-  open_url: http://localhost:8787
+  open_url: http://127.0.0.1:8787
 
 server:
   host: 127.0.0.1
@@ -124,7 +125,7 @@ class ServerConfig:
 
 @dataclass
 class DraftsConfig:
-    enabled: bool = False
+    enabled: bool = True
     auto: bool = True
     prefix: str = "AI review with PRelude:"
 
@@ -212,7 +213,7 @@ def load_config(data_dir: Path | None = None) -> Config:
             allowed_tailscale_user=server_raw.get("allowed_tailscale_user"),
         ),
         drafts=DraftsConfig(
-            enabled=bool(drafts_raw.get("enabled", False)),
+            enabled=bool(drafts_raw.get("enabled", True)),
             auto=bool(drafts_raw.get("auto", True)),
             prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
         ),
@@ -221,7 +222,7 @@ def load_config(data_dir: Path | None = None) -> Config:
             ntfy_topic=(raw.get("notify") or {}).get("ntfy_topic") or None,
             ntfy_server=str((raw.get("notify") or {}).get("ntfy_server", "https://ntfy.sh")),
             details=_notify_details(raw.get("notify") or {}),
-            open_url=str((raw.get("notify") or {}).get("open_url", "http://localhost:8787")),
+            open_url=str((raw.get("notify") or {}).get("open_url", "http://127.0.0.1:8787")),
         ),
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,

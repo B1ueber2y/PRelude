@@ -233,3 +233,10 @@ def test_until_shows_the_largest_unit_rounded_up():
     assert until(now + 40.5) == "41 s"
     assert until(now + 59.5) == "1 min" and until(now + 3599) == "1 h"
     assert until(now + 2 * 86400 + 60) == "3 d"
+
+
+def test_drafts_are_on_out_of_the_box(tmp_path):
+    from prelude.config import load_config
+
+    cfg = load_config(tmp_path / "fresh")
+    assert cfg.drafts.enabled and cfg.drafts.auto and cfg.only_repo is None

@@ -80,7 +80,7 @@ def test_only_draft_mutations_are_allowed():
         check_query("mutation { mergePullRequest(input: {pullRequestId: $p}) { x } }")
 
 
-def test_disabled_by_default(cfg, store, done_review, writer, github):
+def test_turning_drafts_off_blocks_writes(cfg, store, done_review, writer, github):
     f = store.findings_for(done_review)[0]
     with pytest.raises(drafting.DraftsDisabled):
         drafting.add(store, cfg, writer, f["id"])

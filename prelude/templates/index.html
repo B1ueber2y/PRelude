@@ -18,7 +18,7 @@
     <span class="hint inline">Auto picks by PR size. More reviewers + a meta-reviewer: more thorough, uses more of your plan.</span>
   </div>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  {% if only_repo %}<p class="hint">Restricted to <strong>{{ only_repo }}</strong> while in development.</p>{% endif %}
+  {% if only_repo %}<p class="hint">Restricted to <strong>{{ only_repo }}</strong> (<code>only_repo</code> in config.yaml).</p>{% endif %}
 </form>
 
 {% if watching %}

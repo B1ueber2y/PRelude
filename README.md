@@ -1,6 +1,6 @@
 # PRelude
 
-**Review the AI review comments before they reach the author** (a harness around [Claude Code](#built-on-claude-code)).
+**Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
@@ -16,10 +16,9 @@ Posting their output straight onto a pull request is noisy; pasting it into one 
 is unmanageable. PRelude treats an AI review the way we treat code: as a proposal that
 gets reviewed.
 
-Claude reads the pull request and proposes review comments. You are the meta-reviewer:
-like an area chair weighing a referee report, you go through each comment on your phone,
-push back where it's wrong, and decide what the author actually sees. It works the way
-you'd review a change:
+Claude reads the pull request and proposes review comments. You are the meta-reviewer: you
+go through each comment, push back where it's wrong, and decide what the author actually
+sees. It works the way you'd review a change:
 
 | Code review              | PRelude                                              |
 | ------------------------ | ---------------------------------------------------- |
@@ -28,13 +27,13 @@ you'd review a change:
 | Suggest changes          | **Edit** the wording                                 |
 | Comment thread           | **Discuss** it with Claude, one thread per comment   |
 | Reject                   | **Discard** it                                       |
-| Release                  | You submit the review on GitHub                      |
+| Release                  | You add your own comments and submit on GitHub       |
 | The contributor improves | PRelude **remembers** your principles and style      |
 
 Nothing is published by PRelude. Comments land in your *pending* GitHub review, which only
-you can see; you submit it yourself (Comment / Approve / Request changes). By default new
-comments start in that draft and you discard the ones you don't want; with
-`github_drafts.auto: false` they wait for you to add them.
+you can see. New comments start there and you discard the ones you don't want (with
+`github_drafts.auto: false` they wait for you to add them). Then, on GitHub, you add any
+comments of your own and submit the review yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
 ## Ways to use it
@@ -57,7 +56,7 @@ PRelude fits wherever you'd want a careful second reviewer:
   only see what you approved.
 
 All of it works from the phone, a laptop browser, or the terminal (`prelude findings`,
-`prelude draft`, `prelude discard`, … see [Usage](#usage)).
+`prelude draft`, `prelude discard`, … see [From the terminal](#from-the-terminal)).
 
 ## Built on Claude Code
 
@@ -71,7 +70,7 @@ supplies the prompts, the read-only sandbox and the workflow around the results:
 - **PRelude does everything else:** deciding what to review, checking out the PR read-only,
   running independent reviewers and merging their reports, keeping one conversation per
   finding (forked Claude Code sessions), learning your preferences, the phone UI, and
-  writing drafts to GitHub only when you say so.
+  writing comments only into your private pending GitHub review.
 
 So review quality follows Claude Code's, and usage counts against your Claude plan.
 
@@ -100,53 +99,72 @@ October 2026:
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
   modest. PRelude doesn't retry when Claude reports a usage limit.
 
-## What it does
+## Install and run
 
-- **Investigates, not just diffs.** Claude explores the repository around the change
-  (callers, tests, config) in a read-only checkout and anchors each finding to a line.
-- **A panel, not one opinion.** Optionally run several independent reviewers, each with
-  a different focus, and a meta-reviewer that merges their reports, checks disputed
-  claims against the code, and records how many reviewers raised each finding.
-- **One thread per finding.** Challenging one comment never muddles another. Each
-  discussion continues from the review's context, so Claude doesn't start over.
-- **Your words stay yours.** Claude's suggestion and your edited wording are stored
-  separately; Claude can propose new wording but never overwrites yours.
-- **Learns how you review.** Review principles (what to flag, what to skip), a comment
-  style guide (how you phrase things) and per-repo notes. They update as you discard,
-  edit and discuss — like a colleague who learns from your feedback — and every change
-  can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
-- **Phone and laptop.** A small installable web app, served privately from your own
-  machine, with notifications when a review is ready. On a laptop, a review opens as a
-  list of findings beside the selected one, with keyboard shortcuts (j/k, a, e, d).
-- **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
-  default), PRelude watches your repos for new PRs and review requests whenever it's
-  running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
-  The **Repos** page lists the watched repos; add one, switch it between all PRs / on
-  request / never, or exempt your own PRs there from the daily cap. Changes are saved to
-  `config.yaml`, comments included.
+### 1. Install
 
-Status: early, but in daily use. Reviews (single or panels), editing, discarding,
-discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
-`config.yaml`), and phone notifications (via ntfy) all work.
-
-## Requirements
-
-- Python 3.12+
-- [Claude Code](https://claude.com/claude-code) logged in with a Claude subscription (`claude auth status`),
-  or an Anthropic API key (see below)
-- GitHub CLI logged in (`gh auth status`)
-
-## Setup
+You need Python 3.12+, [Claude Code](https://claude.com/claude-code) logged in with your
+Claude subscription (`claude auth status`; or an Anthropic API key, see below) and the
+GitHub CLI logged in (`gh auth status`). Then:
 
 ```bash
+git clone https://github.com/B1ueber2y/PRelude.git && cd PRelude
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/prelude auth        # checks the Claude login PRelude will use
 ```
 
 Data (database, checkouts, memory, config) lives in `.prelude-data/` unless `PRELUDE_HOME`
-is set. Edit `.prelude-data/config.yaml` to change settings; `only_repo` restricts PRelude
-to a single repository during development.
+is set; settings are in `.prelude-data/config.yaml`. To try PRelude on a single repo
+first, set `only_repo: OWNER/REPO` there; it then refuses every other repository.
+
+### 2. Start it
+
+```bash
+.venv/bin/prelude start       # in the background; `prelude stop` / `prelude status`
+.venv/bin/prelude             # or in the foreground; Ctrl+C stops it
+```
+
+PRelude serves its web UI on `127.0.0.1:8787` only, and runs nothing until you start it.
+
+### 3. Open it on a computer
+
+Run `.venv/bin/prelude url` and open the link it prints
+(`http://127.0.0.1:8787/?key=…`). It sets a cookie for that address, so afterwards
+`http://127.0.0.1:8787` is enough in that browser (`localhost` counts as a different
+address). On a laptop the review page is a split view: the findings on the left, the
+selected one on the right; `j`/`k` move between them and `a`/`e`/`d` add, edit or discard.
+
+If PRelude runs on another machine (say a desktop at work), forward the port from your
+laptop and use the same link:
+
+```bash
+ssh -L 8787:127.0.0.1:8787 you@that-machine
+```
+
+### 4. (Optional) Set up your phone
+
+1. **Reach it privately.** PRelude never listens on the network. Forward the port from the
+   phone: in an SSH app such as Termius, add the machine as a host and a *local port
+   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps).
+2. **Unlock it once.** Open the `prelude url` link in the phone's browser.
+3. **Add it to the home screen.** iPhone: Safari → Share → *Add to Home Screen*. Android:
+   Chrome → ⋮ → *Add to Home screen*. It then opens like an app.
+4. **Notifications (optional).** Run `.venv/bin/prelude notify-setup`, subscribe to the
+   topic it prints in the [ntfy](https://ntfy.sh) app, and check with
+   `.venv/bin/prelude notify-test`. You get a notification when a review is ready;
+   `notify.details` in `config.yaml` sets how much it says (ntfy.sh is a public server).
+
+### 5. Drafts and automatic reviews
+
+- **GitHub drafts** are on out of the box: new findings start in your pending GitHub review,
+  which only you see until you submit it. Set `github_drafts.auto: false` to add them
+  yourself, or `github_drafts.enabled: false` to keep PRelude from writing to GitHub at all.
+- **Limited automatic reviews:** set `triggers.enabled: true` and restart; then choose repos
+  on the **Repos** page. They're capped at `triggers.max_reviews_per_day` (20 by default,
+  over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
+  when the next slot frees up. Your own PRs in repos listed under `triggers.cap_exempt`
+  don't count. `prelude check` shows what would be reviewed, without starting anything.
 
 ### Subscription or API key
 
@@ -164,32 +182,21 @@ environment takes precedence over the stored key. Use a key made just for PRelud
 spending limit set in the Console. Some plans include monthly API credits that cover
 `claude -p` with a key from your linked Console organization; check your plan.
 
-## Usage
+## From the terminal
+
+Everything also works without the web UI; `N` is the number `prelude findings` shows:
 
 ```bash
-.venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review from the terminal
+.venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review now and print the findings
 .venv/bin/prelude review -n 3 OWNER/REPO#123                     # 3 reviewers + meta-reviewer
-.venv/bin/prelude                                                # run the web UI (127.0.0.1:8787); Ctrl+C stops it
-.venv/bin/prelude start | stop | status                          # the same, in the background
-.venv/bin/prelude check                                          # dry run: which PRs the triggers would review
-.venv/bin/prelude notify-setup                                   # phone notifications via the ntfy app
-.venv/bin/prelude url                                            # link that unlocks the UI on a device
-.venv/bin/prelude style-init OWNER/REPO                          # learn your comment style
-```
-
-The findings can also be triaged in the terminal; `N` is the number `prelude findings` shows:
-
-```bash
+.venv/bin/prelude review --again changes OWNER/REPO#123          # re-review only the new commits
 .venv/bin/prelude findings 32            # list a review's findings (add numbers for the full text)
 .venv/bin/prelude draft 32 1 3           # add to your GitHub draft (--all: every one still to review)
 .venv/bin/prelude discard 32 2           # discard (also takes it out of the draft)
 .venv/bin/prelude edit 32 1              # reword in $EDITOR (--text "...", --claude, --reset)
 .venv/bin/prelude discuss 32 1 "Is this really reachable?"
+.venv/bin/prelude style-init OWNER/REPO  # learn your comment style from your past comments
 ```
-
-Open the `prelude url` link once on each device; it sets a cookie. PRelude only listens on
-localhost; to use it from a phone, forward the port over SSH (for example a local port
-forward in an SSH app such as Termius) or another private tunnel such as `tailscale serve`.
 
 ## Safety
 
