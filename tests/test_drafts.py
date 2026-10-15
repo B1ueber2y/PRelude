@@ -287,3 +287,18 @@ def test_supersede_goes_on_past_a_submitted_review(enabled, store, done_review, 
     later = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
     assert drafting.supersede(store, enabled, writer, later) == 1
     assert store.get_finding(f2["id"])["status"] == "superseded"
+
+
+def test_edit_during_add_is_kept_and_not_drafted_stale(enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def edit_meanwhile(*a, **kw):
+        cid = real(*a, **kw)
+        store.update_finding(f1["id"], user_draft="My words.", auto_drafted=0)
+        return cid
+
+    writer.add_comment = edit_meanwhile
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    row = store.get_finding(f1["id"])
+    assert row["status"] == "pending" and row["user_draft"] == "My words." and not github.comments

@@ -386,7 +386,7 @@ class Store:
         """Update only if the finding still has the `expected` values; False if someone changed it first."""
         fields["updated_at"] = time.time()
         cols = ", ".join(f"{k} = ?" for k in fields)
-        cond = "".join(f" AND {k} = ?" for k in expected)
+        cond = "".join(f" AND {k} IS ?" for k in expected)  # IS: also matches NULL
         with self.connect() as c:
             cur = c.execute(
                 f"UPDATE findings SET {cols} WHERE id = ?{cond}", (*fields.values(), finding_id, *expected.values())

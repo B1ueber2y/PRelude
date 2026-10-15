@@ -60,14 +60,14 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto
     )
     claimed = store.update_finding_if(
         finding_id,
-        {"status": f["status"]},
+        {"status": f["status"], "user_draft": f["user_draft"]},
         status="drafted",
         github_review_id=review_id,
         github_comment_id=comment_id,
         drafted_body=body,
         auto_drafted=int(auto),
     )
-    if not claimed:  # discarded or added elsewhere while GitHub was busy: undo this copy
+    if not claimed:  # discarded, reworded or added elsewhere while GitHub was busy: undo this copy
         writer.delete_comment(r["owner"], r["repo"], review_id, comment_id)
 
 
