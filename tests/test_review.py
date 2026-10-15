@@ -391,3 +391,31 @@ def test_clean_re_review_still_replaces_old_auto_drafts(cfg, store, checkout, fa
     second = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
     review.run_review(store, cfg, second, github=FakeReader(), writer=writer)
     assert store.findings_for(first)[0]["status"] == "superseded" and not github.comments
+
+
+def test_new_review_replaces_untouched_comments_still_to_review(cfg, store, checkout, fake_claude, monkeypatch):
+    earlier = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    titles = ["Untouched", "Edited", "Discussed", "Other PR"]
+    store.add_findings(earlier, [dict(FINDING, title=t) for t in titles[:3]])
+    elsewhere = store.create_review("B1ueber2y", "PRelude", 2, "u", "t")
+    store.add_findings(elsewhere, [dict(FINDING, title="Other PR")])
+    old = {f["title"]: f["id"] for f in store.findings_for(earlier)}
+    store.update_finding(old["Edited"], user_draft="My words")
+    store.add_message(old["Discussed"], "user", "Really?")
+
+    older = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")  # not shown to the re-review below
+    store.add_findings(older, [dict(FINDING, title="Older")])
+
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "all fixed", "findings": []}))
+    fresh = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))  # shown nothing earlier
+    review.run_review(store, cfg, fresh, github=FakeReader(), writer=None)
+    assert store.findings_for(earlier)[0]["status"] == "pending"
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), previous_review_id=earlier, mode="full")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=None)
+    assert store.findings_for(older)[0]["status"] == "pending"
+    status = {f["title"]: f["status"] for f in store.findings_for(earlier) + store.findings_for(elsewhere)}
+    assert status == {"Untouched": "superseded", "Edited": "pending", "Discussed": "pending", "Other PR": "pending"}
+    assert store.earlier_reviews()[("B1ueber2y", "PRelude", 1)] == (
+        3,
+        3,
+    )  # 3 earlier reviews; Edited, Discussed, Older still open
