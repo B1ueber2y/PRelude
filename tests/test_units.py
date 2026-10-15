@@ -165,3 +165,14 @@ def test_add_reviewers_prompt_does_not_ask_for_verdicts():
     comments = [{"id": 1, "kind": "inline", "author": "a", "path": "p", "line": 1, "body": "b"}]
     assert "existing_comments" in comments_section(comments)
     assert "existing_comments" not in comments_section(comments, judge=False)
+
+
+def test_notify_details_setting():
+    from prelude.config import _notify_details
+
+    assert _notify_details({}) == "ref"
+    assert _notify_details({"details": "none"}) == "none"
+    assert _notify_details({"include_details": True}) == "full"
+    assert _notify_details({"include_details": False}) == "none"  # an explicit opt-out stays one
+    assert _notify_details({"include_details": False, "details": "ref"}) == "ref"
+    assert _notify_details({"details": "bogus"}) == "ref"
