@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 
@@ -106,5 +107,19 @@ def serve(cfg: Config, host: str | None = None, port: int | None = None) -> None
     if host not in ("127.0.0.1", "localhost", "::1"):
         log.warning("Binding to %s: PRelude is meant to listen on localhost behind `tailscale serve`.", host)
     app = create_app(cfg, watch=True)
-    print(f"PRelude on http://{host}:{port}  —  open once with: http://{host}:{port}/?key={cfg.access_key()}")
-    uvicorn.run(app, host=host, port=port, log_level="info", proxy_headers=False)
+    print(f"PRelude on http://{host}:{port}  —  get the link to open once with `prelude url`")
+    config = uvicorn.Config(app, host=host, port=port, log_level="info", proxy_headers=False)
+    logging.getLogger("uvicorn.access").addFilter(HideKey())  # after uvicorn set up its logging
+    uvicorn.Server(config).run()
+
+
+class HideKey(logging.Filter):
+    """Request lines go to server.log: never with the access key from a `?key=` link."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_KEY.sub(r"\1<hidden>", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+_KEY = re.compile(r"([?&]key=)[^&\s]*")

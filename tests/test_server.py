@@ -335,3 +335,21 @@ def test_all_view_tags_by_age_not_position(client, store):
     assert (
         "earlier" in first.rsplit('class="card review-card', 1)[1] and "earlier" not in second.split("Second look")[0]
     )
+
+
+def test_request_log_never_has_the_access_key():
+    import logging
+
+    from prelude.web import HideKey
+
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("1.2.3.4", "GET", "/?key=s3cret&x=1", "1.1", 303),
+        None,
+    )
+    HideKey().filter(record)
+    assert "s3cret" not in record.getMessage() and "/?key=<hidden>&x=1" in record.getMessage()
