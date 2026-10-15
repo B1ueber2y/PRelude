@@ -28,6 +28,25 @@ comments start in that draft and you discard the ones you don't want; with
 `github_drafts.auto: false` they wait for you to add them.
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
+## Ways to use it
+
+You don't need a stream of other people's PRs. PRelude is just as useful on your own work:
+
+- **Review your own PRs before anyone else does.** Open a PR and PRelude reviews it (your
+  own PRs are reviewed automatically). Fix what's right, push, tap **Review again → Changes
+  only**, and repeat until the re-review comes back clean. This pairs well with a coding
+  agent: one Claude writes the change, another reviews it, and you judge both. PRelude is
+  developed this way: every PR in this repo went through several such rounds.
+- **Get a second opinion on a risky change.** Ask for a panel (3 or 5 reviewers, or add
+  more later with **+N**) and see which problems several reviewers found independently.
+- **Answer review requests faster.** When a colleague requests your review, a draft is
+  waiting by the time you look; you keep, reword or drop each comment and submit.
+- **First pass on contributions to a project you maintain.** Watch a few repos and let
+  PRelude prepare a review of each new PR; contributors only see what you approved.
+
+All of it works from the phone, or from the terminal (`prelude findings`, `prelude draft`,
+`prelude discard`, … see [Usage](#usage)).
+
 ## Built on Claude Code
 
 PRelude is a harness around [Claude Code](https://claude.com/claude-code), not a model or
@@ -47,21 +66,27 @@ So review quality follows Claude Code's, and usage counts against your Claude pl
 ### Use within Anthropic's terms
 
 PRelude is an independent project, not made or endorsed by Anthropic, and this section is
-not legal advice. Read Anthropic's current terms yourself, in particular the
-[Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
-page and the terms for your plan. As of writing, that page:
+not legal advice. Read the current [Consumer Terms](https://www.anthropic.com/legal/consumer-terms),
+the [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
+page and your plan's help pages yourself; they changed several times in 2026. As of
+October 2026:
 
-- allows an end user to sign in to the unmodified Claude Code binary with their own
-  subscription — the way PRelude is meant to be used: by you, on your machine, with your
-  own login;
-- says products or services built on Claude should use API key authentication, and that
-  subscription credentials may not be used on behalf of other users — so **don't host
-  PRelude for other people on your subscription**;
-- says Pro and Max usage limits assume ordinary, individual usage — automatic reviews of
-  many PRs or large reviewer panels may go beyond that, so keep usage modest (see
-  `max_reviews_per_day` and the reviewer settings).
-
-If you want to use PRelude for a team or at scale, check with Anthropic first.
+- **Scripted use of your own subscription is documented.** The Consumer Terms forbid
+  automated access "except when you are accessing our Services via an Anthropic API Key or
+  where we otherwise explicitly permit it". Anthropic's own docs show subscription-backed
+  scripted use: `claude setup-token` is "for CI pipelines and scripts", the GitHub Actions
+  guide reviews every new PR on a subscription token, and the help center says `claude -p`
+  can be used "with your subscription limits". PRelude does the same on your machine: it
+  runs the unmodified `claude` CLI under your own login and never reads or stores your
+  Claude credentials.
+- **Don't run it for other people.** Subscriptions may not be shared or used "on behalf of"
+  other users, and products built on Claude should use an API key. Keep PRelude personal:
+  your login, your machine, your reviews. For a team, use API keys (not supported by
+  PRelude yet) and check with Anthropic.
+- **Keep it ordinary, individual usage.** Pro and Max limits "assume ordinary, individual
+  usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
+  off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
+  modest. PRelude doesn't retry when Claude reports a usage limit.
 
 ## What it does
 
