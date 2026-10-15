@@ -167,6 +167,9 @@ def clear_leftovers(w: WebDep, review_id: int):
                 "Tap Clear leftovers again for the rest."
             ),
         )
+    else:
+        if (r["error"] or "").startswith("Cleared "):
+            w.store.update_review(review_id, error=None)  # the earlier partial clear is finished now
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
