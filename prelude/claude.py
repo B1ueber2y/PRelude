@@ -83,10 +83,49 @@ def _env(auth: Auth | None = None) -> dict[str, str]:
     return env
 
 
-def _scrub(text: str, auth: Auth | None) -> str:
-    """Never let the API key reach an error message, log or report."""
+def _scrub(value: Any, auth: Auth | None) -> Any:
+    """Remove the API key from a run's output or an error (strings anywhere in JSON-like data).
+
+    Output is scrubbed too: Claude can read files and its own environment, so a prompt-injected
+    PR could try to make it quote the key into a finding. Scrub before truncating.
+    """
     key = auth.api_key() if auth else None
-    return text.replace(key, "[API key]") if key else text
+    if not key:
+        return value
+    if isinstance(value, str):
+        return value.replace(key, "[API key]")
+    if isinstance(value, list):
+        return [_scrub(v, auth) for v in value]
+    if isinstance(value, dict):
+        return {k: _scrub(v, auth) for k, v in value.items()}
+    return value
+
+
+class _StreamScrubber:
+    """Scrubs streamed text, holding back a tail that could be the start of a key split across chunks."""
+
+    def __init__(self, on_text: Callable[[str], None], auth: Auth | None):
+        self.on_text, self.key = on_text, (auth.api_key() if auth else None)
+        self.pending = ""
+
+    def __call__(self, text: str) -> None:
+        if not self.key:
+            self.on_text(text)
+            return
+        if not text:  # block separator: flush first
+            self.flush()
+            self.on_text("")
+            return
+        self.pending = (self.pending + text).replace(self.key, "[API key]")
+        keep = len(self.key) - 1
+        if len(self.pending) > keep:
+            self.on_text(self.pending[:-keep] if keep else self.pending)
+            self.pending = self.pending[-keep:] if keep else ""
+
+    def flush(self) -> None:
+        if self.pending:
+            self.on_text(self.pending)
+            self.pending = ""
 
 
 def auth_status(auth: Auth | None = None) -> dict[str, Any]:
@@ -94,7 +133,7 @@ def auth_status(auth: Auth | None = None) -> dict[str, Any]:
     try:
         return json.loads(out.stdout)
     except json.JSONDecodeError:
-        return {"loggedIn": False, "error": _scrub((out.stderr or out.stdout).strip()[-500:], auth)}
+        return {"loggedIn": False, "error": _scrub((out.stderr or out.stdout).strip(), auth)[-500:]}
 
 
 def ensure_logged_in(auth: Auth | None = None) -> dict[str, Any]:
@@ -106,9 +145,8 @@ def ensure_logged_in(auth: Auth | None = None) -> dict[str, Any]:
             )
         status = auth_status(auth)
         if status.get("authMethod") != "api_key":
-            raise ClaudeNotLoggedIn(
-                f"Claude Code didn't pick up the API key (it reports {status.get('authMethod')!r})."
-            )
+            why = status.get("error") or f"it reports {status.get('authMethod')!r}"
+            raise ClaudeNotLoggedIn(f"Claude Code didn't accept the API key: {why}")
         return status
     status = auth_status(auth)
     if not status.get("loggedIn"):
@@ -158,7 +196,7 @@ def _api_overloaded(result: dict[str, Any]) -> bool:
 
 def _check(result: dict[str, Any], auth: Auth | None = None) -> None:
     if result.get("is_error") or result.get("subtype") not in (None, "success"):
-        detail = _scrub(str(result.get("result") or result)[:1000], auth)
+        detail = _scrub(str(result.get("result") or result), auth)[:1000]
         raise ClaudeError(f"Claude run failed ({result.get('subtype')}): {detail}", transient=_api_overloaded(result))
 
 
@@ -191,8 +229,9 @@ def _run_json_once(
         result = json.loads(out.stdout)
     except json.JSONDecodeError as e:
         raise ClaudeError(
-            f"unexpected output from claude (exit {out.returncode}): {_scrub((out.stderr or out.stdout)[-1500:], auth)}"
+            f"unexpected output from claude (exit {out.returncode}): {_scrub(out.stderr or out.stdout, auth)[-1500:]}"
         ) from e
+    result = _scrub(result, auth)
     _check(result, auth)
     return RunResult(
         session_id=result["session_id"],
@@ -239,6 +278,7 @@ def run_stream(
 
     timer = threading.Timer(timeout, proc.kill)
     timer.start()
+    on_text = _StreamScrubber(on_text, auth)
     result: dict[str, Any] | None = None
     try:
         for line in proc.stdout:
@@ -261,13 +301,14 @@ def run_stream(
                         # Separate text from successive assistant messages.
                         on_text("")
             elif etype == "result":
-                result = event
+                result = _scrub(event, auth)
         proc.wait()
     finally:
         timer.cancel()
+        on_text.flush()
     if result is None:
         err = proc.stderr.read() if proc.stderr else ""
-        raise ClaudeError(f"Claude stream ended without a result (exit {proc.returncode}): {_scrub(err[-1500:], auth)}")
+        raise ClaudeError(f"Claude stream ended without a result (exit {proc.returncode}): {_scrub(err, auth)[-1500:]}")
     _check(result, auth)
     return RunResult(
         session_id=result["session_id"],

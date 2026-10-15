@@ -43,17 +43,17 @@ def _cmd_review(args: argparse.Namespace) -> int:
         return 2
     print(f"review #{review_id}: {ref.slug} — running (this can take several minutes)…")
     run_review(store, cfg, review_id)
-    return _print_review(store, review_id, cfg.claude.auth)
+    return _print_review(store, review_id)
 
 
-def _print_review(store: Store, review_id: int, auth: str = claude.SUBSCRIPTION) -> int:
+def _print_review(store: Store, review_id: int) -> int:
     r = store.get_review(review_id)
     if r is None:
         print(f"no review #{review_id}", file=sys.stderr)
         return 1
     print(f"\n#{r['id']} {r['owner']}/{r['repo']}#{r['number']} {r['title'] or ''}")
-    billing = "billed to your API key" if auth == claude.API_KEY else "API-equivalent, not billed on a subscription"
-    usage = f"  usage: ≈ ${r['cost_usd']:.2f} ({billing})" if r["cost_usd"] else ""
+    # The mode may have changed since; on a subscription this isn't billed, on an API key it is.
+    usage = f"  usage: ≈ ${r['cost_usd']:.2f} at API prices" if r["cost_usd"] else ""
     print(f"status: {r['status']}{usage}")
     if r["error"]:
         print(f"error: {r['error']}")
@@ -70,7 +70,7 @@ def _print_review(store: Store, review_id: int, auth: str = claude.SUBSCRIPTION)
 
 def _cmd_show(args: argparse.Namespace) -> int:
     cfg = load_config()
-    return _print_review(Store(cfg.db_path), args.id, cfg.claude.auth)
+    return _print_review(Store(cfg.db_path), args.id)
 
 
 def _cmd_list(_args: argparse.Namespace) -> int:

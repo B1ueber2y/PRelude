@@ -155,7 +155,8 @@ forward in an SSH app such as Termius) or another private tunnel such as `tailsc
   checkout, with settings, hooks, plugins and MCP servers disabled, so code in the
   reviewed repository is never executed. Only the credential you chose reaches it: on the
   subscription, API-key variables are removed; with `claude.auth: api_key`, only that key
-  is passed (in its environment, never on the command line, and scrubbed from errors).
+  is passed (in its environment, never on the command line), and it's scrubbed from errors
+  and from everything a run returns, so it can't end up in a finding or a GitHub draft.
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment); submitting a review is not possible from PRelude, and tests enforce it.
 

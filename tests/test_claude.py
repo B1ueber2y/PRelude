@@ -90,6 +90,30 @@ def test_the_key_never_reaches_error_text(fake_claude, monkeypatch, tmp_path):
     assert KEY not in str(e.value) and "[API key]" in str(e.value)
 
 
+def test_a_key_across_the_truncation_point_is_still_scrubbed(fake_claude, monkeypatch, tmp_path):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("FAKE_CLAUDE_REPLY", "x" * 990 + KEY)  # the cut at 1000 falls inside the key
+    monkeypatch.setenv("FAKE_CLAUDE_ERROR", "1")
+    with pytest.raises(claude.ClaudeError) as e:
+        claude.run_json("x", tmp_path, auth=api_auth(tmp_path, KEY))
+    assert KEY[:10] not in str(e.value)
+
+
+def test_run_output_never_carries_the_key(fake_claude, monkeypatch, tmp_path):
+    """A prompt-injected PR could get Claude to quote the key into a finding or a reply."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("FAKE_CLAUDE_REPLY", f"the key is {KEY}")
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"findings": [{"suggested_comment": f"leak {KEY}"}]}))
+    auth = api_auth(tmp_path, KEY)
+    result = claude.run_json("x", tmp_path, auth=auth)
+    assert KEY not in json.dumps([result.text, result.structured, result.raw])
+    assert result.structured["findings"][0]["suggested_comment"] == "leak [API key]"
+
+    chunks = []  # the fake streams 7 characters at a time, so the key arrives split
+    streamed = claude.run_stream("x", tmp_path, on_text=chunks.append, auth=auth)
+    assert "".join(chunks) == "the key is [API key]" and KEY not in streamed.text
+
+
 def test_stream_delivers_text_and_activity(fake_claude, monkeypatch, tmp_path):
     monkeypatch.setenv("FAKE_CLAUDE_REPLY", "Hello there, reviewer.")
     chunks, tools = [], []
