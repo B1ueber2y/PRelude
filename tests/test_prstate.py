@@ -166,3 +166,8 @@ def test_partial_clear_says_what_happened(cfg, store, done_review):
     assert r.headers.get("HX-Refresh") == "true"
     assert "Cleared 1 of 2 leftovers" in store.get_review(done_review)["error"]
     assert "Cleared 1 of 2 leftovers" in c.get(f"/reviews/{done_review}").text
+
+    writer._transport = real  # GitHub is back: tapping again finishes and removes the note
+    c.post(f"/reviews/{done_review}/clear-leftovers")
+    assert store.get_review(done_review)["error"] is None
+    assert {f["status"] for f in store.findings_for(done_review)} == {"dropped"}
