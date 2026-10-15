@@ -1,8 +1,8 @@
 <article id="card-{{ f.id }}" class="card finding-full {{ 'is-discarded' if f.status == 'discarded' }}">
-  {% if f.status == 'dropped' %}
+  {% if f.status in ('dropped', 'superseded') %}
   <div class="card-folded">
     <div>
-      <span class="tag">not posted (PR closed)</span>
+      <span class="tag">{{ 'not posted (PR closed)' if f.status == 'dropped' else 'replaced by a later review' }}</span>
       <a href="/findings/{{ f.id }}" class="folded-title">{{ f.title }}</a>
     </div>
   </div>

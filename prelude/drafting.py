@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from .config import Config
 from .db import Store
 from .discuss import current_draft
 from .drafts import DraftError, DraftWriter, NotPending
 
 PREFIX_SETTING = "draft_prefix"
+
+log = logging.getLogger(__name__)
 
 
 class DraftsDisabled(DraftError):
@@ -34,7 +38,7 @@ def _review(store: Store, finding):
     return store.get_review(finding["review_id"])
 
 
-def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None:
+def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto: bool = False) -> None:
     if not cfg.drafts.enabled:
         raise DraftsDisabled("Adding to GitHub drafts is turned off (github_drafts.enabled in config.yaml).")
     f = store.get_finding(finding_id)
@@ -54,13 +58,17 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None
         start_line=f["start_line"],
         file_level=not f["in_diff"],
     )
-    store.update_finding(
+    claimed = store.update_finding_if(
         finding_id,
+        {"status": f["status"], "user_draft": f["user_draft"]},
         status="drafted",
         github_review_id=review_id,
         github_comment_id=comment_id,
         drafted_body=body,
+        auto_drafted=int(auto),
     )
+    if not claimed:  # discarded, reworded or added elsewhere while GitHub was busy: undo this copy
+        writer.delete_comment(r["owner"], r["repo"], review_id, comment_id)
 
 
 def sync(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None:
@@ -84,7 +92,7 @@ def remove(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, new_
     if f["status"] == "drafted":
         r = _review(store, f)
         writer.delete_comment(r["owner"], r["repo"], f["github_review_id"], f["github_comment_id"])
-    store.update_finding(finding_id, status=new_status, github_comment_id=None, drafted_body=None)
+    store.update_finding(finding_id, status=new_status, github_comment_id=None, drafted_body=None, auto_drafted=0)
 
 
 def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> tuple[int, list[str]]:
@@ -100,6 +108,50 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
         except DraftError as e:
             failed.append(f"{f['title']}: {e}")
     return added, failed
+
+
+def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[int]) -> int:
+    """Put new findings straight into the pending review (github_drafts.auto). Failures leave them to review.
+
+    They count as not handled until the reviewer edits them or submits the review.
+    """
+    if not (cfg.drafts.enabled and cfg.drafts.auto):
+        return 0
+    added = 0
+    for finding_id in finding_ids:
+        if store.get_finding(finding_id)["status"] != "pending":  # handled in the UI meanwhile
+            continue
+        try:
+            add(store, cfg, writer, finding_id, auto=True)
+            added += 1
+        except (DraftsDisabled, NotPending):
+            break
+        except DraftError:  # e.g. a line GitHub won't take; the others may still work
+            log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
+        except Exception:  # GitHub unreachable: the rest would fail the same way
+            log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
+            break
+    return added
+
+
+def supersede(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:
+    """Take earlier reviews' untouched auto-drafts of this PR out of the draft; this review replaces them."""
+    r = store.get_review(review_id)
+    done = 0
+    for f in store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id):
+        # Claim it first, so an edit or discard made meanwhile wins (the UI refuses superseded findings).
+        if not store.update_finding_if(f["id"], {"status": "drafted", "auto_drafted": 1}, status="superseded"):
+            continue
+        try:
+            writer.delete_comment(r["owner"], r["repo"], f["github_review_id"], f["github_comment_id"])
+        except Exception as e:
+            store.update_finding_if(f["id"], {"status": "superseded"}, status="drafted")
+            if not isinstance(e, NotPending):  # NotPending: submitted on GitHub; refresh_submitted will notice
+                log.warning("couldn't take finding %s out of the draft", f["id"], exc_info=True)
+            continue  # other drafts may sit in another, still pending review
+        store.update_finding(f["id"], github_comment_id=None, drafted_body=None, auto_drafted=0)
+        done += 1
+    return done
 
 
 def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:
@@ -119,7 +171,7 @@ def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id:
         new = "pending" if state is None else "posted"
         for f in drafted:
             if f["github_review_id"] == gh_review:
-                fields = {"status": new}
+                fields = {"status": new, "auto_drafted": 0}
                 if new == "pending":
                     fields.update(github_review_id=None, github_comment_id=None, drafted_body=None)
                 store.update_finding(f["id"], **fields)

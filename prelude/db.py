@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded | dropped (PR closed first)
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded | dropped (PR closed first) | superseded (by a later review)
   verdict TEXT,                            -- latest Claude verdict from discussion
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
@@ -148,6 +148,7 @@ class Store:
                     "drafted_body": "TEXT",
                     "found_by": "INTEGER",
                     "added_later": "INTEGER NOT NULL DEFAULT 0",
+                    "auto_drafted": "INTEGER NOT NULL DEFAULT 0",
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
@@ -308,7 +309,7 @@ class Store:
             ).fetchall()
 
     def earlier_reviews(self) -> dict[tuple[str, str, int], tuple[int, int]]:
-        """Per PR: how many reviews are older than its newest, and their findings still to go."""
+        """Per PR: how many reviews are older than its newest, and their findings still open."""
         with self.connect() as c:
             rows = c.execute(
                 "SELECT r.owner, r.repo, r.number, COUNT(*),"
@@ -342,13 +343,14 @@ class Store:
 
     # ---- findings ----------------------------------------------------------
 
-    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> None:
+    def add_findings(self, review_id: int, findings: list[dict[str, Any]], added_later: bool = False) -> list[int]:
         now = time.time()
+        ids = []
         with self.connect() as c:
             first = c.execute("SELECT COALESCE(MAX(ordinal), 0) FROM findings WHERE review_id = ?", (review_id,))
             start = first.fetchone()[0] + 1
             for i, f in enumerate(findings, start=start):
-                c.execute(
+                cur = c.execute(
                     "INSERT INTO findings (review_id, ordinal, path, line, start_line, side, in_diff, severity,"
                     " category, title, assessment, evidence, confidence, claude_comment, found_by, added_later,"
                     " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -373,6 +375,8 @@ class Store:
                         now,
                     ),
                 )
+                ids.append(cur.lastrowid)
+        return ids
 
     def findings_for(self, review_id: int) -> list[sqlite3.Row]:
         with self.connect() as c:
@@ -393,6 +397,17 @@ class Store:
     def get_finding(self, finding_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
             return c.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
+
+    def update_finding_if(self, finding_id: int, expected: dict[str, Any], **fields: Any) -> bool:
+        """Update only if the finding still has the `expected` values; False if someone changed it first."""
+        fields["updated_at"] = time.time()
+        cols = ", ".join(f"{k} = ?" for k in fields)
+        cond = "".join(f" AND {k} IS ?" for k in expected)  # IS: also matches NULL
+        with self.connect() as c:
+            cur = c.execute(
+                f"UPDATE findings SET {cols} WHERE id = ?{cond}", (*fields.values(), finding_id, *expected.values())
+            )
+            return cur.rowcount == 1
 
     def update_finding(self, finding_id: int, **fields: Any) -> None:
         fields["updated_at"] = time.time()
@@ -512,6 +527,15 @@ class Store:
                 (time.time(), owner, repo, number),
             )
             return 1 if cur.rowcount else 0
+
+    def drafts_on_pr(self, owner: str, repo: str, number: int, *, besides: int) -> list[sqlite3.Row]:
+        """Findings of other reviews of this PR that are still in the pending GitHub review."""
+        with self.connect() as c:
+            return c.execute(
+                "SELECT f.* FROM findings f JOIN reviews r ON r.id = f.review_id WHERE f.status = 'drafted'"
+                " AND r.owner = ? AND r.repo = ? AND r.number = ? AND r.id != ?",
+                (owner, repo, number, besides),
+            ).fetchall()
 
     def reviews_with_drafts(self) -> list[int]:
         with self.connect() as c:

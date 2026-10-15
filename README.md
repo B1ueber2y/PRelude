@@ -22,8 +22,10 @@ you'd review a change:
 | Release                  | You submit the review on GitHub                      |
 | The contributor improves | PRelude **remembers** your principles and style      |
 
-Nothing is published by PRelude. Accepted comments land in your *pending* GitHub review;
-you read them in place and submit it yourself (Comment / Approve / Request changes).
+Nothing is published by PRelude. Comments land in your *pending* GitHub review, which only
+you can see; you submit it yourself (Comment / Approve / Request changes). By default new
+comments start in that draft and you discard the ones you don't want; with
+`github_drafts.auto: false` they wait for you to add them.
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
 ## Built on Claude Code

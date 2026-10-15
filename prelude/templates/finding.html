@@ -60,9 +60,9 @@
 {% endblock %}
 
 {% block bottombar %}
-<footer class="actionbar{{ ' posted' if f.status in ('posted', 'dropped') }}">
-  {% if f.status in ('posted', 'dropped') %}
-  <button class="btn" disabled>{{ 'Posted ✓' if f.status == 'posted' else 'Not posted (PR closed)' }}</button>
+<footer class="actionbar{{ ' posted' if f.status in ('posted', 'dropped', 'superseded') }}">
+  {% if f.status in ('posted', 'dropped', 'superseded') %}
+  <button class="btn" disabled>{{ {'posted': 'Posted ✓', 'dropped': 'Not posted (PR closed)'}.get(f.status, 'Replaced by a later review') }}</button>
   <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
   {% else %}
   {% if f.status == 'drafted' %}

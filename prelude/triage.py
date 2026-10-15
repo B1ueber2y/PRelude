@@ -12,6 +12,7 @@ from .drafts import DraftError, DraftWriter
 READ_ONLY = {
     "posted": "This comment is already posted on GitHub; change it there.",
     "dropped": "This PR was closed before the comment was posted.",
+    "superseded": "A later review of this PR replaced this comment.",
 }
 
 
@@ -37,7 +38,9 @@ def set_wording(
         return why
     text = text.strip() if text is not None else None
     user_draft = None if text is None or text == f["claude_comment"] else text
-    store.update_finding(finding_id, user_draft=user_draft)
+    # auto_drafted=0: the reviewer has looked. Conditional, so a supersede that just claimed it wins.
+    if not store.update_finding_if(finding_id, {"status": f["status"]}, user_draft=user_draft, auto_drafted=0):
+        return refusal(store.get_finding(finding_id)) or "This comment just changed; reload."
     if learn and user_draft is not None and user_draft != f["user_draft"]:
         learn(finding_id, "edit")
     try:
