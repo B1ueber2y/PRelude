@@ -125,24 +125,66 @@ Status: early, but in daily use. Reviews (single or panels), editing, discarding
 discussing, memory, GitHub drafts and automatic review triggers (both off until enabled in
 `config.yaml`), and phone notifications (via ntfy) all work.
 
-## Requirements
+## Install and run
 
-- Python 3.12+
-- [Claude Code](https://claude.com/claude-code) logged in with a Claude subscription (`claude auth status`),
-  or an Anthropic API key (see below)
-- GitHub CLI logged in (`gh auth status`)
+### 1. Install
 
-## Setup
+You need Python 3.12+, [Claude Code](https://claude.com/claude-code) logged in with your
+Claude subscription (`claude auth status`; or an Anthropic API key, see below) and the
+GitHub CLI logged in (`gh auth status`). Then:
 
 ```bash
+git clone https://github.com/B1ueber2y/PRelude.git && cd PRelude
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/prelude auth        # checks the Claude login PRelude will use
 ```
 
 Data (database, checkouts, memory, config) lives in `.prelude-data/` unless `PRELUDE_HOME`
-is set. Edit `.prelude-data/config.yaml` to change settings; `only_repo` restricts PRelude
-to a single repository during development.
+is set; settings are in `.prelude-data/config.yaml`.
+
+### 2. Start it
+
+```bash
+.venv/bin/prelude start       # in the background; `prelude stop` / `prelude status`
+.venv/bin/prelude             # or in the foreground; Ctrl+C stops it
+```
+
+PRelude serves its web UI on `127.0.0.1:8787` only, and runs nothing until you start it.
+
+### 3. Open it on a computer
+
+Run `.venv/bin/prelude url` and open the link it prints. It sets a cookie, so afterwards
+`http://localhost:8787` is enough in that browser.
+
+If PRelude runs on another machine (say a desktop at work), forward the port from your
+laptop and use the same link:
+
+```bash
+ssh -L 8787:127.0.0.1:8787 you@that-machine
+```
+
+### 4. Set up your phone
+
+1. **Reach it privately.** PRelude never listens on the network. Forward the port from the
+   phone: in an SSH app such as Termius, add the machine as a host and a *local port
+   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps); or use another private
+   tunnel such as `tailscale serve`.
+2. **Unlock it once.** Open the `prelude url` link in the phone's browser.
+3. **Add it to the home screen.** iPhone: Safari → Share → *Add to Home Screen*. Android:
+   Chrome → ⋮ → *Add to Home screen*. It then opens like an app.
+4. **Notifications (optional).** Run `.venv/bin/prelude notify-setup`, subscribe to the
+   topic it prints in the [ntfy](https://ntfy.sh) app, and check with
+   `.venv/bin/prelude notify-test`. You get a notification when a review is ready;
+   `notify.details` in `config.yaml` sets how much it says (ntfy.sh is a public server).
+
+### 5. Turn things on
+
+- **GitHub drafts:** set `github_drafts.enabled: true` so comments can go into your pending
+  GitHub review (new findings then start there; `github_drafts.auto: false` to add them
+  yourself).
+- **Automatic reviews:** set `triggers.enabled: true` and restart; then choose repos on the
+  **Repos** page. `prelude check` shows what would be reviewed, without starting anything.
 
 ### Subscription or API key
 
@@ -182,10 +224,6 @@ The findings can also be triaged in the terminal; `N` is the number `prelude fin
 .venv/bin/prelude edit 32 1              # reword in $EDITOR (--text "...", --claude, --reset)
 .venv/bin/prelude discuss 32 1 "Is this really reachable?"
 ```
-
-Open the `prelude url` link once on each device; it sets a cookie. PRelude only listens on
-localhost; to use it from a phone, forward the port over SSH (for example a local port
-forward in an SSH app such as Termius) or another private tunnel such as `tailscale serve`.
 
 ## Safety
 
