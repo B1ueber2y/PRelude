@@ -294,7 +294,9 @@ def test_plus_n_asks_how_many_reviewers(cfg, store, done_review):
     page = c.get(f"/reviews/{done_review}").text
     assert all(f">+{n}</button>" in page for n in (1, 2, 3, "N"))
     assert "Enter a number" in c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "50"}).text
-    assert "Enter a number" in c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "two"}).text
+    for bad in ("two", "²", "0"):  # "²".isdigit() is True, but int() rejects it
+        page = c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": bad.encode("latin-1")}).text
+        assert "Enter a number" in page
     c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "7"})
     time.sleep(0.1)
     assert started == [7]
@@ -306,3 +308,15 @@ def test_home_card_shows_when_the_review_last_finished(client, store, done_revie
     store.update_review(done_review, finished_at=time.time() - 120)
     page = client.get("/reviews/rows").text
     assert "2 min ago" in page and "3 h ago" not in page
+
+
+def test_reviews_with_new_reviewers_come_to_the_front(client, store):
+    old = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(old, title="Older review", created_at=time.time() - 3600)
+    new = store.create_review("B1ueber2y", "PRelude", 2, "u", "t")
+    store.update_review(new, title="Newer review", created_at=time.time() - 60)
+    page = client.get("/reviews/rows").text
+    assert page.index("Newer review") < page.index("Older review")
+    store.update_review(old, finished_at=time.time())  # reviewers just added
+    page = client.get("/reviews/rows").text
+    assert page.index("Older review") < page.index("Newer review")

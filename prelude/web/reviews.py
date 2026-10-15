@@ -142,9 +142,12 @@ def more_reviewers(w: WebDep, request: Request, review_id: int, n: int = Form(1)
     if (asked := request.headers.get("HX-Prompt")) is not None:  # the +N button
         if not asked.strip():
             return Response(status_code=204)  # cancelled
-        if not asked.strip().isdigit() or not 1 <= int(asked) <= MAX_MORE:
+        try:
+            n = int(asked)
+        except ValueError:
+            n = 0
+        if not 1 <= n <= MAX_MORE:
             return w.flash(f"Enter a number from 1 to {MAX_MORE}.")
-        n = int(asked)
     n = max(1, min(MAX_MORE, n))
     if not w.store.try_mark_busy(review_id, f"Adding {n} reviewer{'s' if n > 1 else ''}"):
         return w.flash("This review is busy; try again when it's finished.")
