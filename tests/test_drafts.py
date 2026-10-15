@@ -246,3 +246,19 @@ def test_discard_during_add_wins_and_leaves_no_comment(enabled, store, done_revi
     writer.add_comment = slow
     drafting.auto_add(store, enabled, writer, [f1["id"]])
     assert store.get_finding(f1["id"])["status"] == "discarded" and not github.comments
+
+
+def test_supersede_leaves_findings_the_reviewer_touched_meanwhile(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]])
+    later = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    real = writer.delete_comment
+
+    def edit_meanwhile(owner, repo, review_id, comment_id):
+        store.update_finding(f2["id"], auto_drafted=0)  # the reviewer edits f2 while f1 is removed
+        return real(owner, repo, review_id, comment_id)
+
+    writer.delete_comment = edit_meanwhile
+    assert drafting.supersede(store, enabled, writer, later) == 1
+    assert store.get_finding(f1["id"])["status"] == "superseded"
+    assert store.get_finding(f2["id"])["status"] == "drafted" and len(github.comments) == 1

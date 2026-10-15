@@ -244,13 +244,16 @@ def _repeats(f, drafts) -> bool:
 def _auto_draft(
     store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None, *, replace: bool
 ) -> None:
-    """Draft new findings. A new review (`replace`) first takes over earlier reviews' untouched auto-drafts."""
-    if not (ids and cfg.drafts.enabled and cfg.drafts.auto):
+    """Draft new findings. A new review (`replace`) first takes over earlier reviews' untouched auto-drafts,
+    even when it found nothing."""
+    if not (cfg.drafts.enabled and cfg.drafts.auto) or not (ids or replace):
         return
     writer = writer or DraftWriter(cfg)
-    store.update_review(review_id, progress="Adding comments to your GitHub draft")
+    store.update_review(review_id, progress="Updating your GitHub draft")
     if replace:
         drafting.supersede(store, cfg, writer, review_id)
+    if not ids:
+        return
     r = store.get_review(review_id)
     drafts = store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id)
     ids = [i for i in ids if not _repeats(store.get_finding(i), drafts)]  # those wait in To review

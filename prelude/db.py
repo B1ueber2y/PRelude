@@ -382,13 +382,14 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
 
-    def update_finding_if(self, finding_id: int, expected: str, **fields: Any) -> bool:
-        """Update only if the finding's status is still `expected`; False if someone changed it first."""
+    def update_finding_if(self, finding_id: int, expected: dict[str, Any], **fields: Any) -> bool:
+        """Update only if the finding still has the `expected` values; False if someone changed it first."""
         fields["updated_at"] = time.time()
         cols = ", ".join(f"{k} = ?" for k in fields)
+        cond = "".join(f" AND {k} = ?" for k in expected)
         with self.connect() as c:
             cur = c.execute(
-                f"UPDATE findings SET {cols} WHERE id = ? AND status = ?", (*fields.values(), finding_id, expected)
+                f"UPDATE findings SET {cols} WHERE id = ?{cond}", (*fields.values(), finding_id, *expected.values())
             )
             return cur.rowcount == 1
 

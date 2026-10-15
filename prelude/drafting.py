@@ -60,7 +60,7 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto
     )
     claimed = store.update_finding_if(
         finding_id,
-        f["status"],
+        {"status": f["status"]},
         status="drafted",
         github_review_id=review_id,
         github_comment_id=comment_id,
@@ -139,15 +139,19 @@ def supersede(store: Store, cfg: Config, writer: DraftWriter, review_id: int) ->
     r = store.get_review(review_id)
     done = 0
     for f in store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id):
-        if not f["auto_drafted"]:
-            continue  # the reviewer kept or edited it
+        # Claim it first, so an edit or discard made meanwhile wins (the UI refuses superseded findings).
+        if not store.update_finding_if(f["id"], {"status": "drafted", "auto_drafted": 1}, status="superseded"):
+            continue
         try:
-            remove(store, cfg, writer, f["id"], new_status="superseded")
-            done += 1
-        except NotPending:
-            break  # submitted or deleted on GitHub; refresh_submitted will notice
-        except Exception:
+            writer.delete_comment(r["owner"], r["repo"], f["github_review_id"], f["github_comment_id"])
+        except Exception as e:
+            store.update_finding_if(f["id"], {"status": "superseded"}, status="drafted")
+            if isinstance(e, NotPending):
+                break  # submitted or deleted on GitHub; refresh_submitted will notice
             log.warning("couldn't take finding %s out of the draft", f["id"], exc_info=True)
+            continue
+        store.update_finding(f["id"], github_comment_id=None, drafted_body=None, auto_drafted=0)
+        done += 1
     return done
 
 

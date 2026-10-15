@@ -356,3 +356,20 @@ def test_repeats_need_the_same_side_and_kind_of_anchor():
     assert not review._repeats(dict(d, side="LEFT"), [d])
     assert not review._repeats(dict(d, line=None), [d]) and not review._repeats(dict(d, line=3), [dict(d, line=None)])
     assert review._repeats(dict(d, line=None), [dict(d, line=None)])
+
+
+def test_clean_re_review_still_replaces_old_auto_drafts(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    github = FakeGitHub()
+    writer = DraftWriter(cfg, transport=github)
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
+    first = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, first, github=FakeReader(), writer=writer)
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "all fixed", "findings": []}))
+    second = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, second, github=FakeReader(), writer=writer)
+    assert store.findings_for(first)[0]["status"] == "superseded" and not github.comments
