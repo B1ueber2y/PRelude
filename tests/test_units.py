@@ -176,3 +176,26 @@ def test_notify_details_setting():
     assert _notify_details({"include_details": False}) == "none"  # an explicit opt-out stays one
     assert _notify_details({"include_details": False, "details": "ref"}) == "ref"
     assert _notify_details({"details": "bogus"}) == "ref"
+
+
+def test_repo_lock_lets_one_writer_in_at_a_time(cfg):
+    import threading
+    import time
+
+    from prelude.workspace import _repo_lock
+
+    inside, overlaps = [], []
+
+    def work():
+        with _repo_lock(cfg, "o", "r"):
+            overlaps.append(len(inside))
+            inside.append(1)
+            time.sleep(0.05)
+            inside.pop()
+
+    threads = [threading.Thread(target=work) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert overlaps == [0, 0, 0, 0]

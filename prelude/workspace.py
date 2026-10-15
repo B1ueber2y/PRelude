@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import shutil
 import stat
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,6 +52,19 @@ class Checkout:
     merge_base: str
     diff: str
     changed_files: list[str]
+
+
+@contextmanager
+def _repo_lock(cfg: Config, owner: str, repo: str) -> Iterator[None]:
+    """One writer at a time per cached clone, across threads and processes (server, CLI)."""
+    lock = cfg.repos_dir / owner / f"{repo}.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def _bare_repo(cfg: Config, owner: str, repo: str) -> Path:
@@ -108,31 +124,32 @@ def _fetch(gd: list[str], *refs: str) -> None:
 def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     owner, repo, number = pr.ref.owner, pr.ref.repo, pr.ref.number
     check_repo(cfg, owner, repo)
-    bare = _bare_repo(cfg, owner, repo)
-    gd = ["--git-dir", str(bare)]
+    with _repo_lock(cfg, owner, repo):
+        bare = _bare_repo(cfg, owner, repo)
+        gd = ["--git-dir", str(bare)]
 
-    _fetch(
-        gd,
-        f"+refs/pull/{number}/head:refs/prelude/pr/{number}",
-        f"+refs/heads/{pr.base_ref}:refs/prelude/base/{pr.base_ref}",
-    )
-    # The PR may have moved on since we read its metadata; insist on the exact SHAs.
-    for sha in (pr.head_sha, pr.base_sha):
-        try:
-            _git(*gd, "cat-file", "-e", f"{sha}^{{commit}}")
-        except GitError:
-            _fetch(gd, sha)
+        _fetch(
+            gd,
+            f"+refs/pull/{number}/head:refs/prelude/pr/{number}",
+            f"+refs/heads/{pr.base_ref}:refs/prelude/base/{pr.base_ref}",
+        )
+        # The PR may have moved on since we read its metadata; insist on the exact SHAs.
+        for sha in (pr.head_sha, pr.base_sha):
+            try:
+                _git(*gd, "cat-file", "-e", f"{sha}^{{commit}}")
+            except GitError:
+                _fetch(gd, sha)
 
-    merge_base = _git(*gd, "merge-base", pr.base_sha, pr.head_sha).strip()
+        merge_base = _git(*gd, "merge-base", pr.base_sha, pr.head_sha).strip()
 
-    wt = cfg.worktrees_dir / f"{owner}__{repo}__{number}__{pr.head_sha[:12]}"
-    if not _is_checkout_of(wt, pr.head_sha):
-        if wt.exists():
-            remove_checkout(cfg, owner, repo, wt)
-        wt.parent.mkdir(parents=True, exist_ok=True)
-        _git(*_GIT_AUTH, *gd, "worktree", "add", "--quiet", "--detach", str(wt), pr.head_sha, timeout=1800)
-        _make_read_only(wt)
-    # else: reuse it; other reviews and discussions of this commit may be using it right now
+        wt = cfg.worktrees_dir / f"{owner}__{repo}__{number}__{pr.head_sha[:12]}"
+        if not _is_checkout_of(wt, pr.head_sha):
+            if wt.exists():
+                _remove_checkout(cfg, owner, repo, wt)
+            wt.parent.mkdir(parents=True, exist_ok=True)
+            _git(*_GIT_AUTH, *gd, "worktree", "add", "--quiet", "--detach", str(wt), pr.head_sha, timeout=1800)
+            _make_read_only(wt)
+        # else: reuse it; other reviews and discussions of this commit may be using it right now
 
     diff = _git(*gd, "diff", "--no-color", "--no-ext-diff", "-M", f"{merge_base}..{pr.head_sha}")
     names = _git(*gd, "diff", "--name-only", "-M", f"{merge_base}..{pr.head_sha}").split()
@@ -140,9 +157,14 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
 
 
 def remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:
-    bare = cfg.repos_dir / owner / f"{repo}.git"
     if not wt.resolve().is_relative_to(cfg.worktrees_dir.resolve()):
         raise ValueError(f"refusing to remove {wt}: not under {cfg.worktrees_dir}")
+    with _repo_lock(cfg, owner, repo):
+        _remove_checkout(cfg, owner, repo, wt)
+
+
+def _remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:
+    bare = cfg.repos_dir / owner / f"{repo}.git"
     _make_writable(wt)
     try:
         _git("--git-dir", str(bare), "worktree", "remove", "--force", str(wt))
