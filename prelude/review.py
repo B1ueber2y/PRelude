@@ -116,6 +116,7 @@ class _Job:
             schema=schema,
             model=self.cfg.claude.model,
             timeout=self.cfg.claude.review_timeout_seconds,
+            auth=claude.auth_for(self.cfg),
         )
 
     def review_prompt(self, lens: str | None = None) -> str:
@@ -283,7 +284,7 @@ def run_review(
             error=None,
             runner_pid=os.getpid(),
         )
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
 
         store.update_review(review_id, progress="Reading the PR from GitHub")
         github = github or GitHubReader(cfg)
@@ -380,7 +381,7 @@ def add_reviewers(
             store.update_review(
                 review_id, progress=f"Adding {n} reviewer{'s' if n > 1 else ''}", error=None, runner_pid=os.getpid()
             )
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
         pr = (github or GitHubReader(cfg)).pull_request(ref)
         if pr.head_sha != row["head_sha"]:
             raise failures.PrMoved("the PR has new commits since this review; use Review again instead")

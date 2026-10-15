@@ -88,6 +88,22 @@ def test_failed_review_is_recorded(cfg, store, checkout, fake_claude, monkeypatc
     assert "pr: B1ueber2y/PRelude#1" in text and "reason: Claude login needed" in text and "Traceback" in text
 
 
+def test_api_key_never_reaches_a_failed_reviews_record(cfg, store, checkout, fake_claude, monkeypatch, caplog):
+    key = "sk-ant-test-review-0123456789"
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    cfg.claude.auth = "api_key"
+    (cfg.data_dir / "anthropic_api_key").write_text(key)
+    monkeypatch.setenv("FAKE_CLAUDE_REPLY", f"API Error: 401 invalid x-api-key {key}")
+    monkeypatch.setenv("FAKE_CLAUDE_ERROR", "1")
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, rid, github=FakeReader())
+    r = store.get_review(rid)
+    assert r["status"] == "failed" and "[API key]" in r["error"]
+    (report,) = (cfg.data_dir / "errors").glob("*.txt")
+    for text in (r["error"], r["error_detail"], report.read_text(), caplog.text):
+        assert key not in text
+
+
 def test_auto_reviewers_follow_pr_size(cfg, store, checkout, fake_claude, monkeypatch):
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": []}))
     rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))  # config default: auto
