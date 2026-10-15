@@ -70,6 +70,16 @@ def test_saving_into_the_default_config_changes_only_the_repo_lines(cfg):
     assert [line for line in before if line not in after] == ["  repos: {}"]
 
 
+def test_lists_keep_the_files_own_indentation(cfg):
+    from prelude import repoconfig
+    from prelude.config import load_config
+
+    flush = "claude:\n  lenses:\n  - correctness\n  - security\ntriggers:\n  repos: {}\n"  # dashes at the key's indent
+    (cfg.data_dir / "config.yaml").write_text(flush)
+    repoconfig.set_repo(load_config(cfg.data_dir), "a/b", "never")
+    assert "  lenses:\n  - correctness\n  - security\n" in text(cfg)
+
+
 def test_saves_keep_yaml_1_1_booleans_and_the_running_enabled_flag(client):
     path = client.cfg.data_dir / "config.yaml"
     path.write_text(text(client.cfg).replace("  enabled: true\n", "  enabled: false\n  own_prs: no\n"))

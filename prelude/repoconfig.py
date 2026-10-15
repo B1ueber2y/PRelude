@@ -27,11 +27,21 @@ class RepoConfigError(ValueError):
     pass
 
 
-def _yaml() -> YAML:
+def _list_offset(text: str) -> int:
+    """How far the file indents a block list's dashes past its key (the default config uses 2)."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if (m := re.match(r"( *)- ", line)) and i and (k := re.match(r"( *)[^ #-][^:]*:\s*(#.*)?$", lines[i - 1])):
+            return max(0, len(m.group(1)) - len(k.group(1)))
+    return 2
+
+
+def _yaml(text: str = "") -> YAML:
     y = YAML()  # round-trip: comments, order and flow style survive
     y.preserve_quotes = True
     y.width = 4096
-    y.indent(mapping=2, sequence=4, offset=2)  # block lists as in the default config.yaml
+    offset = _list_offset(text)
+    y.indent(mapping=2, sequence=offset + 2, offset=offset)  # block lists as the file already writes them
     y.representer.add_representer(  # keep `null` written as null, not as an empty value
         type(None), lambda r, _: r.represent_scalar("tag:yaml.org,2002:null", "null")
     )
@@ -51,8 +61,9 @@ def _edit(cfg: Config, change: Callable[[CommentedMap], None]) -> TriggerConfig:
 
 def _edit_locked(cfg: Config, change: Callable[[CommentedMap], None]) -> TriggerConfig:
     path = cfg.data_dir / "config.yaml"
-    y = _yaml()
-    data = y.load(path.read_text()) or CommentedMap()
+    original = path.read_text()
+    y = _yaml(original)
+    data = y.load(original) or CommentedMap()
     triggers = data.get("triggers")
     if not isinstance(triggers, CommentedMap):
         triggers = data["triggers"] = CommentedMap()
