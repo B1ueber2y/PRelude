@@ -320,3 +320,18 @@ def test_reviews_with_new_reviewers_come_to_the_front(client, store):
     store.update_review(old, finished_at=time.time())  # reviewers just added
     page = client.get("/reviews/rows").text
     assert page.index("Older review") < page.index("Newer review")
+
+
+def test_all_view_tags_by_age_not_position(client, store):
+    client.post("/settings/latest-only", data={"on": "0"})
+    old = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(old, title="First look")
+    new = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(new, title="Second look")
+    store.update_review(old, finished_at=time.time() + 60)  # reviewers added to the old one: it sorts first
+    page = client.get("/reviews/rows").text
+    first, second = page.split("First look")[0], page.split("First look")[1]
+    assert page.index("First look") < page.index("Second look")
+    assert (
+        "earlier" in first.rsplit('class="card review-card', 1)[1] and "earlier" not in second.split("Second look")[0]
+    )

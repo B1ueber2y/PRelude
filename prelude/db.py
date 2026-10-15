@@ -307,7 +307,9 @@ class Store:
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
+                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total,"
+                " r.id = (SELECT MAX(x.id) FROM reviews x WHERE x.owner = r.owner AND x.repo = r.repo"
+                " AND x.number = r.number) AS newest"
                 f" FROM reviews r {where} ORDER BY COALESCE(r.pr_state, 'open') != 'open',"
                 " MAX(r.created_at, COALESCE(r.finished_at, 0)) DESC, r.id DESC LIMIT ?",
                 (limit,),
