@@ -142,3 +142,8 @@ def test_last_activity_counts_reviewers_added_later(client, store):
     store.update_review(rid, created_at=time.time() - 8 * 3600, finished_at=time.time() - 120)
     page = client.get("/repos").text
     assert "last 2 min ago" in page and "last 8 h ago" not in page
+
+
+def test_cap_toggle_says_it_is_for_your_own_prs(client):
+    page = client.get("/repos").text
+    assert "my PRs skip the cap" in page and "cap exempt" not in page.lower().replace("cap_exempt", "")
