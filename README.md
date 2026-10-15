@@ -16,9 +16,9 @@ Posting their output straight onto a pull request is noisy; pasting it into one 
 is unmanageable. PRelude treats an AI review the way we treat code: as a proposal that
 gets reviewed.
 
-Claude reads the pull request and proposes review comments. You are the meta-reviewer:
-like an area chair weighing a referee report, you go through each comment on your phone,
-push back where it's wrong, and decide what the author actually sees. It works the way
+Claude reads the pull request and proposes review comments. You are the meta-reviewer: you
+go through each comment, push back where it's wrong, and decide what the author actually
+sees. It works the way
 you'd review a change:
 
 | Code review              | PRelude                                              |
