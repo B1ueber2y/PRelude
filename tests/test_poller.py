@@ -203,3 +203,5 @@ def test_a_pr_being_reviewed_by_hand_is_not_reviewed_again(poller, reader, store
     rid = store.create_review("B1ueber2y", "PRelude", 1, "u", "manual (cli)")
     store.update_review(rid, status="running")
     assert poller.poll_once() == []
+    store.update_review(rid, status="failed")  # it didn't finish: the poller takes over next round
+    assert len(poller.poll_once()) == 1
