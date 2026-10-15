@@ -286,6 +286,7 @@ textarea { resize: none; line-height: 1.45; }
 .msg.claude { justify-self: start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 6px; }
 .msg.error { justify-self: start; background: var(--warn-bg); color: var(--warn-text); }
 .msg .prose { white-space: pre-wrap; }
+.msg.live { white-space: normal; }  /* the template's own line breaks must not add height */
 .live-text:empty { display: none; }
 .activity { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
 .verdict { margin-top: 8px; font-size: 0.82rem; font-weight: 600; }
@@ -670,3 +671,34 @@ kbd { font: 0.72rem var(--mono); padding: 0 5px; border: 1px solid var(--border)
   }
   .pane-actions .btn { min-height: 34px; font-size: 0.88rem; }
 }
+
+/* A PR's discussion space: threads with Claude */
+.discuss-link { align-items: center; color: var(--text); font-weight: 600; }
+.discuss-link > span:first-child { flex: 1; }
+.discuss-link .chev { color: var(--muted); }
+.chats { display: grid; gap: 10px; margin-top: 14px; }
+.chat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.chat > summary { list-style: none; cursor: pointer; }
+.chat > summary::-webkit-details-marker { display: none; }
+.chat-first { white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.chat[open] .chat-first { display: block; }
+.chat > summary .meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
+.chat[open] .unread { display: none; }
+.chat-replies { margin: 12px 0 0 6px; padding-left: 12px; border-left: 2px solid var(--border); }
+.chat-replies:not(:has(.msg, .error)) { display: none; }
+.chat .composer { margin-left: 6px; }
+.chat-delete { margin-top: 8px; }
+.new-thread { margin-top: 18px; }
+.chat-on { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; margin-bottom: 4px; }
+.chat-replies-wrap { margin-top: 12px; }
+.chat-replies-wrap .thread { margin-left: 6px; padding-left: 12px; border-left: 2px solid var(--border); }
+.chat-replies-wrap .composer { margin-left: 6px; }
+.chat-open { margin-top: 8px; }
+.tag.talk { display: inline-flex; align-items: center; gap: 4px; }
+.spinner.tiny { width: 9px; height: 9px; border-width: 1.5px; }
+.chat-comment { margin-top: 12px; font-size: 0.92rem; }
+.chat .loc { margin: 0; }
+.muted { color: var(--muted); font-weight: 400; }
+.chats + .section-title, .chats ~ .section-title { margin-top: 24px; }
+.chat-on .loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chat-on .tag, .chat-on .sev { flex-shrink: 0; white-space: nowrap; }

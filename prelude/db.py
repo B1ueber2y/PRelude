@@ -125,10 +125,43 @@ CREATE TABLE IF NOT EXISTS threads (
   session_id TEXT,
   busy INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS chats (         -- threads in a PR's discussion space
+  id INTEGER PRIMARY KEY,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  review_id INTEGER,                       -- the review it started from (kept if that review is deleted)
+  head_sha TEXT,                           -- the commit Claude sees
+  worktree TEXT,
+  base_session_id TEXT,                    -- the review's session, forked on the first reply
+  session_id TEXT,                         -- the thread's own session after that
+  busy INTEGER NOT NULL DEFAULT 0,
+  seen_at REAL NOT NULL DEFAULT 0,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chats_by_pr ON chats(owner, repo, number);
+CREATE INDEX IF NOT EXISTS messages_by_finding ON messages(finding_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY,
+  chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,                      -- user | assistant | error
+  content TEXT NOT NULL,
+  created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chat_messages_by_chat ON chat_messages(chat_id);
 """
 
 
 _NEWEST_PER_PR = "SELECT MAX(id) FROM reviews GROUP BY owner, repo, number"
+
+# A reply in a finding's discussion that came after you last looked at it.
+_UNREAD_FINDING_REPLY = (
+    "SELECT 1 FROM messages WHERE finding_id = {finding} AND role != 'user'"
+    " AND created_at > COALESCE((SELECT seen_at FROM threads WHERE finding_id = {finding}), 0)"
+)
 
 
 class Store:
@@ -152,6 +185,9 @@ class Store:
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
+            if "seen_at" not in {r[1] for r in c.execute("PRAGMA table_info(threads)")}:
+                _add_missing_columns(c, "threads", {"seen_at": "REAL NOT NULL DEFAULT 0"})
+                c.execute("UPDATE threads SET seen_at = ?", (time.time(),))  # older replies count as seen
             _add_missing_columns(
                 c,
                 "reviews",
@@ -281,14 +317,35 @@ class Store:
             return cur.rowcount == 1
 
     def delete_review(self, review_id: int) -> None:
-        """Remove a review and its findings and discussions (GitHub is not touched)."""
+        """Remove a review and its findings and discussions, and the PR's threads with its last review.
+
+        GitHub is not touched."""
         with self.connect() as c:
             c.execute("UPDATE reviews SET previous_review_id = NULL WHERE previous_review_id = ?", (review_id,))
+            pr = c.execute("SELECT owner, repo, number FROM reviews WHERE id = ?", (review_id,)).fetchone()
             c.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+            if (
+                pr
+                and not c.execute(
+                    "SELECT 1 FROM reviews WHERE owner = ? AND repo = ? AND number = ?", tuple(pr)
+                ).fetchone()
+            ):  # the PR's last review: nothing links to its discussion space any more
+                c.execute("DELETE FROM chats WHERE owner = ? AND repo = ? AND number = ?", tuple(pr))
+
+    def reviews_of_pr(self, owner: str, repo: str, number: int) -> int:
+        with self.connect() as c:
+            q = "SELECT COUNT(*) FROM reviews WHERE owner = ? AND repo = ? AND number = ?"
+            return c.execute(q, (owner, repo, number)).fetchone()[0]
 
     def worktrees_in_use(self) -> set[str]:
         with self.connect() as c:
-            return {r[0] for r in c.execute("SELECT DISTINCT worktree FROM reviews WHERE worktree IS NOT NULL")}
+            return {
+                r[0]
+                for r in c.execute(
+                    "SELECT worktree FROM reviews WHERE worktree IS NOT NULL"
+                    " UNION SELECT worktree FROM chats WHERE worktree IS NOT NULL"
+                )
+            }
 
     def latest_review_for(self, owner: str, repo: str, number: int, done_only: bool = True) -> sqlite3.Row | None:
         with self.connect() as c:
@@ -350,6 +407,7 @@ class Store:
                     (time.time(), rid),
                 )
             c.execute("UPDATE threads SET busy = 0")
+            c.execute("UPDATE chats SET busy = 0")
             return len(stale)
 
     # ---- findings ----------------------------------------------------------
@@ -581,6 +639,135 @@ class Store:
                 c.execute("UPDATE threads SET busy = 0, session_id = ? WHERE finding_id = ?", (session_id, finding_id))
             else:
                 c.execute("UPDATE threads SET busy = 0 WHERE finding_id = ?", (finding_id,))
+
+    # ---- PR discussion space -----------------------------------------------
+
+    def create_chat(self, review: sqlite3.Row) -> int:
+        now = time.time()
+        with self.connect() as c:
+            cur = c.execute(
+                "INSERT INTO chats (owner, repo, number, review_id, head_sha, worktree, base_session_id,"
+                " busy, seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+                (
+                    review["owner"],
+                    review["repo"],
+                    review["number"],
+                    review["id"],
+                    review["head_sha"],
+                    review["worktree"],
+                    review["claude_session_id"],
+                    now,
+                    now,
+                    now,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def get_chat(self, chat_id: int) -> sqlite3.Row | None:
+        with self.connect() as c:
+            return c.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+
+    def chats_for(self, owner: str, repo: str, number: int) -> list[sqlite3.Row]:
+        """Oldest first, with reply counts and whether there's a reply you haven't seen."""
+        with self.connect() as c:
+            return c.execute(
+                "SELECT c.*,"
+                " (SELECT content FROM chat_messages WHERE chat_id = c.id ORDER BY id LIMIT 1) AS first_message,"
+                " (SELECT COUNT(*) FROM chat_messages WHERE chat_id = c.id) - 1 AS replies,"
+                " (SELECT MAX(created_at) FROM chat_messages WHERE chat_id = c.id) AS last_at,"
+                " EXISTS (SELECT 1 FROM chat_messages WHERE chat_id = c.id AND role != 'user'"
+                " AND created_at > c.seen_at) AS unread"
+                " FROM chats c WHERE owner = ? AND repo = ? AND number = ? ORDER BY id",
+                (owner, repo, number),
+            ).fetchall()
+
+    def chat_unread(self) -> dict[tuple[str, str, int], int]:
+        """PR -> threads (its own, and findings' discussions) with a reply you haven't seen."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT owner, repo, number, COUNT(*) FROM ("
+                " SELECT owner, repo, number FROM chats c WHERE EXISTS (SELECT 1 FROM chat_messages"
+                " WHERE chat_id = c.id AND role != 'user' AND created_at > c.seen_at)"
+                " UNION ALL SELECT r.owner, r.repo, r.number FROM findings f JOIN reviews r ON r.id = f.review_id"
+                f" WHERE EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')})"
+                ") GROUP BY owner, repo, number"
+            )
+            return {(o, r, n): k for o, r, n, k in rows}
+
+    def update_chat(self, chat_id: int, **fields: Any) -> None:
+        fields["updated_at"] = time.time()
+        cols = ", ".join(f"{k} = ?" for k in fields)
+        with self.connect() as c:
+            c.execute(f"UPDATE chats SET {cols} WHERE id = ?", (*fields.values(), chat_id))
+
+    def try_lock_chat(self, chat_id: int) -> bool:
+        with self.connect() as c:
+            return c.execute("UPDATE chats SET busy = 1 WHERE id = ? AND busy = 0", (chat_id,)).rowcount == 1
+
+    def release_chat(self, chat_id: int, session_id: str | None = None) -> None:
+        with self.connect() as c:
+            c.execute(
+                "UPDATE chats SET busy = 0, session_id = COALESCE(?, session_id), updated_at = ? WHERE id = ?",
+                (session_id, time.time(), chat_id),
+            )
+
+    def delete_chat(self, chat_id: int) -> None:
+        with self.connect() as c:
+            c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+
+    def add_chat_message(self, chat_id: int, role: str, content: str) -> int:
+        with self.connect() as c:
+            cur = c.execute(
+                "INSERT INTO chat_messages (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                (chat_id, role, content, time.time()),
+            )
+            return int(cur.lastrowid)
+
+    def chat_messages(self, chat_id: int) -> list[sqlite3.Row]:
+        with self.connect() as c:
+            return c.execute("SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY id", (chat_id,)).fetchall()
+
+    _COMMENT_THREAD = (
+        "SELECT f.*, r.id AS review_id,"
+        " (SELECT COUNT(*) FROM messages WHERE finding_id = f.id) AS messages,"
+        " (SELECT MAX(created_at) FROM messages WHERE finding_id = f.id) AS last_at,"
+        " COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0) AS busy,"
+        f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) AS unread"
+        " FROM findings f JOIN reviews r ON r.id = f.review_id"
+    )
+
+    def comment_threads(self, owner: str, repo: str, number: int) -> list[sqlite3.Row]:
+        """The newest finished review's live comments (to review or in your draft) and every comment
+        you discussed, with their discussion's state: first the ones that need a look, then by latest message."""
+        with self.connect() as c:
+            return c.execute(
+                self._COMMENT_THREAD + " WHERE r.owner = ? AND r.repo = ? AND r.number = ?"
+                " AND ((f.status IN ('pending', 'drafted') AND r.id = (SELECT MAX(id) FROM reviews"
+                "  WHERE owner = r.owner AND repo = r.repo AND number = r.number AND status = 'done'))"
+                "  OR EXISTS (SELECT 1 FROM messages WHERE finding_id = f.id))"
+                " ORDER BY busy OR unread DESC, last_at IS NULL, last_at DESC, r.id, f.ordinal",
+                (owner, repo, number),
+            ).fetchall()
+
+    def comment_thread(self, finding_id: int) -> sqlite3.Row | None:
+        """One finding with its discussion's state, live or not."""
+        with self.connect() as c:
+            return c.execute(self._COMMENT_THREAD + " WHERE f.id = ?", (finding_id,)).fetchone()
+
+    def discussion_state(self, review_id: int) -> dict[int, str]:
+        """Finding -> "replying" or "new reply", for findings whose discussion needs a look."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT f.id, COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0),"
+                f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) FROM findings f WHERE f.review_id = ?",
+                (review_id,),
+            )
+            return {fid: "replying" if busy else "new reply" for fid, busy, unread in rows if busy or unread}
+
+    def mark_thread_seen(self, finding_id: int) -> None:
+        with self.connect() as c:
+            c.execute("INSERT OR IGNORE INTO threads (finding_id, busy) VALUES (?, 0)", (finding_id,))
+            c.execute("UPDATE threads SET seen_at = ? WHERE finding_id = ?", (time.time(), finding_id))
 
 
 def _alive(pid: int | None) -> bool:

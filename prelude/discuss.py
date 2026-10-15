@@ -9,7 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import claude, memory_agent
+from . import claude, memory_agent, notify
 from .config import Config
 from .db import Store
 from .memory import Memory
@@ -69,8 +69,10 @@ def current_draft(finding) -> str:
     return finding["user_draft"] if finding["user_draft"] is not None else finding["claude_comment"]
 
 
-def post_message(store: Store, cfg: Config, broker: Broker, finding_id: int, text: str) -> threading.Thread:
-    """Store the reviewer's message and start Claude's reply in the background."""
+def post_message(
+    store: Store, cfg: Config, broker: Broker, finding_id: int, text: str, *, ping: bool = True
+) -> threading.Thread:
+    """Store the reviewer's message and start Claude's reply in the background (`ping`: notify when ready)."""
     text = text.strip()
     if not text:
         raise ValueError("empty message")
@@ -107,7 +109,7 @@ def post_message(store: Store, cfg: Config, broker: Broker, finding_id: int, tex
 
     t = threading.Thread(
         target=_reply,
-        args=(store, cfg, broker, finding_id, prompt, Path(review["worktree"]), resume, fork),
+        args=(store, cfg, broker, finding_id, prompt, Path(review["worktree"]), resume, fork, ping),
         daemon=True,
         name=f"discuss-{finding_id}",
     )
@@ -124,6 +126,7 @@ def _reply(
     worktree: Path,
     resume: str,
     fork: bool,
+    ping: bool = True,
 ) -> None:
     session_id = None
     changed_mind = False
@@ -154,6 +157,11 @@ def _reply(
     finally:
         store.release_thread(finding_id, session_id)
         broker.publish(finding_id, final)
+    finding = store.get_finding(finding_id)
+    review = store.get_review(finding["review_id"]) if finding else None
+    if ping and review:  # you may have left: tell you it's ready
+        pr = (review["owner"], review["repo"], review["number"])
+        notify.reply_ready(cfg.notify, pr, review["title"], final.kind == "done", f"/findings/{finding_id}")
     if changed_mind:
         # The reviewer changed Claude's mind: maybe a lasting preference.
         memory_agent.learn_from_finding(store, cfg, finding_id, "discuss")

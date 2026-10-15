@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
-import queue
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response
 
 from .. import drafting
-from ..discuss import DiscussionBusy, post_message
+from ..discuss import DiscussionBusy, current_draft, post_message
 from ..drafts import DraftError
-from .context import WebDep
+from .context import WebDep, event_stream
 from .reviews import _pick
 
 router = APIRouter()
@@ -22,7 +20,9 @@ REFRESH = {"HX-Refresh": "true"}
 
 @router.get("/findings/{finding_id}", response_class=HTMLResponse)
 def finding_page(w: WebDep, request: Request, finding_id: int):
-    return w.render(request, "finding.html", w.finding_context(finding_id))
+    ctx = w.finding_context(finding_id)
+    w.store.mark_thread_seen(finding_id)
+    return w.render(request, "finding.html", ctx)
 
 
 @router.get("/findings/{finding_id}/code", response_class=HTMLResponse)
@@ -149,8 +149,32 @@ def github_remove(w: WebDep, request: Request, finding_id: int):
 
 
 @router.get("/findings/{finding_id}/thread", response_class=HTMLResponse)
-def thread(w: WebDep, request: Request, finding_id: int):
+def thread(w: WebDep, request: Request, finding_id: int, open: bool = True):
+    """`open` is false for a folded thread on the PR's discussion page: not seen yet."""
+    if open:
+        w.store.mark_thread_seen(finding_id)
+    if request.query_params.get("open") is not None:  # folded or not, it's on the PR's discussion page
+        return _inline_thread(w, request, finding_id, open=open)
     return w.render(request, "_thread.html", w.finding_context(finding_id))
+
+
+def _inline_thread(w, request: Request, finding_id: int, *, open: bool, **extra) -> HTMLResponse:
+    f = w.finding_or_404(finding_id)
+    ctx = {
+        "f": w.store.comment_thread(finding_id),
+        "messages": w.store.messages_for(finding_id),
+        "draft": current_draft(f),
+        "open": open,
+        **extra,
+    }
+    return w.render(request, "_finding_thread.html", ctx)
+
+
+@router.post("/findings/{finding_id}/seen")
+def seen(w: WebDep, finding_id: int):
+    w.finding_or_404(finding_id)
+    w.store.mark_thread_seen(finding_id)
+    return Response(status_code=204)
 
 
 @router.post("/findings/{finding_id}/messages", response_class=HTMLResponse)
@@ -161,6 +185,9 @@ def send_message(w: WebDep, request: Request, finding_id: int, text: str = Form(
         extra = {}
     except (ValueError, DiscussionBusy) as e:
         extra = {"error": str(e), "draft_message": text}
+    w.store.mark_thread_seen(finding_id)
+    if request.headers.get("X-Inline") == "1":  # on the PR's discussion page
+        return _inline_thread(w, request, finding_id, open=True, **extra)
     return w.render(request, "_thread.html", w.finding_context(finding_id, **extra))
 
 
@@ -175,29 +202,9 @@ def busy(w: WebDep, finding_id: int):
 @router.get("/findings/{finding_id}/stream")
 def stream(w: WebDep, finding_id: int):
     w.finding_or_404(finding_id)
-    q = w.broker.subscribe(finding_id)
 
-    def events():
-        try:
-            yield "retry: 3000\n\n"
-            while True:
-                try:
-                    ev = q.get(timeout=15)
-                except queue.Empty:
-                    t = w.store.thread(finding_id)
-                    if not (t and t["busy"]):
-                        yield "event: done\ndata: {}\n\n"
-                        return
-                    yield ": keepalive\n\n"
-                    continue
-                yield f"event: {ev.kind}\ndata: {json.dumps(ev.data)}\n\n"
-                if ev.kind in ("done", "error"):
-                    return
-        finally:
-            w.broker.unsubscribe(finding_id, q)
+    def busy() -> bool:
+        t = w.store.thread(finding_id)
+        return bool(t and t["busy"])
 
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return event_stream(w.broker, finding_id, busy)

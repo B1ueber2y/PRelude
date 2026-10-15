@@ -1,0 +1,40 @@
+{# One thread of a PR's discussion space: your first message, then the replies under it. #}
+<details class="chat" id="chat-{{ c.id }}" {{ 'open' if open }}
+         hx-post="/chats/{{ c.id }}/seen" hx-trigger="toggle[this.open]" hx-swap="none">
+  <summary>
+    <div class="chat-first">{{ c.first_message }}</div>
+    <div class="meta">
+      {%- if c.busy %}<span class="spinner small" aria-hidden="true"></span> Claude is replying…
+      {%- elif c.replies > 0 %}{{ c.replies }} repl{{ 'y' if c.replies == 1 else 'ies' }} · {{ (c.last_at or c.created_at) | ago }}
+      {%- else %}{{ c.created_at | ago }}{% endif %}
+      {%- if c.unread and not c.busy %} <span class="tag accent unread">new reply</span>{% endif -%}
+    </div>
+  </summary>
+  <div class="thread chat-replies" data-busy="{{ 1 if c.busy else 0 }}" data-base="/chats/{{ c.id }}"
+       data-target="#chat-{{ c.id }}" data-swap="outerHTML">
+    {% for m in messages[1:] %}
+      {% if m.role == 'user' %}
+      <div class="msg me">{{ m.content }}</div>
+      {% elif m.role == 'assistant' %}
+      <div class="msg claude"><div class="prose">{{ m.content | text }}</div></div>
+      {% else %}
+      <div class="msg error">Claude couldn't reply: {{ m.content }}</div>
+      {% endif %}
+    {% endfor %}
+    {% if c.busy %}
+    <div class="msg claude live" aria-live="polite">
+      <div class="prose live-text"></div>
+      <div class="activity"><span class="spinner small" aria-hidden="true"></span> <span class="activity-text">Claude is thinking…</span></div>
+    </div>
+    {% endif %}
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  </div>
+  <form class="composer" hx-post="/chats/{{ c.id }}/messages" hx-target="#chat-{{ c.id }}" hx-swap="outerHTML">
+    <textarea name="text" rows="1" class="autogrow" placeholder="Reply in thread" {{ 'disabled' if c.busy }} required>{{ draft_message or '' }}</textarea>
+    <button class="btn primary" type="submit" {{ 'disabled' if c.busy }}>Send</button>
+  </form>
+  {% if not c.busy %}
+  <button class="btn small ghost danger chat-delete" hx-post="/chats/{{ c.id }}/delete" hx-target="#chat-{{ c.id }}"
+          hx-swap="outerHTML" hx-confirm="Delete this thread?">Delete thread</button>
+  {% endif %}
+</details>

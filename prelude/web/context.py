@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import math
+import queue
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from functools import cache, lru_cache
 from html import escape
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from .. import triage
@@ -84,6 +85,7 @@ class Web:
     add_reviewers: Callable[[int, int], None]
     learn: Callable[[int, str], object]
     broker: Broker = field(default_factory=Broker)
+    chat_broker: Broker = field(default_factory=Broker)
     templates: Jinja2Templates = field(default_factory=make_templates)
 
     def __post_init__(self) -> None:
@@ -189,6 +191,35 @@ class Web:
         return triage.set_wording(
             self.store, self.cfg, self.writer, finding_id, text, learn=self.learn if learn else None
         )
+
+
+def event_stream(broker: Broker, key: int, busy: Callable[[], bool]) -> StreamingResponse:
+    """Server-Sent Events of a reply in progress; ends with "done" or "error"."""
+    q = broker.subscribe(key)
+
+    def events() -> Iterator[str]:
+        try:
+            yield "retry: 3000\n\n"
+            while True:
+                try:
+                    ev = q.get(timeout=15)
+                except queue.Empty:
+                    if not busy():
+                        yield "event: done\ndata: {}\n\n"
+                        return
+                    yield ": keepalive\n\n"
+                    continue
+                yield f"event: {ev.kind}\ndata: {json.dumps(ev.data)}\n\n"
+                if ev.kind in ("done", "error"):
+                    return
+        finally:
+            broker.unsubscribe(key, q)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 def web(request: Request) -> Web:

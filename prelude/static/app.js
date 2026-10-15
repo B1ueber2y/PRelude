@@ -1,40 +1,44 @@
 // PRelude: the little JavaScript the server-rendered pages need.
-// - stream Claude's discussion replies (Server-Sent Events)
+// - stream Claude's discussion replies (Server-Sent Events), several threads at once
 // - grow text areas with their content
 // - focus the discussion box from the action bar
 
 (function () {
   "use strict";
 
-  let source = null;
-  let watchdog = null;
+  const streams = {};  // thread URL -> its live reply stream
 
   function autogrow(el) {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight + 2, window.innerHeight * 0.5) + "px";
   }
 
-  function closeStream() {
-    if (source) {
-      source.close();
-      source = null;
-    }
-    if (watchdog) {
-      clearInterval(watchdog);
-      watchdog = null;
-    }
+  function closeStream(base) {
+    const s = streams[base];
+    if (!s) return;
+    s.source.close();
+    clearInterval(s.watchdog);
+    delete streams[base];
   }
 
-  function refreshThread(findingId) {
-    htmx.ajax("GET", "/findings/" + findingId + "/thread", { target: "#thread-" + findingId, swap: "innerHTML" });
+  function closeStreams() {
+    Object.keys(streams).forEach(closeStream);
+  }
+
+  // A thread (a finding's discussion, or one in a PR's discussion space) says where it lives:
+  // data-base is its URL, data-target/data-swap where its fresh HTML goes.
+  function refreshThread(thread) {
+    const details = thread.closest("details");
+    const open = details ? (details.open ? "?open=1" : "?open=0") : "";
+    htmx.ajax("GET", thread.dataset.base + "/thread" + open, { target: thread.dataset.target, swap: thread.dataset.swap });
   }
 
   function startStream(thread) {
-    const findingId = thread.dataset.findingId;
+    const base = thread.dataset.base;
     const live = thread.querySelector(".live-text");
     const activity = thread.querySelector(".activity-text");
-    closeStream();
-    source = new EventSource("/findings/" + findingId + "/stream");
+    closeStream(base);
+    const source = new EventSource(base + "/stream");
     let text = "";
     source.addEventListener("text", function (e) {
       const chunk = JSON.parse(e.data);
@@ -56,20 +60,27 @@
     function finish() {
       if (finished) return;
       finished = true;
-      closeStream();
-      refreshThread(findingId);
+      closeStream(base);
+      refreshThread(thread);
     }
     // Don't depend only on the stream's last event: it can get lost on the way to a phone.
-    watchdog = setInterval(function () {
-      fetch("/findings/" + findingId + "/busy", { credentials: "same-origin" })
+    const watchdog = setInterval(function () {
+      fetch(base + "/busy", { credentials: "same-origin" })
         .then(function (r) { return r.json(); })
         .then(function (d) { if (!d.busy) finish(); })
         .catch(function () {});
     }, 3000);
+    streams[base] = { source: source, watchdog: watchdog };
     source.addEventListener("done", finish);
     source.addEventListener("error", function (e) {
       // Server-sent "error" events carry data; connection errors don't.
       if (e.data !== undefined || source.readyState === EventSource.CLOSED) finish();
+    });
+  }
+
+  function streamBusyThreads() {
+    document.querySelectorAll('.thread[data-busy="1"]').forEach(function (thread) {
+      if (!streams[thread.dataset.base]) startStream(thread);
     });
   }
 
@@ -78,8 +89,7 @@
       autogrow(el);
       el.addEventListener("input", function () { autogrow(el); });
     });
-    const thread = document.querySelector(".thread");
-    if (thread && thread.dataset.busy === "1") startStream(thread);
+    streamBusyThreads();
     const selected = root.querySelector(".frow.selected");  // laptop split view: show it in the list
     if (selected) selected.scrollIntoView({ block: "nearest" });
   }
@@ -97,13 +107,13 @@
   document.addEventListener("DOMContentLoaded", function () { checkAssets(); init(document); });
   document.addEventListener("htmx:afterSettle", checkAssets);
   document.addEventListener("htmx:load", function (e) { init(e.target); });
-  document.addEventListener("htmx:beforeHistorySave", closeStream);
+  document.addEventListener("htmx:beforeHistorySave", closeStreams);
 
   // Coming back to the app (e.g. from Termius): pick up a reply that finished meanwhile.
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") return;
-    const thread = document.querySelector(".thread");
-    if (thread && thread.dataset.busy === "1") startStream(thread);
+    closeStreams();  // the phone may have cut them while away
+    streamBusyThreads();
   });
 
   document.addEventListener("click", function (e) {
@@ -156,9 +166,9 @@
     if (button && !button.disabled) { e.preventDefault(); button.click(); }
   });
 
-  // Send with Cmd/Ctrl+Enter from the discussion box.
+  // Send with Cmd/Ctrl+Enter from a discussion box.
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.target.id === "composer-input") {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.target.closest("form.composer")) {
       e.preventDefault();
       htmx.trigger(e.target.form, "submit");
     }
