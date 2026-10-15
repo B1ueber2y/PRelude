@@ -123,3 +123,11 @@ def test_bad_input_changes_nothing(client, data):
     before = text(client.cfg)
     page = client.post("/repos", data=data).text
     assert 'class="error"' in page and text(client.cfg) == before
+
+
+def test_legend_says_when_own_prs_are_reviewed(client):
+    page = client.get("/repos").text
+    assert "when someone asks for your review, plus your own PRs" in page and "not even your own PRs" in page
+    client.cfg.triggers.own_prs = False
+    page = client.get("/repos").text
+    assert "plus your own PRs" not in page and "<strong>never</strong>: nothing" in page
