@@ -52,7 +52,7 @@ def test_single_reviewer(cfg, store, checkout, fake_claude, monkeypatch):
     rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
     review.run_review(store, cfg, rid, github=FakeReader())
     r = store.get_review(rid)
-    assert r["status"] == "done" and r["reports"] is None
+    assert r["status"] == "done" and r["reports"] is None and r["finished_at"]
     (f,) = store.findings_for(rid)
     assert f["in_diff"] and f["found_by"] is None
     assert len(runs(fake_claude)) == 1
@@ -134,7 +134,7 @@ def test_add_reviewers_merges_into_existing_review(cfg, store, done_review, fake
     review.add_reviewers(store, cfg, done_review, 2, github=FakeReader())
 
     r = store.get_review(done_review)
-    assert r["reviewers"] == 5 and r["progress"] is None and r["error"] is None
+    assert r["reviewers"] == 5 and r["progress"] is None and r["error"] is None and r["finished_at"]
     rows = {f["title"]: f for f in store.findings_for(done_review)}
     assert rows["Missing token is accepted"]["found_by"] == 5  # 3 before + 2 new reviewers
     assert rows["Brand new problem"]["added_later"] == 1

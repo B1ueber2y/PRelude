@@ -107,6 +107,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
             "new_commits": _has_new_commits(w, r),
             "leftovers": prstate.leftovers(findings),
+            "max_more": MAX_MORE,
         },
     )
 
@@ -132,10 +133,19 @@ def _has_new_commits(w: Web, r) -> bool:
     return bool(seen and r["head_sha"] and seen["head_sha"] and seen["head_sha"] != r["head_sha"])
 
 
+MAX_MORE = 10
+
+
 @router.post("/reviews/{review_id}/more")
-def more_reviewers(w: WebDep, review_id: int, n: int = Form(1)):
+def more_reviewers(w: WebDep, request: Request, review_id: int, n: int = Form(1)):
     w.review_or_404(review_id)
-    n = max(1, min(5, n))
+    if (asked := request.headers.get("HX-Prompt")) is not None:  # the +N button
+        if not asked.strip():
+            return Response(status_code=204)  # cancelled
+        if not asked.strip().isdigit() or not 1 <= int(asked) <= MAX_MORE:
+            return w.flash(f"Enter a number from 1 to {MAX_MORE}.")
+        n = int(asked)
+    n = max(1, min(MAX_MORE, n))
     if not w.store.try_mark_busy(review_id, f"Adding {n} reviewer{'s' if n > 1 else ''}"):
         return w.flash("This review is busy; try again when it's finished.")
     threading.Thread(target=w.add_reviewers, args=(review_id, n), daemon=True, name=f"more-{review_id}").start()

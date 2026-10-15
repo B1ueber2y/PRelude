@@ -35,7 +35,7 @@
       <div class="meta">
         {%- if r.status == 'done' %}{{ r.total }} finding{{ '' if r.total == 1 else 's' }} · {% endif -%}
         {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% else %}Auto reviewers · {% endif -%}
-        {{ r.created_at | ago }}
+        {{ (r.finished_at or r.created_at) | ago }}
       </div>
       {% if r.status == 'running' and r.progress %}<div class="meta progress-line">{{ r.progress }}…</div>{% endif %}
     </a>

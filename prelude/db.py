@@ -161,6 +161,7 @@ class Store:
                     "changed_lines": "INTEGER",
                     "runner_pid": "INTEGER",
                     "previous_review_id": "INTEGER",
+                    "finished_at": "REAL",  # last time it finished: the review, or reviewers added later
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
                     "error_detail": "TEXT",

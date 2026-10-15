@@ -277,3 +277,32 @@ def test_home_shows_each_prs_newest_review_unless_all(client, store):
     assert client.post("/settings/latest-only", data={"on": "0"}).status_code == 204
     page = client.get("/reviews/rows").text
     assert all(t in page for t in ("First look", "Second look", "Other PR")) and "+1 older" not in page
+
+
+def test_plus_n_asks_how_many_reviewers(cfg, store, done_review):
+    started = []
+    c = TestClient(
+        create_app(
+            cfg,
+            store,
+            review_runner=lambda _id: None,
+            learner=lambda *a: None,
+            more_runner=lambda rid, n: started.append(n),
+        )
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    page = c.get(f"/reviews/{done_review}").text
+    assert all(f">+{n}</button>" in page for n in (1, 2, 3, "N"))
+    assert "Enter a number" in c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "50"}).text
+    assert "Enter a number" in c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "two"}).text
+    c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "7"})
+    time.sleep(0.1)
+    assert started == [7]
+
+
+def test_home_card_shows_when_the_review_last_finished(client, store, done_review):
+    store.update_review(done_review, created_at=time.time() - 3 * 3600)
+    assert "3 h ago" in client.get("/reviews/rows").text
+    store.update_review(done_review, finished_at=time.time() - 120)
+    page = client.get("/reviews/rows").text
+    assert "2 min ago" in page and "3 h ago" not in page
