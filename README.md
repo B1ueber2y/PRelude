@@ -225,7 +225,8 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
 ## Contributing
 
 Open-source contributions and discussions are welcome here on GitHub at any time: open an
-issue or a pull request. To run the checks locally:
+issue or a pull request. PRelude is released under the [MIT License](LICENSE). To run the
+checks locally:
 
 ```bash
 .venv/bin/pytest
