@@ -18,9 +18,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = """\
 # PRelude configuration.
 
-# Development guard: while set, PRelude refuses to read, review or write any
-# GitHub repository except this one. Remove (or set to "") to lift it.
-only_repo: B1ueber2y/PRelude
+# Optional guard: set to OWNER/REPO and PRelude refuses to read, review or write any
+# other GitHub repository (useful while trying it out).
+only_repo: null
 
 # Claude settings. `model: null` uses Claude Code's default model.
 claude:
@@ -76,7 +76,7 @@ triggers:
 notify:
   ntfy_topic: null
   details: ref                    # none, ref (owner/repo#123) or full (also the PR title); ntfy.sh is public
-  open_url: http://localhost:8787
+  open_url: http://127.0.0.1:8787
 
 server:
   host: 127.0.0.1
@@ -221,7 +221,7 @@ def load_config(data_dir: Path | None = None) -> Config:
             ntfy_topic=(raw.get("notify") or {}).get("ntfy_topic") or None,
             ntfy_server=str((raw.get("notify") or {}).get("ntfy_server", "https://ntfy.sh")),
             details=_notify_details(raw.get("notify") or {}),
-            open_url=str((raw.get("notify") or {}).get("open_url", "http://localhost:8787")),
+            open_url=str((raw.get("notify") or {}).get("open_url", "http://127.0.0.1:8787")),
         ),
         max_inline_diff_chars=int(raw.get("max_inline_diff_chars", 150_000)),
         raw=raw,

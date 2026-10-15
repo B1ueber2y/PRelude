@@ -145,7 +145,8 @@ python3 -m venv .venv
 ```
 
 Data (database, checkouts, memory, config) lives in `.prelude-data/` unless `PRELUDE_HOME`
-is set; settings are in `.prelude-data/config.yaml`.
+is set; settings are in `.prelude-data/config.yaml`. To try PRelude on a single repo
+first, set `only_repo: OWNER/REPO` there; it then refuses every other repository.
 
 ### 2. Start it
 
@@ -158,8 +159,11 @@ PRelude serves its web UI on `127.0.0.1:8787` only, and runs nothing until you s
 
 ### 3. Open it on a computer
 
-Run `.venv/bin/prelude url` and open the link it prints. It sets a cookie, so afterwards
-`http://localhost:8787` is enough in that browser.
+Run `.venv/bin/prelude url` and open the link it prints
+(`http://127.0.0.1:8787/?key=…`). It sets a cookie for that address, so afterwards
+`http://127.0.0.1:8787` is enough in that browser (`localhost` counts as a different
+address). On a laptop the review page is a split view: the findings on the left, the
+selected one on the right; `j`/`k` move between them and `a`/`e`/`d` add, edit or discard.
 
 If PRelude runs on another machine (say a desktop at work), forward the port from your
 laptop and use the same link:
@@ -172,9 +176,11 @@ ssh -L 8787:127.0.0.1:8787 you@that-machine
 
 1. **Reach it privately.** PRelude never listens on the network. Forward the port from the
    phone: in an SSH app such as Termius, add the machine as a host and a *local port
-   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps); or use another private
-   tunnel such as `tailscale serve`.
-2. **Unlock it once.** Open the `prelude url` link in the phone's browser.
+   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps). Or use `tailscale serve`
+   on the machine and set `server.allowed_tailscale_user` to your Tailscale login.
+2. **Unlock it once.** Open the `prelude url` link in the phone's browser. With
+   `tailscale serve`, keep the `?key=…` part but replace `http://127.0.0.1:8787` with the
+   machine's Tailscale address, and set `notify.open_url` to that address too.
 3. **Add it to the home screen.** iPhone: Safari → Share → *Add to Home Screen*. Android:
    Chrome → ⋮ → *Add to Home screen*. It then opens like an app.
 4. **Notifications (optional).** Run `.venv/bin/prelude notify-setup`, subscribe to the

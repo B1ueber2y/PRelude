@@ -17,7 +17,7 @@ class NotifyConfig:
     ntfy_topic: str | None = None
     ntfy_server: str = "https://ntfy.sh"
     details: str = "ref"  # none | ref (owner/repo#number) | full (also the PR title)
-    open_url: str = "http://localhost:8787"
+    open_url: str = "http://127.0.0.1:8787"
 
 
 def new_topic() -> str:

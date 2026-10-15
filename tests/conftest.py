@@ -38,7 +38,9 @@ def never_real_claude(monkeypatch):
 
 @pytest.fixture
 def cfg(tmp_path):
-    return load_config(tmp_path / "data")
+    cfg = load_config(tmp_path / "data")
+    cfg.only_repo = "B1ueber2y/PRelude"  # tests stay on this repo, as an extra guard
+    return cfg
 
 
 @pytest.fixture
