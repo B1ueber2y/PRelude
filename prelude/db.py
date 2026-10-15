@@ -308,7 +308,7 @@ class Store:
             ).fetchall()
 
     def earlier_reviews(self) -> dict[tuple[str, str, int], tuple[int, int]]:
-        """Per PR: how many reviews are older than its newest, and their findings still to go."""
+        """Per PR: how many reviews are older than its newest, and their findings still to do."""
         with self.connect() as c:
             rows = c.execute(
                 "SELECT r.owner, r.repo, r.number, COUNT(*),"

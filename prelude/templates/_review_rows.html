@@ -15,13 +15,13 @@
         {% if r.previous_review_id %}<span class="tag accent">Re-review · {{ 'changes only' if r.mode == 'changes' else 'full' }}</span>{% endif %}
         {% if older %}<span class="tag">earlier</span>{% endif %}
         {% set hidden = earlier.get((r.owner, r.repo, r.number)) if earlier else None %}
-        {% if hidden %}<span class="tag{{ ' warn' if hidden[1] and not closed }}">+{{ hidden[0] }} older{% if hidden[1] and not closed %} · {{ hidden[1] }} still open{% endif %}</span>{% endif %}
+        {% if hidden %}<span class="tag{{ ' warn' if hidden[1] and not closed }}">+{{ hidden[0] }} older{% if hidden[1] and not closed %} · {{ hidden[1] }} to do{% endif %}</span>{% endif %}
         {% if closed %}<span class="tag pr-{{ r.pr_state }}">{{ r.pr_state | capitalize }}</span>{% endif %}
         <span class="status status-{{ r.status }}{{ ' status-clean' if r.status == 'done' and r.total == 0 }}">
           {%- if r.status == 'done' -%}
             {%- if closed and (r.pending or r.drafted) -%}{{ r.pending + r.drafted }} unposted
             {%- elif r.total == 0 -%}Clean ✓
-            {%- elif r.pending -%}{{ r.pending }} to go
+            {%- elif r.pending -%}{{ r.pending }} to do
             {%- elif r.drafted -%}{{ r.drafted }} in draft
             {%- elif r.posted -%}{{ r.posted }} posted ✓
             {%- else -%}Done{%- endif -%}
