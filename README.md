@@ -2,6 +2,10 @@
 
 **Review the AI review comments before they reach the author.**
 
+A harness around [Claude Code](https://claude.com/claude-code): Claude Code does the
+reviewing, under your own login; PRelude adds the workflow around it (see
+[Built on Claude Code](#built-on-claude-code)).
+
 <p align="center">
   <img src="docs/images/home.png" width="250" alt="The review list, one card per PR">
   <img src="docs/images/review.png" width="250" alt="A review: summary, actions and the first finding with its code">
