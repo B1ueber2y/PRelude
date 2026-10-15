@@ -126,7 +126,7 @@
   <details class="more">
     <summary aria-label="More">⋯</summary>
     <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
-            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}">Delete review</button>
+            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}{% if takes_threads and threads %} It is the last review of this PR, so its {{ threads | length }} discussion thread(s) are deleted too.{% endif %}">Delete review</button>
   </details>
   {% endif %}
 </div>

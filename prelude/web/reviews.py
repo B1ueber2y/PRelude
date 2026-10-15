@@ -119,6 +119,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "leftovers": prstate.leftovers(findings),
             "max_more": MAX_MORE,
             "threads": w.store.chats_for(r["owner"], r["repo"], r["number"]),
+            "takes_threads": _takes_threads(w, r),
         },
     )
 
@@ -226,11 +227,18 @@ def clear_leftovers(w: WebDep, review_id: int):
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
+def _takes_threads(w: Web, r) -> bool:
+    """Deleting the PR's last review deletes its discussion threads too."""
+    return w.store.reviews_of_pr(r["owner"], r["repo"], r["number"]) == 1
+
+
 @router.post("/reviews/{review_id}/delete")
 def delete_review(w: WebDep, review_id: int):
     r = w.review_or_404(review_id)
     if r["status"] in ("queued", "running") or r["progress"]:
         return w.flash("This review is still running; delete it when it's finished.")
+    if _takes_threads(w, r) and any(c["busy"] for c in w.store.chats_for(r["owner"], r["repo"], r["number"])):
+        return w.flash("Claude is still replying in a discussion thread of this PR; delete it when it's done.")
     w.store.delete_review(review_id)  # its checkout is pruned later, once no review uses it
     return Response(status_code=204, headers={"HX-Redirect": "/"})
 

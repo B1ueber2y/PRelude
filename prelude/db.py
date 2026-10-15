@@ -321,6 +321,11 @@ class Store:
             ):  # the PR's last review: nothing links to its discussion space any more
                 c.execute("DELETE FROM chats WHERE owner = ? AND repo = ? AND number = ?", tuple(pr))
 
+    def reviews_of_pr(self, owner: str, repo: str, number: int) -> int:
+        with self.connect() as c:
+            q = "SELECT COUNT(*) FROM reviews WHERE owner = ? AND repo = ? AND number = ?"
+            return c.execute(q, (owner, repo, number)).fetchone()[0]
+
     def worktrees_in_use(self) -> set[str]:
         with self.connect() as c:
             return {

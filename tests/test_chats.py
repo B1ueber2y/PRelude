@@ -143,3 +143,15 @@ def test_threads_go_with_the_prs_last_review(store, done_review):
     assert store.get_chat(chat_id) is not None  # still reachable from the other review
     store.delete_review(again)
     assert store.get_chat(chat_id) is None
+
+
+def test_deleting_the_last_review_warns_and_waits_for_replies(client, done_review, store):  # noqa: F811
+    chat_id = store.create_chat(store.get_review(done_review))
+    store.add_chat_message(chat_id, "user", "Hi")
+    assert "1 discussion thread(s) are deleted too" in client.get(f"/reviews/{done_review}").text
+    store.update_chat(chat_id, busy=1)
+    assert "still replying" in client.post(f"/reviews/{done_review}/delete").text
+    assert store.get_review(done_review) is not None
+    store.release_chat(chat_id)
+    client.post(f"/reviews/{done_review}/delete")
+    assert store.get_chat(chat_id) is None
