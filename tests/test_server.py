@@ -277,3 +277,61 @@ def test_home_shows_each_prs_newest_review_unless_all(client, store):
     assert client.post("/settings/latest-only", data={"on": "0"}).status_code == 204
     page = client.get("/reviews/rows").text
     assert all(t in page for t in ("First look", "Second look", "Other PR")) and "+1 older" not in page
+
+
+def test_plus_n_asks_how_many_reviewers(cfg, store, done_review):
+    started = []
+    c = TestClient(
+        create_app(
+            cfg,
+            store,
+            review_runner=lambda _id: None,
+            learner=lambda *a: None,
+            more_runner=lambda rid, n: started.append(n),
+        )
+    )
+    c.cookies.set(COOKIE, cfg.access_key())
+    page = c.get(f"/reviews/{done_review}").text
+    assert all(f">+{n}</button>" in page for n in (1, 2, 3, "N"))
+    assert "Enter a number" in c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "50"}).text
+    for bad in ("two", "²", "0"):  # "²".isdigit() is True, but int() rejects it
+        page = c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": bad.encode("latin-1")}).text
+        assert "Enter a number" in page
+    c.post(f"/reviews/{done_review}/more", headers={"HX-Prompt": "7"})
+    time.sleep(0.1)
+    assert started == [7]
+
+
+def test_home_card_shows_when_the_review_last_finished(client, store, done_review):
+    store.update_review(done_review, created_at=time.time() - 3 * 3600)
+    assert "3 h ago" in client.get("/reviews/rows").text
+    store.update_review(done_review, finished_at=time.time() - 120)
+    page = client.get("/reviews/rows").text
+    assert "2 min ago" in page and "3 h ago" not in page
+
+
+def test_reviews_with_new_reviewers_come_to_the_front(client, store):
+    old = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(old, title="Older review", created_at=time.time() - 3600)
+    new = store.create_review("B1ueber2y", "PRelude", 2, "u", "t")
+    store.update_review(new, title="Newer review", created_at=time.time() - 60)
+    page = client.get("/reviews/rows").text
+    assert page.index("Newer review") < page.index("Older review")
+    store.update_review(old, finished_at=time.time())  # reviewers just added
+    page = client.get("/reviews/rows").text
+    assert page.index("Older review") < page.index("Newer review")
+
+
+def test_all_view_tags_by_age_not_position(client, store):
+    client.post("/settings/latest-only", data={"on": "0"})
+    old = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(old, title="First look")
+    new = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(new, title="Second look")
+    store.update_review(old, finished_at=time.time() + 60)  # reviewers added to the old one: it sorts first
+    page = client.get("/reviews/rows").text
+    first, second = page.split("First look")[0], page.split("First look")[1]
+    assert page.index("First look") < page.index("Second look")
+    assert (
+        "earlier" in first.rsplit('class="card review-card', 1)[1] and "earlier" not in second.split("Second look")[0]
+    )

@@ -2,11 +2,9 @@
 <p class="empty-line">No reviews yet.</p>
 {% endif %}
 <ul class="list">
-{% set seen = namespace(prs=[]) %}
 {% for r in reviews %}
   {% set pr_key = r.owner ~ '/' ~ r.repo ~ '#' ~ r.number %}
-  {% set older = pr_key in seen.prs %}
-  {% set seen.prs = seen.prs + [pr_key] %}
+  {% set older = not r.newest %}
   <li>
     {% set closed = (r.pr_state or 'open') != 'open' %}
     <a class="card review-card {{ 'is-older' if older }} {{ 'is-closed' if closed }}" href="/reviews/{{ r.id }}">
@@ -35,7 +33,7 @@
       <div class="meta">
         {%- if r.status == 'done' %}{{ r.total }} finding{{ '' if r.total == 1 else 's' }} · {% endif -%}
         {%- if r.reviewers %}{{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }} · {% else %}Auto reviewers · {% endif -%}
-        {{ r.created_at | ago }}
+        {{ (r.finished_at or r.created_at) | ago }}
       </div>
       {% if r.status == 'running' and r.progress %}<div class="meta progress-line">{{ r.progress }}…</div>{% endif %}
     </a>

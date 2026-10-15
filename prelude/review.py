@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -339,6 +340,7 @@ def run_review(
         store.update_review(
             review_id,
             status="done",
+            finished_at=time.time(),
             progress=None,
             error=None,
             summary=out.get("summary") or "",
@@ -431,6 +433,7 @@ def add_reviewers(
         store.update_review(
             review_id,
             progress=None,
+            finished_at=time.time(),
             reviewers=before + len(reports),
             cost_usd=(row["cost_usd"] or 0) + cost + (result.cost_usd or 0),
         )

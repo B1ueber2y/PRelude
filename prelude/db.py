@@ -161,6 +161,7 @@ class Store:
                     "changed_lines": "INTEGER",
                     "runner_pid": "INTEGER",
                     "previous_review_id": "INTEGER",
+                    "finished_at": "REAL",  # last time it finished: the review, or reviewers added later
                     "body": "TEXT",
                     "mode": "TEXT NOT NULL DEFAULT 'full'",
                     "error_detail": "TEXT",
@@ -295,7 +296,10 @@ class Store:
             ).fetchone()
 
     def list_reviews(self, limit: int = 50, *, latest_only: bool = False) -> list[sqlite3.Row]:
-        """Newest first (open PRs before closed ones); `latest_only` keeps each PR's newest review."""
+        """Most recently started or finished first (open PRs before closed ones).
+
+        `latest_only` keeps each PR's newest review.
+        """
         where = f"WHERE r.id IN ({_NEWEST_PER_PR})" if latest_only else ""
         with self.connect() as c:
             return c.execute(
@@ -303,8 +307,11 @@ class Store:
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
-                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
-                f" FROM reviews r {where} ORDER BY COALESCE(r.pr_state, 'open') != 'open', r.id DESC LIMIT ?",
+                " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total,"
+                " r.id = (SELECT MAX(x.id) FROM reviews x WHERE x.owner = r.owner AND x.repo = r.repo"
+                " AND x.number = r.number) AS newest"
+                f" FROM reviews r {where} ORDER BY COALESCE(r.pr_state, 'open') != 'open',"
+                " MAX(r.created_at, COALESCE(r.finished_at, 0)) DESC, r.id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
 
