@@ -6,6 +6,7 @@ import logging
 import queue
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -15,13 +16,36 @@ from .db import Store
 from .github import GitHubReader, PrRef
 from .guard import RepoNotAllowed
 from .review import run_review, start_review
-from .triggers import Candidate, decide
+from .triggers import Candidate, TriggerConfig, decide
 
 log = logging.getLogger(__name__)
 
 OWN = "@own"  # watch-start key for your own PRs
 LAST_POLL = "poll_last"
 LAST_ERROR = "poll_error"
+
+
+CAP_WINDOW = 86400  # the cap counts automatic reviews started in the last 24 hours
+
+
+def _counted(store: Store, t: TriggerConfig) -> list[tuple[str, float]]:
+    reviews = store.auto_reviews_since(time.time() - CAP_WINDOW)
+    return [(slug, started) for slug, reason, started in reviews if t.counts_toward_cap(slug, reason)]
+
+
+def cap_usage(store: Store, t: TriggerConfig) -> Counter[str]:
+    """OWNER/REPO -> automatic reviews in the last 24 hours that count toward max_reviews_per_day."""
+    return Counter(slug for slug, _ in _counted(store, t))
+
+
+def reviews_toward_cap(store: Store, t: TriggerConfig) -> int:
+    return len(_counted(store, t))
+
+
+def next_cap_slot(store: Store, t: TriggerConfig) -> float | None:
+    """When the oldest counted review leaves the 24-hour window (None if none count)."""
+    starts = [started for _, started in _counted(store, t)]
+    return min(starts) + CAP_WINDOW if starts else None
 
 
 class Poller:
@@ -141,9 +165,7 @@ class Poller:
         threading.Thread(target=self._review_loop, daemon=True, name="auto-reviews").start()
 
     def _capped_today(self) -> int:
-        """Automatic reviews in the last 24 hours that count toward max_reviews_per_day."""
-        reviews = self.store.auto_reviews_since(time.time() - 86400)
-        return sum(1 for slug, reason in reviews if self.cfg.triggers.counts_toward_cap(slug, reason))
+        return reviews_toward_cap(self.store, self.cfg.triggers)
 
     def stop(self) -> None:
         self._stop.set()

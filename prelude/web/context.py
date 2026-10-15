@@ -37,6 +37,15 @@ def ago(timestamp: float) -> str:
     return "just now"
 
 
+def until(timestamp: float) -> str:
+    """Time left, in its largest unit only (like `ago`)."""
+    seconds = max(0, timestamp - time.time())
+    for unit, size in (("d", 86400), ("h", 3600), ("min", 60)):
+        if seconds >= size:
+            return f"{int(seconds // size)} {unit}"
+    return f"{int(seconds)} s"
+
+
 @cache
 def static_url(name: str) -> str:
     """Versioned URL so phones never keep a stale copy after an update."""
@@ -52,6 +61,7 @@ def make_templates() -> Jinja2Templates:
     templates.env.filters["text"] = render_text
     templates.env.filters["size_label"] = size_label
     templates.env.filters["ago"] = ago
+    templates.env.filters["until"] = until
     return templates
 
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from .. import repoconfig
+from ..poller import cap_usage, next_cap_slot
 from ..triggers import MODES
 from .context import Web, WebDep
 
@@ -15,17 +16,31 @@ router = APIRouter()
 def _page(w: Web, request: Request, **extra) -> HTMLResponse:
     t = w.cfg.triggers
     activity = w.store.repo_activity()
+    usage = cap_usage(w.store, t)  # by repo, last 24 hours
     rows = repoconfig.configured(w.cfg)
     for row in rows:
-        matches = [a for slug, a in activity.items() if t.repo_pattern(slug) == row["slug"].lower()]
-        row["reviews"] = sum(n for n, _ in matches)
-        row["last"] = max((last for _, last in matches), default=None)
+        slugs = [slug for slug in activity if t.repo_pattern(slug) == row["slug"].lower()]
+        row["reviews"] = sum(activity[s][0] for s in slugs)
+        row["last"] = max((activity[s][1] for s in slugs), default=None)
+        row["capped"] = sum(usage[s] for s in slugs)
     others = [
-        {"slug": slug, "reviews": n, "last": last}
+        {"slug": slug, "reviews": n, "last": last, "capped": usage[slug]}
         for slug, (n, last) in sorted(activity.items())
         if t.repo_pattern(slug) is None
     ]
-    return w.render(request, "repos.html", {"t": t, "rows": rows, "others": others, "modes": MODES, **extra})
+    return w.render(
+        request,
+        "repos.html",
+        {
+            "t": t,
+            "rows": rows,
+            "others": others,
+            "modes": MODES,
+            "cap_used": sum(usage.values()),
+            "next_slot": next_cap_slot(w.store, t),
+            **extra,
+        },
+    )
 
 
 @router.get("/repos", response_class=HTMLResponse)

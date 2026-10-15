@@ -147,3 +147,25 @@ def test_last_activity_counts_reviewers_added_later(client, store):
 def test_cap_toggle_says_it_is_for_your_own_prs(client):
     page = client.get("/repos").text
     assert "my PRs skip the cap" in page and "cap exempt" not in page.lower().replace("cap_exempt", "")
+
+
+def test_cap_usage_by_repo_and_next_free_slot(client, store):
+    import time
+
+    def auto(owner, repo, reason, hours_ago):
+        rid = store.create_review(owner, repo, 1, "u", f"auto: {reason}")
+        store.update_review(rid, created_at=time.time() - hours_ago * 3600)
+
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 20)  # frees up in ~4 h
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 1)
+    auto("colmap", "colmap", "new PR in colmap/colmap (all_prs)", 2)
+    auto("B1ueber2y", "PRelude", "your PR", 1)  # exempt: doesn't count
+    auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 30)  # outside the window
+    page = client.get("/repos").text
+    assert "<strong>3/20</strong>" in page and "the next one frees up in 3 h." in page
+
+    def capped(slug):
+        rest = page[page.index(f">{slug}<") :]
+        return rest[: rest.index("toward the cap")].rsplit("<strong>", 1)[1]
+
+    assert capped("cvg/limap").startswith("2<") and capped("colmap/colmap").startswith("1<")

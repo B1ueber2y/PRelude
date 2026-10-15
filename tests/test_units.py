@@ -220,3 +220,15 @@ def test_prune_removes_only_old_unused_checkouts_of_idle_repos(cfg):
     with _repo_lock(cfg, "o", "my__repo"):  # a checkout of that repo is in progress
         prune_checkouts(cfg, in_use={str(used) + "/."})  # spelled differently, same directory
     assert not old.exists() and fresh.exists() and used.exists() and busy.exists()
+
+
+def test_until_shows_only_the_largest_unit():
+    import time
+
+    from prelude.web.context import until
+
+    now = time.time()
+    assert until(now + 15 * 3600 + 500) == "15 h"
+    assert until(now + 8 * 60 + 30) == "8 min"
+    assert until(now + 40.5) == "40 s"
+    assert until(now + 2 * 86400 + 60) == "2 d"
