@@ -130,7 +130,9 @@ def test_legend_says_when_own_prs_are_reviewed(client):
     assert "when someone asks for your review, plus your own PRs" in page and "not even your own PRs" in page
     client.cfg.triggers.own_prs = False
     page = client.get("/repos").text
-    assert "plus your own PRs" not in page and "<strong>never</strong>: nothing" in page
+    assert "plus your own PRs" not in page and "<strong>never</strong>: nothing." in page
+    client.cfg.triggers.always = {"alice"}  # their requests are reviewed even in never repos
+    assert "nothing, except requests from your always list" in client.get("/repos").text
 
 
 def test_last_activity_counts_reviewers_added_later(client, store):

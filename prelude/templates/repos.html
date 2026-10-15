@@ -9,7 +9,7 @@
   Repos not listed: <strong>{{ t.default_mode | replace('_', ' ') }}</strong>. Cap: {{ t.max_reviews_per_day }} automatic reviews a day.
 </p>
 <p class="hint">
-  <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}.
+  <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}{% if t.always %}, except requests from your always list{% endif %}.
   <strong>Cap exempt</strong>: your own PRs there don't count toward the cap.
 </p>
 
