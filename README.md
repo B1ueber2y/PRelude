@@ -2,8 +2,9 @@
 
 **Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
-A free, personal tool built on Claude Code, not a replacement for Anthropic's own
-[Code Review](https://code.claude.com/docs/en/code-review); for team review, use theirs.
+A small personal project built on Claude Code, meant to complement Anthropic's own
+[Code Review](https://code.claude.com/docs/en/code-review) rather than replace it; for team
+review, Anthropic's Code Review is the natural choice.
 
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
@@ -101,12 +102,12 @@ October 2026:
   usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
   modest. PRelude doesn't retry when Claude reports a usage limit.
-- **A companion to Anthropic's tools, not a replacement.** Anthropic offers [Code
-  Review](https://code.claude.com/docs/en/code-review) for Team and Enterprise plans, and an
-  open-source GitHub Action. PRelude is a free, non-commercial tool for one person's own
-  reviews: every review it runs is Claude Code usage on your own plan or API key, and its
-  focus is you deciding which comments reach the author. It isn't offered as a service. For
-  team review, use Anthropic's products.
+- **Built to complement Anthropic's tools.** PRelude exists thanks to Claude Code and is
+  meant to work alongside Anthropic's own offerings, such as [Code
+  Review](https://code.claude.com/docs/en/code-review) for Team and Enterprise plans and the
+  open-source GitHub Action. It is a small, free, non-commercial project for one person's
+  own reviews: it runs on each user's own Claude plan or API key and isn't offered as a
+  service. For reviewing as a team, Anthropic's Code Review is designed for exactly that.
 
 ## Install and run
 
