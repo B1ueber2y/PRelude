@@ -18,8 +18,7 @@ gets reviewed.
 
 Claude reads the pull request and proposes review comments. You are the meta-reviewer: you
 go through each comment, push back where it's wrong, and decide what the author actually
-sees. It works the way
-you'd review a change:
+sees. It works the way you'd review a change:
 
 | Code review              | PRelude                                              |
 | ------------------------ | ---------------------------------------------------- |
@@ -28,13 +27,13 @@ you'd review a change:
 | Suggest changes          | **Edit** the wording                                 |
 | Comment thread           | **Discuss** it with Claude, one thread per comment   |
 | Reject                   | **Discard** it                                       |
-| Release                  | You submit the review on GitHub                      |
+| Release                  | You add your own comments and submit on GitHub       |
 | The contributor improves | PRelude **remembers** your principles and style      |
 
 Nothing is published by PRelude. Comments land in your *pending* GitHub review, which only
-you can see; you submit it yourself (Comment / Approve / Request changes). By default new
-comments start in that draft and you discard the ones you don't want; with
-`github_drafts.auto: false` they wait for you to add them.
+you can see. New comments start there and you discard the ones you don't want (with
+`github_drafts.auto: false` they wait for you to add them). Then, on GitHub, you add any
+comments of your own and submit the review yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
 ## Ways to use it
