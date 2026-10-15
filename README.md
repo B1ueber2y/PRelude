@@ -222,7 +222,10 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment); submitting a review is not possible from PRelude, and tests enforce it.
 
-## Development
+## Contributing
+
+Open-source contributions and discussions are welcome here on GitHub at any time: open an
+issue or a pull request. To run the checks locally:
 
 ```bash
 .venv/bin/pytest
