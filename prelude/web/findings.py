@@ -160,9 +160,13 @@ def thread(w: WebDep, request: Request, finding_id: int, open: bool = True):
 
 def _inline_thread(w, request: Request, finding_id: int, *, open: bool, **extra) -> HTMLResponse:
     f = w.finding_or_404(finding_id)
-    r = w.review_or_404(f["review_id"])
-    row = next(x for x in w.store.comment_threads(r["owner"], r["repo"], r["number"]) if x["id"] == finding_id)
-    ctx = {"f": row, "messages": w.store.messages_for(finding_id), "draft": current_draft(f), "open": open, **extra}
+    ctx = {
+        "f": w.store.comment_thread(finding_id),
+        "messages": w.store.messages_for(finding_id),
+        "draft": current_draft(f),
+        "open": open,
+        **extra,
+    }
     return w.render(request, "_finding_thread.html", ctx)
 
 

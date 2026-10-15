@@ -121,7 +121,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "new_commits": _has_new_commits(w, r),
             "leftovers": prstate.leftovers(findings),
             "max_more": MAX_MORE,
-            "threads": w.store.chats_for(r["owner"], r["repo"], r["number"]),
+            "chat_threads": w.store.chats_for(r["owner"], r["repo"], r["number"]),  # `threads` is taken there
             "takes_threads": _takes_threads(w, r),
             "unread": w.store.chat_unread().get((r["owner"], r["repo"], r["number"]), 0),
             "talk": talk,

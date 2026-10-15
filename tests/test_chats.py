@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 
@@ -239,5 +240,27 @@ def test_index_lists_the_newest_reviews_comments_and_puts_replies_first(client, 
     store.add_message(f2["id"], "assistant", "Yes.")
     newer = store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")
     store.add_findings(newer, [dict(FINDING, title="Newer finding")])
+    store.update_review(newer, status="done")
     titles = [r["title"] for r in store.comment_threads("B1ueber2y", "PRelude", 1)]
     assert titles == ["Second finding", "Newer finding"]  # the new reply first; f1 belongs to an older review
+
+
+def test_delete_warning_counts_discussion_threads_not_github_ones(client, done_review, store):  # noqa: F811
+    comments = [{"id": 1, "kind": "inline", "author": "a", "body": "x", "path": "a", "line": 1}] * 3
+    store.update_review(done_review, pr_comments=json.dumps(comments))
+    chat_id = store.create_chat(store.get_review(done_review))
+    store.add_chat_message(chat_id, "user", "Hi")
+    assert "its 1 discussion thread(s) are deleted too" in client.get(f"/reviews/{done_review}").text
+
+
+def test_a_running_re_review_keeps_the_index(client, done_review, store):  # noqa: F811
+    store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")  # queued
+    assert len(store.comment_threads("B1ueber2y", "PRelude", 1)) == 2
+
+
+def test_inline_thread_of_a_comment_no_longer_live(client, done_review, store):  # noqa: F811
+    f = store.findings_for(done_review)[0]
+    store.update_finding(f["id"], status="discarded")
+    r = client.post(f"/findings/{f['id']}/messages", data={"text": "  "}, headers={"X-Inline": "1"})
+    assert r.status_code == 200 and "empty message" in r.text
+    assert client.get(f"/findings/{f['id']}/thread?open=0").status_code == 200

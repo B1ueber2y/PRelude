@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS chats (         -- threads in a PR's discussion space
   updated_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chats_by_pr ON chats(owner, repo, number);
+CREATE INDEX IF NOT EXISTS messages_by_finding ON messages(finding_id);
 
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY,
@@ -150,6 +151,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   content TEXT NOT NULL,
   created_at REAL NOT NULL
 );
+CREATE INDEX IF NOT EXISTS chat_messages_by_chat ON chat_messages(chat_id);
 """
 
 
@@ -725,25 +727,32 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY id", (chat_id,)).fetchall()
 
+    _COMMENT_THREAD = (
+        "SELECT f.*, r.id AS review_id,"
+        " (SELECT COUNT(*) FROM messages WHERE finding_id = f.id) AS messages,"
+        " (SELECT MAX(created_at) FROM messages WHERE finding_id = f.id) AS last_at,"
+        " COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0) AS busy,"
+        f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) AS unread"
+        " FROM findings f JOIN reviews r ON r.id = f.review_id"
+    )
+
     def comment_threads(self, owner: str, repo: str, number: int) -> list[sqlite3.Row]:
-        """The newest review's live comments (to review or in your draft) and every comment you discussed,
-        with their discussion's state: first the ones that need a look, then by latest message."""
+        """The newest finished review's live comments (to review or in your draft) and every comment
+        you discussed, with their discussion's state: first the ones that need a look, then by latest message."""
         with self.connect() as c:
             return c.execute(
-                "SELECT f.*, r.id AS review_id,"
-                " (SELECT COUNT(*) FROM messages WHERE finding_id = f.id) AS messages,"
-                " (SELECT MAX(created_at) FROM messages WHERE finding_id = f.id) AS last_at,"
-                " (SELECT content FROM messages WHERE finding_id = f.id ORDER BY id LIMIT 1) AS first_message,"
-                " COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0) AS busy,"
-                f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) AS unread"
-                " FROM findings f JOIN reviews r ON r.id = f.review_id"
-                " WHERE r.owner = ? AND r.repo = ? AND r.number = ?"
+                self._COMMENT_THREAD + " WHERE r.owner = ? AND r.repo = ? AND r.number = ?"
                 " AND ((f.status IN ('pending', 'drafted') AND r.id = (SELECT MAX(id) FROM reviews"
-                "  WHERE owner = r.owner AND repo = r.repo AND number = r.number))"
+                "  WHERE owner = r.owner AND repo = r.repo AND number = r.number AND status = 'done'))"
                 "  OR EXISTS (SELECT 1 FROM messages WHERE finding_id = f.id))"
                 " ORDER BY busy OR unread DESC, last_at IS NULL, last_at DESC, r.id, f.ordinal",
                 (owner, repo, number),
             ).fetchall()
+
+    def comment_thread(self, finding_id: int) -> sqlite3.Row | None:
+        """One finding with its discussion's state, live or not."""
+        with self.connect() as c:
+            return c.execute(self._COMMENT_THREAD + " WHERE f.id = ?", (finding_id,)).fetchone()
 
     def discussion_state(self, review_id: int) -> dict[int, str]:
         """Finding -> "replying" or "new reply", for findings whose discussion needs a look."""

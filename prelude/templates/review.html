@@ -31,9 +31,9 @@
           hx-confirm="Remove the unsubmitted draft comments from GitHub and mark the rest as not posted?">Clear leftovers</button>
 </div>
 {% endif %}
-{% if r.status == 'done' or threads or comment_threads %}
-{% set n_threads = threads | length + comment_threads %}
-{% set n_busy = threads | selectattr('busy') | list | length %}
+{% if r.status == 'done' or chat_threads or comment_threads %}
+{% set n_threads = chat_threads | length + comment_threads %}
+{% set n_busy = chat_threads | selectattr('busy') | list | length %}
 <a class="callout small discuss-link" href="/prs/{{ r.owner }}/{{ r.repo }}/{{ r.number }}/discuss">
   <span>Discuss this PR with Claude{% if n_threads %} · {{ n_threads }} thread{{ '' if n_threads == 1 else 's' }}{% endif %}</span>
   {% if unread %}<span class="tag accent">{{ unread }} new repl{{ 'y' if unread == 1 else 'ies' }}</span>{% elif n_busy %}<span class="tag">Claude is replying…</span>{% endif %}
@@ -126,7 +126,7 @@
   <details class="more">
     <summary aria-label="More">⋯</summary>
     <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
-            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}{% if takes_threads and threads %} It is the last review of this PR, so its {{ threads | length }} discussion thread(s) are deleted too.{% endif %}">Delete review</button>
+            hx-confirm="Delete this review from PRelude?{% if counts.drafted %} The {{ counts.drafted }} comment(s) already in your GitHub draft stay there.{% endif %}{% if takes_threads and chat_threads %} It is the last review of this PR, so its {{ chat_threads | length }} discussion thread(s) are deleted too.{% endif %}">Delete review</button>
   </details>
   {% endif %}
 </div>
