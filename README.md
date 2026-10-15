@@ -119,6 +119,16 @@ to a single repository during development.
 .venv/bin/prelude style-init OWNER/REPO                          # learn your comment style
 ```
 
+The findings can also be triaged in the terminal; `N` is the number `prelude findings` shows:
+
+```bash
+.venv/bin/prelude findings 32            # list a review's findings (add numbers for the full text)
+.venv/bin/prelude draft 32 1 3           # add to your GitHub draft (--all: every one still to review)
+.venv/bin/prelude discard 32 2           # discard (also takes it out of the draft)
+.venv/bin/prelude edit 32 1              # reword in $EDITOR (--text "...", --claude, --reset)
+.venv/bin/prelude discuss 32 1 "Is this really reachable?"
+```
+
 Open the `prelude url` link once on each device; it sets a cookie. PRelude only listens on
 localhost; to use it from a phone, forward the port over SSH (for example a local port
 forward in an SSH app such as Termius) or another private tunnel such as `tailscale serve`.

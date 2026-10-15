@@ -15,25 +15,18 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from .. import drafting
+from .. import triage
 from ..codeview import CodeView, build, read_head_file
 from ..config import Config, size_label
 from ..db import Store
 from ..diffmap import FileDiff, parse_diff
 from ..discuss import Broker, current_draft
-from ..drafts import DraftError, DraftWriter
+from ..drafts import DraftWriter
 from ..github import GitHubReader
 from ..memory import Memory
 from ..textfmt import render_text
 
 PACKAGE = Path(__file__).resolve().parent.parent
-
-
-READ_ONLY = {
-    "posted": "This comment is already posted on GitHub; change it there.",
-    "dropped": "This PR was closed before the comment was posted.",
-    "superseded": "A later review of this PR replaced this comment.",
-}
 
 
 def ago(timestamp: float) -> str:
@@ -138,7 +131,7 @@ class Web:
 
     def refuse_if_posted(self, finding_id: int) -> HTMLResponse | None:
         """Posted comments live on GitHub now, and dropped ones belong to a closed PR: read-only."""
-        why = READ_ONLY.get(self.finding_or_404(finding_id)["status"])
+        why = triage.refusal(self.finding_or_404(finding_id))
         return self.flash(why) if why else None
 
     @staticmethod
@@ -172,25 +165,10 @@ class Web:
     # ---- actions -----------------------------------------------------------
 
     def set_draft(self, finding_id: int, text: str | None, *, learn: bool = True) -> str | None:
-        """Set the reviewer's wording (None = Claude's), learn from it, and sync any GitHub draft.
-
-        Returns an error message if the GitHub draft couldn't be updated.
-        """
-        f = self.finding_or_404(finding_id)
-        if f["status"] in READ_ONLY:
-            return READ_ONLY[f["status"]]
-        text = text.strip() if text is not None else None
-        user_draft = None if text is None or text == f["claude_comment"] else text
-        # auto_drafted=0: the reviewer has looked. Conditional, so a supersede that just claimed it wins.
-        if not self.store.update_finding_if(finding_id, {"status": f["status"]}, user_draft=user_draft, auto_drafted=0):
-            return READ_ONLY.get(self.store.get_finding(finding_id)["status"], "This comment just changed; reload.")
-        if learn and user_draft is not None and user_draft != f["user_draft"]:
-            self.learn(finding_id, "edit")
-        try:
-            drafting.sync(self.store, self.cfg, self.writer, finding_id)
-        except DraftError as e:
-            return str(e)
-        return None
+        self.finding_or_404(finding_id)
+        return triage.set_wording(
+            self.store, self.cfg, self.writer, finding_id, text, learn=self.learn if learn else None
+        )
 
 
 def web(request: Request) -> Web:
