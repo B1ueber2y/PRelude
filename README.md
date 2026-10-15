@@ -141,18 +141,37 @@ PRelude serves its web UI on `127.0.0.1:8787` only, and runs nothing until you s
 
 ### 3. Open it on a computer
 
-Run `.venv/bin/prelude url` and open the link it prints
-(`http://127.0.0.1:8787/?key=…`). It sets a cookie for that address, so afterwards
-`http://127.0.0.1:8787` is enough in that browser (`localhost` counts as a different
-address). On a laptop the review page is a split view: the findings on the left, the
-selected one on the right; `j`/`k` move between them and `a`/`e`/`d` add, edit or discard.
+**On the machine running PRelude:** run `.venv/bin/prelude url` and open the link it
+prints (`http://127.0.0.1:8787/?key=…`) in a browser there. It sets a cookie for that
+address, so afterwards `http://127.0.0.1:8787` is enough (`localhost` counts as a
+different address).
 
-If PRelude runs on another machine (say a desktop at work), forward the port from your
-laptop and use the same link:
+**From your laptop, when PRelude runs on another machine** (say a desktop at work):
 
-```bash
-ssh -L 8787:127.0.0.1:8787 you@that-machine
-```
+1. In a terminal **on your laptop** (Terminal on macOS or Linux, PowerShell on Windows),
+   open a tunnel and leave the window open; it lasts as long as that connection:
+
+   ```bash
+   ssh -N -L 8787:127.0.0.1:8787 you@that-machine
+   ```
+
+2. Get the key link from the machine, e.g. in a second terminal:
+   `ssh you@that-machine 'cd PRelude && .venv/bin/prelude url'` (adjust the path).
+3. Open that link **in your laptop's browser**. From then on `http://127.0.0.1:8787` is
+   enough there.
+
+If it doesn't work:
+
+- *This site can't be reached*: the tunnel isn't up. Check that the `ssh -L` window is
+  still connected, and that you ran it on the laptop, not inside a session on the machine.
+- *Locked* page: open the full link with `?key=…`, using `127.0.0.1` (not `localhost`).
+- *Address already in use*: something on the laptop uses 8787; use `-L 8788:127.0.0.1:8787`
+  and port 8788 in the link.
+- `ssh` can't connect at all: if the machine is on a private network, connect its VPN
+  first.
+
+On a laptop the review page is a split view: the findings on the left, the selected one on
+the right; `j`/`k` move between them and `a`/`e`/`d` add, edit or discard.
 
 ### 4. (Optional) Set up your phone
 
