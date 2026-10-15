@@ -13,16 +13,51 @@
   <link rel="apple-touch-icon" href="{{ static('icon-180.png') }}">
   <link rel="stylesheet" href="{{ static('app.css') }}">
   <title>{% block title %}PRelude{% endblock %}</title>
+  <meta name="prelude-wide" content="{{ 1 if wide else 0 }}">
+  <script>
+    // Laptop-sized windows get a split layout. Tell the server with a cookie; if this page was
+    // rendered for the other size (first visit, or the window crossed the breakpoint), reload once.
+    (function () {
+      var q = window.matchMedia("(min-width: 1024px)");
+      function sync() {
+        var w = q.matches ? "1" : "0";
+        document.cookie = "prelude_wide=" + w + "; path=/; max-age=31536000; samesite=lax";
+        return document.cookie.indexOf("prelude_wide=" + w) >= 0 ? w : null;
+      }
+      var w = sync(), m = document.querySelector('meta[name="prelude-wide"]');
+      try {
+        if (w && m && m.content !== w && !sessionStorage.getItem("prelude-wide-reload")) {
+          sessionStorage.setItem("prelude-wide-reload", "1");
+          location.reload();
+        } else if (m && m.content === w) {
+          sessionStorage.removeItem("prelude-wide-reload");
+        }
+      } catch (e) {}
+      q.addEventListener("change", function () {
+        var fields = "textarea, input:not([type]), input[type=text], input[type=url], input[type=search]";
+        var typing = Array.prototype.some.call(document.querySelectorAll(fields),
+          function (el) { return el.value !== el.defaultValue; });
+        // While something is typed, keep this layout (and the cookie that matches it) until the
+        // next in-app navigation, which then gets the new layout.
+        if (!typing && sync()) location.reload();
+        else pending = true;
+      });
+      var pending = false;
+      document.addEventListener("htmx:beforeRequest", function (e) {
+        if (pending && e.detail.boosted) { sync(); pending = false; }
+      });
+    })();
+  </script>
   <script src="{{ static('htmx.min.js') }}" defer></script>
   <script src="{{ static('app.js') }}" defer></script>
 </head>
-<body hx-boost="true">
+<body hx-boost="true" class="{{ 'wide' if wide }}">
   <header class="topbar">
     {% block back %}<span class="brand">PRelude</span>{% endblock %}
     {% block topright %}{% endblock %}
   </header>
   <span id="assets" hidden data-v="{{ static('app.css') }} {{ static('app.js') }}"></span>
-  <main class="page">
+  <main class="page {% block pageclass %}{% endblock %}">
     <div id="flash" aria-live="polite"></div>
     {% block content %}{% endblock %}
   </main>

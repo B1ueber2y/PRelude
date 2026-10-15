@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ f.title }} · PRelude{% endblock %}
+{% block pageclass %}narrow{% endblock %}
 {% block back %}<a class="back" href="/reviews/{{ r.id }}">‹ {{ r.repo }}#{{ r.number }}</a>{% endblock %}
 {% block topright %}
 <nav class="pager">
@@ -9,79 +10,11 @@
 </nav>
 {% endblock %}
 {% block content %}
-<article class="finding" data-finding-id="{{ f.id }}">
-  <div class="card-top">
-    <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
-    {% if f.category %}<span class="tag">{{ f.category }}</span>{% endif %}
-    {% if f.confidence %}<span class="tag">{{ f.confidence }} confidence</span>{% endif %}
-    {% if f.status == 'discarded' %}<span class="tag">discarded</span>{% endif %}
-    {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
-        {% if f.status == 'drafted' %}<span class="tag accent">in GitHub draft</span>{% endif %}
-    {% if f.status == 'posted' %}<span class="tag accent">posted on GitHub</span>{% endif %}
-  </div>
-  <h1>{{ f.title }}</h1>
-  <div class="loc">{{ f.path }}{% if f.line %}:{% if f.start_line %}{{ f.start_line }}–{% endif %}{{ f.line }}{% endif %}</div>
-  {% if not f.in_diff %}
-  <p class="callout warn small">This line isn't part of the PR diff, so it will be added as a comment on the file instead of the line.</p>
-  {% endif %}
-
-  {% if code %}
-  {% include "_code.html" %}
-  {% elif snippet %}
-  <pre class="code" aria-label="Code around the finding">
-  {%- for dl in snippet -%}
-  <span class="ln {{ 'add' if dl.kind == '+' else ('del' if dl.kind == '-' else '') }} {{ 'hit' if (f.side == 'RIGHT' and dl.new_no == f.line) or (f.side == 'LEFT' and dl.old_no == f.line) }}"><span class="no">{{ dl.new_no if dl.new_no is not none else dl.old_no }}</span><span class="mk">{{ dl.kind }}</span>{{ dl.text }}</span>
-  {%- endfor -%}
-  </pre>
-  {% endif %}
-
-  <section class="block">
-    <h2>Why Claude flagged this</h2>
-    <div class="prose">{{ f.assessment | text }}</div>
-    {% set ev = f.evidence | fromjson %}
-    {% if ev %}
-    <ul class="evidence">
-      {% for e in ev %}<li><code>{{ e.path }}:{{ e.line }}</code> {{ e.note | text }}</li>{% endfor %}
-    </ul>
-    {% endif %}
-  </section>
-
-  <section class="block" id="draft-{{ f.id }}">
-    {% include "_draft.html" %}
-  </section>
-
-  <section class="block" id="discussion">
-    <h2>Discuss with Claude</h2>
-    <div id="thread-{{ f.id }}">
-      {% include "_thread.html" %}
-    </div>
-  </section>
-</article>
+{% include "_finding_body.html" %}
 {% endblock %}
 
 {% block bottombar %}
 <footer class="actionbar{{ ' posted' if f.status in ('posted', 'dropped', 'superseded') }}">
-  {% if f.status in ('posted', 'dropped', 'superseded') %}
-  <button class="btn" disabled>{{ {'posted': 'Posted ✓', 'dropped': 'Not posted (PR closed)'}.get(f.status, 'Replaced by a later review') }}</button>
-  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
-  {% else %}
-  {% if f.status == 'drafted' %}
-  <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
-  {% elif f.status == 'discarded' %}
-  <button class="btn primary" disabled>Add to draft</button>
-  {% elif drafts_enabled %}
-  <button class="btn primary" hx-post="/findings/{{ f.id }}/github/add" hx-disabled-elt="this">Add to draft</button>
-  {% else %}
-  <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
-  {% endif %}
-  <button class="btn" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML"
-          onclick="document.getElementById('draft-{{ f.id }}').scrollIntoView({behavior: 'smooth', block: 'center'})">Edit</button>
-  {% if f.status == 'discarded' %}
-  <button class="btn" hx-post="/findings/{{ f.id }}/restore">Restore</button>
-  {% else %}
-  <button class="btn" hx-post="/findings/{{ f.id }}/discard">Discard</button>
-  {% endif %}
-  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
-  {% endif %}
+{% include "_finding_actions.html" %}
 </footer>
 {% endblock %}

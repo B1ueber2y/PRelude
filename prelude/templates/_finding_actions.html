@@ -1,0 +1,22 @@
+  {% if f.status in ('posted', 'dropped', 'superseded') %}
+  <button class="btn" disabled>{{ {'posted': 'Posted ✓', 'dropped': 'Not posted (PR closed)'}.get(f.status, 'Replaced by a later review') }}</button>
+  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% else %}
+  {% if f.status == 'drafted' %}
+  <button class="btn" hx-post="/findings/{{ f.id }}/github/remove" hx-confirm="Remove this comment from your GitHub draft?">In draft ✓</button>
+  {% elif f.status == 'discarded' %}
+  <button class="btn primary" disabled>Add to draft</button>
+  {% elif drafts_enabled %}
+  <button class="btn primary" data-key="a" hx-post="/findings/{{ f.id }}/github/add" hx-disabled-elt="this">Add to draft</button>
+  {% else %}
+  <button class="btn primary" disabled title="Turn on github_drafts.enabled in config.yaml">Add to draft</button>
+  {% endif %}
+  <button class="btn" data-key="e" hx-get="/findings/{{ f.id }}/draft/edit" hx-target="#draft-{{ f.id }}" hx-swap="innerHTML"
+          onclick="document.getElementById('draft-{{ f.id }}').scrollIntoView({behavior: 'smooth', block: 'center'})">Edit</button>
+  {% if f.status == 'discarded' %}
+  <button class="btn" hx-post="/findings/{{ f.id }}/restore">Restore</button>
+  {% else %}
+  <button class="btn" data-key="d" hx-post="/findings/{{ f.id }}/discard">Discard</button>
+  {% endif %}
+  <a class="btn" href="#composer" data-focus="composer-input">Discuss</a>
+  {% endif %}
