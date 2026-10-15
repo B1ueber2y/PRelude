@@ -309,7 +309,7 @@ def test_add_all_is_a_small_catch_up_button_with_auto_drafts(client, enabled, st
     assert "Add 2 to draft" in page and "Add all to draft" not in page
     for f in store.findings_for(done_review):
         store.update_finding(f["id"], status="drafted")
-    assert "to draft</button>" not in client.get(f"/reviews/{done_review}").text.replace("Add all", "")
+    assert "/github/add-all" not in client.get(f"/reviews/{done_review}").text  # nothing left to add
     enabled.drafts.auto = False
     store.update_finding(store.findings_for(done_review)[0]["id"], status="pending")
     assert "Add all to draft" in client.get(f"/reviews/{done_review}").text
