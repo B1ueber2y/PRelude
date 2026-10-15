@@ -64,15 +64,17 @@ def _prefix(cfg: NotifyConfig, ref: str, title: str | None) -> str:
     return ref + " · " if cfg.details == "ref" else ""
 
 
-def chat_replied(cfg: NotifyConfig, chat, title: str | None, ok: bool, sender: Sender | None = None) -> bool:
-    """A reply in a PR's discussion space is ready (or failed); `chat` is a database row."""
-    ref = f"{chat['owner']}/{chat['repo']}#{chat['number']}"
+def reply_ready(
+    cfg: NotifyConfig, pr: tuple[str, str, int], title: str | None, ok: bool, path: str, sender: Sender | None = None
+) -> bool:
+    """A discussion reply is ready (or failed). `path` should name no repo: it's sent even with details: none."""
+    owner, repo, number = pr
     return send(
         cfg,
         "Claude replied" if ok else "Claude couldn't reply",
-        _prefix(cfg, ref, title) + ("in a discussion thread" if ok else "see PRelude for details"),
-        path=f"/chats/{chat['id']}",  # names no repo
-        tags=("speech_balloon" if ok else "warning") + ("" if cfg.details == "none" else f",{chat['repo']}"),
+        _prefix(cfg, f"{owner}/{repo}#{number}", title) + ("in a discussion" if ok else "see PRelude for details"),
+        path=path,
+        tags=("speech_balloon" if ok else "warning") + ("" if cfg.details == "none" else f",{repo}"),
         sender=sender,
     )
 

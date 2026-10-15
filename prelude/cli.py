@@ -249,7 +249,7 @@ def _cmd_discuss(args: argparse.Namespace) -> int:
     (f,) = _findings(store, args.review, [args.number])
     broker = Broker()
     try:
-        replying = post_message(store, cfg, broker, f["id"], args.message)
+        replying = post_message(store, cfg, broker, f["id"], args.message, ping=False)  # the reply prints here
     except (ValueError, DiscussionBusy) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

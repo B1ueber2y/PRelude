@@ -1,6 +1,6 @@
 <div class="thread" data-busy="{{ 1 if busy else 0 }}" data-base="/findings/{{ f.id }}"
-     data-target="#thread-{{ f.id }}" data-swap="innerHTML">
-  {% if not messages and not busy %}
+     data-target="{{ '#fchat-' if inline else '#thread-' }}{{ f.id }}" data-swap="{{ 'outerHTML' if inline else 'innerHTML' }}">
+  {% if not messages and not busy and not inline %}
   <p class="hint">Challenge the finding, ask Claude to dig further, or ask for better wording. This conversation only covers this finding.</p>
   {% endif %}
   {% for m in messages %}
@@ -33,10 +33,18 @@
     <div class="activity"><span class="spinner small" aria-hidden="true"></span> <span class="activity-text">Claude is thinking…</span></div>
   </div>
   {% endif %}
+  {% if busy and not inline %}
+  <p class="hint">No need to wait here: the reply is saved, and shows as “new reply” on this comment in the review and on the <a href="/prs/{{ r.owner }}/{{ r.repo }}/{{ r.number }}/discuss">PR's discussion page</a>.{% if next_id %} <a href="/findings/{{ next_id }}">Next comment ›</a>{% endif %}</p>
+  {% endif %}
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 </div>
+{% if inline %}
+<form class="composer" hx-post="/findings/{{ f.id }}/messages" hx-target="#fchat-{{ f.id }}" hx-swap="outerHTML"
+      hx-headers='{"X-Inline": "1"}'>
+{% else %}
 <form id="composer" class="composer" hx-post="/findings/{{ f.id }}/messages" hx-target="#thread-{{ f.id }}" hx-swap="innerHTML">
-  <textarea id="composer-input" name="text" rows="2" class="autogrow" placeholder="Is this really reachable? / Can you suggest a fix?"
+{% endif %}
+  <textarea {% if not inline %}id="composer-input" {% endif %}name="text" rows="{{ 1 if inline else 2 }}" class="autogrow" placeholder="{{ 'Reply in thread' if inline else 'Is this really reachable? / Can you suggest a fix?' }}"
             {{ 'disabled' if busy }} required>{{ draft_message or '' }}</textarea>
   <button class="btn primary" type="submit" {{ 'disabled' if busy }}>Send</button>
 </form>

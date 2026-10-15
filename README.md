@@ -40,10 +40,11 @@ you can see. New comments start there and you discard the ones you don't want (w
 comments of your own and submit the review yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
-Each PR also has a discussion space for anything beyond single comments. Every message you
-start there is its own thread with Claude, like threads in a chat room. Threads reply in parallel, so
-you can ask several things, leave, and come back to the replies (with a phone notification if
-you set one up).
+You don't have to wait for Claude's reply in a discussion: send, move on to the next
+comment, and come back. Each PR has a discussion page that indexes every live comment as a
+thread, with the ones that have a new reply first, plus threads of your own about anything
+else in the PR. Claude replies to all of them in parallel (with a phone notification if you set
+one up).
 
 ## Ways to use it
 

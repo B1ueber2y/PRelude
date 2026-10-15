@@ -8,7 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from .. import drafting
-from ..discuss import DiscussionBusy, post_message
+from ..discuss import DiscussionBusy, current_draft, post_message
 from ..drafts import DraftError
 from .context import WebDep, event_stream
 from .reviews import _pick
@@ -20,7 +20,9 @@ REFRESH = {"HX-Refresh": "true"}
 
 @router.get("/findings/{finding_id}", response_class=HTMLResponse)
 def finding_page(w: WebDep, request: Request, finding_id: int):
-    return w.render(request, "finding.html", w.finding_context(finding_id))
+    ctx = w.finding_context(finding_id)
+    w.store.mark_thread_seen(finding_id)
+    return w.render(request, "finding.html", ctx)
 
 
 @router.get("/findings/{finding_id}/code", response_class=HTMLResponse)
@@ -147,8 +149,28 @@ def github_remove(w: WebDep, request: Request, finding_id: int):
 
 
 @router.get("/findings/{finding_id}/thread", response_class=HTMLResponse)
-def thread(w: WebDep, request: Request, finding_id: int):
+def thread(w: WebDep, request: Request, finding_id: int, open: bool = True):
+    """`open` is false for a folded thread on the PR's discussion page: not seen yet."""
+    if open:
+        w.store.mark_thread_seen(finding_id)
+    if request.query_params.get("open") is not None:  # folded or not, it's on the PR's discussion page
+        return _inline_thread(w, request, finding_id, open=open)
     return w.render(request, "_thread.html", w.finding_context(finding_id))
+
+
+def _inline_thread(w, request: Request, finding_id: int, *, open: bool, **extra) -> HTMLResponse:
+    f = w.finding_or_404(finding_id)
+    r = w.review_or_404(f["review_id"])
+    row = next(x for x in w.store.comment_threads(r["owner"], r["repo"], r["number"]) if x["id"] == finding_id)
+    ctx = {"f": row, "messages": w.store.messages_for(finding_id), "draft": current_draft(f), "open": open, **extra}
+    return w.render(request, "_finding_thread.html", ctx)
+
+
+@router.post("/findings/{finding_id}/seen")
+def seen(w: WebDep, finding_id: int):
+    w.finding_or_404(finding_id)
+    w.store.mark_thread_seen(finding_id)
+    return Response(status_code=204)
 
 
 @router.post("/findings/{finding_id}/messages", response_class=HTMLResponse)
@@ -159,6 +181,9 @@ def send_message(w: WebDep, request: Request, finding_id: int, text: str = Form(
         extra = {}
     except (ValueError, DiscussionBusy) as e:
         extra = {"error": str(e), "draft_message": text}
+    w.store.mark_thread_seen(finding_id)
+    if request.headers.get("X-Inline") == "1":  # on the PR's discussion page
+        return _inline_thread(w, request, finding_id, open=True, **extra)
     return w.render(request, "_thread.html", w.finding_context(finding_id, **extra))
 
 

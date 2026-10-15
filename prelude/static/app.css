@@ -689,3 +689,16 @@ kbd { font: 0.72rem var(--mono); padding: 0 5px; border: 1px solid var(--border)
 .chat .composer { margin-left: 6px; }
 .chat-delete { margin-top: 8px; }
 .new-thread { margin-top: 18px; }
+.chat-on { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; margin-bottom: 4px; }
+.chat-replies-wrap { margin-top: 12px; }
+.chat-replies-wrap .thread { margin-left: 6px; padding-left: 12px; border-left: 2px solid var(--border); }
+.chat-replies-wrap .composer { margin-left: 6px; }
+.chat-open { margin-top: 8px; }
+.tag.talk { display: inline-flex; align-items: center; gap: 4px; }
+.spinner.tiny { width: 9px; height: 9px; border-width: 1.5px; }
+.chat-comment { margin-top: 12px; font-size: 0.92rem; }
+.chat .loc { margin: 0; }
+.muted { color: var(--muted); font-weight: 400; }
+.chats + .section-title, .chats ~ .section-title { margin-top: 24px; }
+.chat-on .loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chat-on .tag, .chat-on .sev { flex-shrink: 0; white-space: nowrap; }

@@ -1,0 +1,23 @@
+{# A live (or discussed) comment as a thread on the PR's discussion page; replies go to its own discussion. #}
+<details class="chat" id="fchat-{{ f.id }}" {{ 'open' if open }}
+         hx-post="/findings/{{ f.id }}/seen" hx-trigger="toggle[this.open]" hx-swap="none">
+  <summary>
+    <div class="chat-on">
+      <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
+      {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% elif f.status == 'pending' %}<span class="tag">to review</span>{% else %}<span class="tag">{{ f.status }}</span>{% endif %}
+      <span class="loc" title="{{ f.path }}">{{ f.path.rsplit('/', 1)[-1] }}{% if f.line %}:{{ f.line }}{% endif %}</span>
+    </div>
+    <div class="chat-first">{{ f.title }}</div>
+    <div class="meta">
+      {%- if f.busy %}<span class="spinner small" aria-hidden="true"></span> Claude is replying…
+      {%- elif f.messages %}{{ f.messages }} message{{ '' if f.messages == 1 else 's' }} · {{ f.last_at | ago }}
+      {%- else %}<span class="muted">Not discussed</span>{% endif %}
+      {%- if f.unread and not f.busy %} <span class="tag accent unread">new reply</span>{% endif -%}
+    </div>
+  </summary>
+  <div class="comment chat-comment">{{ draft | text }}</div>
+  <div class="chat-replies-wrap" id="thread-{{ f.id }}">
+    {% with inline=True, busy=f.busy %}{% include "_thread.html" %}{% endwith %}
+  </div>
+  <a class="btn small ghost chat-open" href="/findings/{{ f.id }}">Open the comment ›</a>
+</details>

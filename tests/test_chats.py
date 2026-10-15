@@ -1,9 +1,12 @@
 import time
+from pathlib import Path
 
 import pytest
 
 from prelude import notify
+from tests.conftest import FINDING
 from tests.test_server import client, discussion_calls  # noqa: F401  (fixture)
+from tests.test_server import wait_idle as wait_finding_idle
 
 PAGE = "/prs/B1ueber2y/PRelude/1/discuss"
 
@@ -155,3 +158,86 @@ def test_deleting_the_last_review_warns_and_waits_for_replies(client, done_revie
     store.release_chat(chat_id)
     client.post(f"/reviews/{done_review}/delete")
     assert store.get_chat(chat_id) is None
+
+
+def test_comments_are_indexed_as_threads(client, done_review, store, fake_claude, cfg, monkeypatch):  # noqa: F811
+    sent = []
+    monkeypatch.setattr(notify, "_http_send", lambda url, body, headers: sent.append(headers))
+    cfg.notify.ntfy_topic = "t"
+    f1, f2 = store.findings_for(done_review)
+    store.update_finding(f2["id"], status="discarded")
+    page = client.get(PAGE).text
+    assert "Missing token is accepted" in page and "Not discussed" in page  # live, not discussed yet
+    assert "Second finding" not in page  # discarded and never discussed
+
+    client.post(f"/findings/{f1['id']}/messages", data={"text": "Is this reachable?"})
+    wait_finding_idle(store, f1["id"])
+    deadline = time.time() + 5
+    while not sent and time.time() < deadline:
+        time.sleep(0.05)
+    assert sent[0]["Click"].endswith(f"/findings/{f1['id']}")  # names no repo
+    assert store.chat_unread() == {("B1ueber2y", "PRelude", 1): 1}  # it replied after you sent
+    assert "new reply" in client.get(f"/reviews/{done_review}").text  # on the comment's card, too
+
+    page = client.get(PAGE).text
+    assert "Is this reachable?" in page and 'id="composer"' not in page  # the finding page's ids stay unique
+    client.get(f"/findings/{f1['id']}/thread?open=0")  # refreshed while folded: still unread
+    assert store.chat_unread() != {}
+    client.post(f"/findings/{f1['id']}/seen")
+    assert store.chat_unread() == {}
+
+    r = client.post(f"/findings/{f1['id']}/messages", data={"text": "Thanks"}, headers={"X-Inline": "1"})
+    assert f'id="fchat-{f1["id"]}"' in r.text and "Reply in thread" in r.text
+    wait_finding_idle(store, f1["id"])
+    assert "Claude is replying" not in client.get(f"/findings/{f1['id']}/thread?open=1").text
+
+
+def test_comment_page_says_you_need_not_wait(client, done_review, store):  # noqa: F811
+    f1, f2 = store.findings_for(done_review)
+    store.add_message(f1["id"], "user", "Hi")
+    store.try_lock_thread(f1["id"])
+    page = client.get(f"/findings/{f1['id']}").text
+    assert "No need to wait here" in page and f"/findings/{f2['id']}" in page
+    rows = client.get(f"/reviews/{done_review}").text
+    assert "Claude is replying" in rows
+
+
+def test_terminal_discussions_send_no_ping(store, cfg, done_review, fake_claude, monkeypatch):
+    from prelude.discuss import Broker, post_message
+
+    sent = []
+    monkeypatch.setattr(notify, "_http_send", lambda *a: sent.append(a))
+    cfg.notify.ntfy_topic = "t"
+    f = store.findings_for(done_review)[0]
+    post_message(store, cfg, Broker(), f["id"], "Hi", ping=False).join(10)
+    assert sent == []
+
+
+def test_older_comment_discussions_count_as_seen_after_upgrade(tmp_path):
+    import sqlite3
+
+    from prelude.db import Store
+
+    path = tmp_path / "old.sqlite"
+    with sqlite3.connect(path) as c:
+        c.executescript((Path(__file__).parent / "schema_v1.sql").read_text())
+        c.execute(
+            "INSERT INTO reviews (id, owner, repo, number, url, created_at, updated_at) VALUES (1, 'o', 'r', 1, 'u', 0, 0)"
+        )
+        c.execute(
+            "INSERT INTO findings (id, review_id, ordinal, path, severity, title, assessment, claude_comment,"
+            " created_at, updated_at) VALUES (1, 1, 1, 'a', 'low', 't', 'a', 'c', 0, 0)"
+        )
+        c.execute("INSERT INTO messages (finding_id, role, content, created_at) VALUES (1, 'assistant', 'old', 5)")
+        c.execute("INSERT INTO threads (finding_id, busy) VALUES (1, 0)")
+    assert Store(path).chat_unread() == {}
+
+
+def test_index_lists_the_newest_reviews_comments_and_puts_replies_first(client, done_review, store):  # noqa: F811
+    f1, f2 = store.findings_for(done_review)
+    store.add_message(f2["id"], "user", "Hm?")
+    store.add_message(f2["id"], "assistant", "Yes.")
+    newer = store.create_review("B1ueber2y", "PRelude", 1, "https://github.com/B1ueber2y/PRelude/pull/1", "test")
+    store.add_findings(newer, [dict(FINDING, title="Newer finding")])
+    titles = [r["title"] for r in store.comment_threads("B1ueber2y", "PRelude", 1)]
+    assert titles == ["Second finding", "Newer finding"]  # the new reply first; f1 belongs to an older review

@@ -18,6 +18,7 @@
   <div class="card-top">
     <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
     {% if f.found_by %}<span class="tag">found by {{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+    {% set state = talk %}{% if state == 'replying' %}<span class="tag talk"><span class="spinner tiny" aria-hidden="true"></span> Claude is replying</span>{% elif state %}<span class="tag accent">new reply</span>{% endif %}
     {% if f.added_later %}<span class="tag accent">new</span>{% endif %}
     {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>{% endif %}
     {% if f.status == 'posted' %}<span class="tag accent">posted</span>{% endif %}

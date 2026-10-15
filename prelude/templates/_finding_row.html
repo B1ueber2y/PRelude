@@ -11,6 +11,7 @@
       {% elif f.status == 'discarded' %}<span class="tag">discarded</span>
       {% elif f.status in ('dropped', 'superseded') %}<span class="tag">not posted</span>{% endif %}
       {% if f.verdict == 'withdrawn' %}<span class="tag warn">withdrawn</span>{% endif %}
+      {% set state = talk.get(f.id) if talk else None %}{% if state == 'replying' %}<span class="tag talk"><span class="spinner tiny" aria-hidden="true"></span> Claude is replying</span>{% elif state %}<span class="tag accent">new reply</span>{% endif %}
     </div>
     <div class="frow-title">{{ f.title }}</div>
     <div class="loc">{{ f.path }}{% if f.line %}:{{ f.line }}{% endif %}</div>

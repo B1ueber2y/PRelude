@@ -8,26 +8,25 @@
 <section class="review-head">
   <div class="repo">{{ ref }}</div>
   <h1>{{ (review.title if review else None) or 'Pull request' }}</h1>
-  <p class="hint">Each message you start here is its own thread with Claude. Threads reply in parallel, so you can ask several things, leave, and come back.{% if source %} Claude sees the code at <code>{{ (source.head_sha or '')[:7] }}</code>, as of the review from {{ (source.finished_at or source.created_at) | ago }}.{% endif %}</p>
+  <p class="hint">Every discussion of this PR in one place. Send a message, move on, and come back: replies are saved, marked “new reply”, and Claude works on several threads at once.</p>
 </section>
 
-{% if findings %}
-<details class="existing">
-  <summary>Discussions about findings ({{ findings | length }})</summary>
-  <ul>
-  {% for f in findings %}
-    <li><a href="/findings/{{ f.id }}">#{{ f.ordinal }} {{ f.title }}</a> <span class="hint inline">{{ f.messages }} message{{ '' if f.messages == 1 else 's' }} · {{ f.last_at | ago }}</span></li>
-  {% endfor %}
-  </ul>
-</details>
+{% if comments %}
+<h2 class="section-title">Comments</h2>
+<div class="chats">
+{% for t in comments %}
+  {% with f=t.f, messages=t.messages, draft=t.draft, open=t.open %}{% include "_finding_thread.html" %}{% endwith %}
+{% endfor %}
+</div>
 {% endif %}
 
+<h2 class="section-title">Other threads</h2>
+<p class="hint">Anything else about the PR, the code or the review. Each message you start here is its own thread.{% if source %} Claude sees the code at <code>{{ (source.head_sha or '')[:7] }}</code>, as of the review from {{ (source.finished_at or source.created_at) | ago }}.{% endif %}</p>
 <div id="chats" class="chats">
 {% for t in threads %}
   {% with c=t.c, messages=t.messages, open=t.open %}{% include "_chat.html" %}{% endwith %}
 {% endfor %}
 </div>
-{% if not threads %}<p class="empty-line" id="no-threads">No threads yet.</p>{% endif %}
 
 {% if source %}
 <form class="composer new-thread" hx-post="/prs/{{ owner }}/{{ repo }}/{{ number }}/discuss" hx-target="#chats" hx-swap="beforeend"

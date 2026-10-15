@@ -31,12 +31,12 @@
           hx-confirm="Remove the unsubmitted draft comments from GitHub and mark the rest as not posted?">Clear leftovers</button>
 </div>
 {% endif %}
-{% if r.status == 'done' or threads %}
-{% set n_unread = threads | selectattr('unread') | list | length %}
+{% if r.status == 'done' or threads or comment_threads %}
+{% set n_threads = threads | length + comment_threads %}
 {% set n_busy = threads | selectattr('busy') | list | length %}
 <a class="callout small discuss-link" href="/prs/{{ r.owner }}/{{ r.repo }}/{{ r.number }}/discuss">
-  <span>Discuss this PR with Claude{% if threads %} · {{ threads | length }} thread{{ '' if threads | length == 1 else 's' }}{% endif %}</span>
-  {% if n_unread %}<span class="tag accent">{{ n_unread }} new repl{{ 'y' if n_unread == 1 else 'ies' }}</span>{% elif n_busy %}<span class="tag">Claude is replying…</span>{% endif %}
+  <span>Discuss this PR with Claude{% if n_threads %} · {{ n_threads }} thread{{ '' if n_threads == 1 else 's' }}{% endif %}</span>
+  {% if unread %}<span class="tag accent">{{ unread }} new repl{{ 'y' if unread == 1 else 'ies' }}</span>{% elif n_busy %}<span class="tag">Claude is replying…</span>{% endif %}
   <span class="chev">›</span>
 </a>
 {% endif %}
@@ -164,7 +164,7 @@
 {% else %}
 <div class="feed">
 {% for c in cards %}
-  {% with f=c.f, r=c.r, draft=c.draft, edited=c.edited, code=c.code, drafts_enabled=c.drafts_enabled %}
+  {% with f=c.f, r=c.r, draft=c.draft, edited=c.edited, code=c.code, drafts_enabled=c.drafts_enabled, talk=c.talk %}
   {% include "_finding_card.html" %}
   {% endwith %}
 {% endfor %}

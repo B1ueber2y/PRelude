@@ -107,4 +107,5 @@ def _reply(
     chat = store.get_chat(chat_id)
     if chat:  # you may have left: tell you it's ready
         review = store.get_review(chat["review_id"]) if chat["review_id"] else None
-        notify.chat_replied(cfg.notify, chat, review["title"] if review else None, ok)
+        pr = (chat["owner"], chat["repo"], chat["number"])
+        notify.reply_ready(cfg.notify, pr, review["title"] if review else None, ok, f"/chats/{chat_id}")

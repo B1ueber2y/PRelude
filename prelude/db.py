@@ -155,6 +155,12 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 _NEWEST_PER_PR = "SELECT MAX(id) FROM reviews GROUP BY owner, repo, number"
 
+# A reply in a finding's discussion that came after you last looked at it.
+_UNREAD_FINDING_REPLY = (
+    "SELECT 1 FROM messages WHERE finding_id = {finding} AND role != 'user'"
+    " AND created_at > COALESCE((SELECT seen_at FROM threads WHERE finding_id = {finding}), 0)"
+)
+
 
 class Store:
     def __init__(self, path: Path):
@@ -177,6 +183,9 @@ class Store:
                 },
             )
             _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
+            if "seen_at" not in {r[1] for r in c.execute("PRAGMA table_info(threads)")}:
+                _add_missing_columns(c, "threads", {"seen_at": "REAL NOT NULL DEFAULT 0"})
+                c.execute("UPDATE threads SET seen_at = ?", (time.time(),))  # older replies count as seen
             _add_missing_columns(
                 c,
                 "reviews",
@@ -671,11 +680,15 @@ class Store:
             ).fetchall()
 
     def chat_unread(self) -> dict[tuple[str, str, int], int]:
-        """PR -> threads with a reply you haven't seen."""
+        """PR -> threads (its own, and findings' discussions) with a reply you haven't seen."""
         with self.connect() as c:
             rows = c.execute(
-                "SELECT owner, repo, number, COUNT(*) FROM chats c WHERE EXISTS (SELECT 1 FROM chat_messages"
-                " WHERE chat_id = c.id AND role != 'user' AND created_at > c.seen_at) GROUP BY owner, repo, number"
+                "SELECT owner, repo, number, COUNT(*) FROM ("
+                " SELECT owner, repo, number FROM chats c WHERE EXISTS (SELECT 1 FROM chat_messages"
+                " WHERE chat_id = c.id AND role != 'user' AND created_at > c.seen_at)"
+                " UNION ALL SELECT r.owner, r.repo, r.number FROM findings f JOIN reviews r ON r.id = f.review_id"
+                f" WHERE EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')})"
+                ") GROUP BY owner, repo, number"
             )
             return {(o, r, n): k for o, r, n, k in rows}
 
@@ -712,16 +725,40 @@ class Store:
         with self.connect() as c:
             return c.execute("SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY id", (chat_id,)).fetchall()
 
-    def finding_discussions(self, owner: str, repo: str, number: int) -> list[sqlite3.Row]:
-        """Findings of this PR's reviews that you discussed, newest discussion first."""
+    def comment_threads(self, owner: str, repo: str, number: int) -> list[sqlite3.Row]:
+        """The newest review's live comments (to review or in your draft) and every comment you discussed,
+        with their discussion's state: first the ones that need a look, then by latest message."""
         with self.connect() as c:
             return c.execute(
-                "SELECT f.id, f.ordinal, f.title, r.id AS review_id, COUNT(m.id) AS messages,"
-                " MAX(m.created_at) AS last_at FROM messages m JOIN findings f ON f.id = m.finding_id"
-                " JOIN reviews r ON r.id = f.review_id WHERE r.owner = ? AND r.repo = ? AND r.number = ?"
-                " GROUP BY f.id ORDER BY last_at DESC",
+                "SELECT f.*, r.id AS review_id,"
+                " (SELECT COUNT(*) FROM messages WHERE finding_id = f.id) AS messages,"
+                " (SELECT MAX(created_at) FROM messages WHERE finding_id = f.id) AS last_at,"
+                " (SELECT content FROM messages WHERE finding_id = f.id ORDER BY id LIMIT 1) AS first_message,"
+                " COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0) AS busy,"
+                f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) AS unread"
+                " FROM findings f JOIN reviews r ON r.id = f.review_id"
+                " WHERE r.owner = ? AND r.repo = ? AND r.number = ?"
+                " AND ((f.status IN ('pending', 'drafted') AND r.id = (SELECT MAX(id) FROM reviews"
+                "  WHERE owner = r.owner AND repo = r.repo AND number = r.number))"
+                "  OR EXISTS (SELECT 1 FROM messages WHERE finding_id = f.id))"
+                " ORDER BY busy OR unread DESC, last_at IS NULL, last_at DESC, r.id, f.ordinal",
                 (owner, repo, number),
             ).fetchall()
+
+    def discussion_state(self, review_id: int) -> dict[int, str]:
+        """Finding -> "replying" or "new reply", for findings whose discussion needs a look."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT f.id, COALESCE((SELECT busy FROM threads WHERE finding_id = f.id), 0),"
+                f" EXISTS ({_UNREAD_FINDING_REPLY.format(finding='f.id')}) FROM findings f WHERE f.review_id = ?",
+                (review_id,),
+            )
+            return {fid: "replying" if busy else "new reply" for fid, busy, unread in rows if busy or unread}
+
+    def mark_thread_seen(self, finding_id: int) -> None:
+        with self.connect() as c:
+            c.execute("INSERT OR IGNORE INTO threads (finding_id, busy) VALUES (?, 0)", (finding_id,))
+            c.execute("UPDATE threads SET seen_at = ? WHERE finding_id = ?", (time.time(), finding_id))
 
 
 def _alive(pid: int | None) -> bool:

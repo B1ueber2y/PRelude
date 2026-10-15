@@ -8,7 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import chat
-from ..discuss import DiscussionBusy
+from ..discuss import DiscussionBusy, current_draft
 from .context import Web, WebDep, event_stream
 
 router = APIRouter()
@@ -40,10 +40,16 @@ def page(w: WebDep, request: Request, owner: str, repo: str, number: int, open: 
     if review is None and not chats:
         raise HTTPException(404, "PRelude hasn't reviewed this PR")
     source = chat.source_review(w.store, owner, repo, number)
-    shown = {c["id"] for c in chats if c["busy"] or c["id"] == open}
     for c in chats:
         if c["id"] == open:
             w.store.update_chat(c["id"], seen_at=time.time())
+    threads = [
+        {"c": c, "messages": w.store.chat_messages(c["id"]), "open": c["busy"] or c["id"] == open} for c in chats
+    ]
+    comments = [
+        {"f": f, "messages": w.store.messages_for(f["id"]), "draft": current_draft(f), "open": bool(f["busy"])}
+        for f in w.store.comment_threads(owner, repo, number)
+    ]
     return w.render(
         request,
         "discuss.html",
@@ -53,8 +59,8 @@ def page(w: WebDep, request: Request, owner: str, repo: str, number: int, open: 
             "number": number,
             "review": review,
             "source": source,
-            "threads": [{"c": c, "messages": w.store.chat_messages(c["id"]), "open": c["id"] in shown} for c in chats],
-            "findings": w.store.finding_discussions(owner, repo, number),
+            "threads": threads,
+            "comments": comments,
         },
     )
 

@@ -99,13 +99,16 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
     tab = [x for x in findings if show == "all" or x["status"] == show]
     split = is_wide(request) and r["status"] == "done"  # laptop: finding list + one finding in a pane
     selected = _pick([x["id"] for x in tab], [x["id"] for x in findings], f) if split else None
+    if selected:
+        w.store.mark_thread_seen(selected)
+    talk = w.store.discussion_state(review_id)
     return w.render(
         request,
         "review.html",
         {
             "r": r,
             "tab": tab,
-            "cards": [] if split else [w.card_context(x, r) for x in tab],
+            "cards": [] if split else [{**w.card_context(x, r), "talk": talk.get(x["id"])} for x in tab],
             "split": split,
             "pane": w.finding_context(selected) if selected else None,
             "show": show,
@@ -120,6 +123,9 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "max_more": MAX_MORE,
             "threads": w.store.chats_for(r["owner"], r["repo"], r["number"]),
             "takes_threads": _takes_threads(w, r),
+            "unread": w.store.chat_unread().get((r["owner"], r["repo"], r["number"]), 0),
+            "talk": talk,
+            "comment_threads": len(w.store.comment_threads(r["owner"], r["repo"], r["number"])),
         },
     )
 
