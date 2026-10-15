@@ -30,7 +30,7 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
 
 ## Ways to use it
 
-You don't need a stream of other people's PRs. PRelude is just as useful on your own work:
+PRelude fits wherever you'd want a careful second reviewer:
 
 - **Review your own PRs before anyone else does.** Open a PR and have PRelude review it
   (paste the link, or turn on `triggers` and your own non-draft PRs are reviewed
