@@ -338,6 +338,8 @@ def run_review(
         ids = store.add_findings(review_id, [_normalize(f, files) for f in out["findings"] if isinstance(f, dict)])
         if pr.state == "open":
             _auto_draft(store, cfg, review_id, ids, writer, replace=True)
+        # Reviewed: the poller won't start its own review of this PR (new commits are your call).
+        store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
         store.update_review(
             review_id,
             status="done",

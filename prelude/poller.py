@@ -148,6 +148,12 @@ class Poller:
                     continue
                 if seen and seen["reviewed_sha"]:
                     continue  # new commits on a reviewed PR: shown in the app, re-review is your call
+                latest = self.store.latest_review_for(owner, repo, number, done_only=False)
+                if latest and latest["status"] in ("queued", "running"):
+                    # Already being reviewed (e.g. by hand); it marks the PR reviewed when done. Look
+                    # again next round in case it fails.
+                    self.store.set_watched(owner, repo, number, updated_at=None, head_sha=None)
+                    continue
                 if t.counts_toward_cap(ref.slug, reason) and self._capped_today() >= t.max_reviews_per_day:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue

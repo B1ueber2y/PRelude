@@ -190,3 +190,18 @@ def test_skipped_reviews_dont_use_up_the_daily_cap(poller, reader, cfg, store):
     store.update_review(skipped, status="skipped")
     reader.add(1, direct=["bob"])
     assert len(poller.poll_once()) == 1
+
+
+def test_a_pr_you_reviewed_by_hand_is_not_reviewed_again_automatically(poller, reader, store):
+    reader.add(1, author="me")
+    store.set_watched("B1ueber2y", "PRelude", 1, reviewed_sha="a" * 40)  # what a finished manual review records
+    assert poller.poll_once() == []
+
+
+def test_a_pr_being_reviewed_by_hand_is_not_reviewed_again(poller, reader, store):
+    reader.add(1, author="me")
+    rid = store.create_review("B1ueber2y", "PRelude", 1, "u", "manual (cli)")
+    store.update_review(rid, status="running")
+    assert poller.poll_once() == []
+    store.update_review(rid, status="failed")  # it didn't finish: the poller takes over next round
+    assert len(poller.poll_once()) == 1
