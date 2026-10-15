@@ -24,6 +24,21 @@ def run(cfg, monkeypatch, capsys):
     return run
 
 
+def test_api_key_is_stored_private_and_never_echoed(run, cfg, monkeypatch):
+    import getpass
+    import stat
+
+    key = "sk-ant-test-cli-0123456789"
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": key)
+    code, out = run("api-key")
+    path = cfg.data_dir / "anthropic_api_key"
+    assert code == 0 and path.read_text().strip() == key
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert key not in out and "auth: api_key" in out  # still on the subscription: says how to switch
+    run("api-key", "--remove")
+    assert not path.exists()
+
+
 def test_list_then_draft_discard_restore(run, store, done_review):
     first, second = store.findings_for(done_review)  # numbered 1 and 2
     code, out = run("findings", done_review)

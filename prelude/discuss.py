@@ -129,7 +129,7 @@ def _reply(
     changed_mind = False
     final = Event("done")
     try:
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
         result = claude.run_stream(
             prompt,
             worktree,
@@ -139,6 +139,7 @@ def _reply(
             resume=resume,
             fork=fork,
             timeout=cfg.claude.discuss_timeout_seconds,
+            auth=claude.auth_for(cfg),
         )
         session_id = result.session_id
         text, proposal, verdict = parse_reply(result.text)
