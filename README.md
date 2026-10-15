@@ -155,8 +155,9 @@ different address).
    ssh -N -L 8787:127.0.0.1:8787 you@that-machine
    ```
 
-2. Get the key link from the machine, e.g. in a second terminal:
-   `ssh you@that-machine 'cd PRelude && .venv/bin/prelude url'` (adjust the path).
+2. Get the key link: in a normal SSH session on the machine, run `.venv/bin/prelude url`
+   in the PRelude folder (with the same `PRELUDE_HOME` as the running PRelude, if you set
+   one).
 3. Open that link **in your laptop's browser**. From then on `http://127.0.0.1:8787` is
    enough there.
 
