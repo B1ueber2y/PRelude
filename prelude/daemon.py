@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -37,12 +38,24 @@ def _port_open(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) == 0
 
 
+def _scrub_key(path) -> None:
+    """Older versions wrote the access key to the log; hide it there (the server no longer logs it)."""
+    try:
+        text = path.read_bytes()
+    except FileNotFoundError:
+        return
+    clean = re.sub(rb"([?&]key=)[^&\s\"]+", rb"\1<hidden>", text)
+    if clean != text:
+        path.write_bytes(clean)
+
+
 def start(cfg: Config) -> str:
     if pid := running_pid(cfg):
         return f"PRelude is already running (pid {pid})."
     host, port = cfg.server.host, cfg.server.port
     if _port_open(host, port):
         return f"Something is already listening on {host}:{port}; stop it first."
+    _scrub_key(_logfile(cfg))
     with open(_logfile(cfg), "ab") as log:
         proc = subprocess.Popen(
             [sys.executable, "-m", "prelude.cli", "serve"],

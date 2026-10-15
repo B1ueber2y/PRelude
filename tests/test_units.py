@@ -240,3 +240,13 @@ def test_drafts_are_on_out_of_the_box(tmp_path):
 
     cfg = load_config(tmp_path / "fresh")
     assert cfg.drafts.enabled and cfg.drafts.auto and cfg.only_repo is None
+
+
+def test_start_hides_the_key_in_an_older_log(tmp_path):
+    from prelude.daemon import _scrub_key
+
+    log = tmp_path / "server.log"
+    log.write_bytes(b'open once with: http://127.0.0.1:8787/?key=s3cret_-x\\n"GET /?key=s3cret_-x&a=1 HTTP/1.1"\\n')
+    _scrub_key(log)
+    assert b"s3cret" not in log.read_bytes() and b"/?key=<hidden>&a=1" in log.read_bytes()
+    _scrub_key(tmp_path / "missing.log")  # first start: no log yet
