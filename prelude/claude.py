@@ -7,6 +7,7 @@ import os
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -58,8 +59,12 @@ class Auth:
     mode: str = SUBSCRIPTION
     key_file: Path | None = None
 
+    @cached_property
     def api_key(self) -> str | None:
-        """PRelude's own ANTHROPIC_API_KEY, else the key file. Only for the `claude` subprocess."""
+        """PRelude's own ANTHROPIC_API_KEY, else the key file. Only for the `claude` subprocess.
+
+        Read once, so a run is scrubbed for exactly the key it was given (make a new Auth per run).
+        """
         if self.mode != API_KEY:
             return None
         if key := os.environ.get("ANTHROPIC_API_KEY", "").strip():
@@ -78,7 +83,7 @@ def _env(auth: Auth | None = None) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k not in _STRIPPED_ENV}
     if auth and auth.mode == API_KEY:
         env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)  # so the key is what's used
-        if key := auth.api_key():
+        if key := auth.api_key:
             env["ANTHROPIC_API_KEY"] = key
     return env
 
@@ -89,7 +94,7 @@ def _scrub(value: Any, auth: Auth | None) -> Any:
     Output is scrubbed too: Claude can read files and its own environment, so a prompt-injected
     PR could try to make it quote the key into a finding. Scrub before truncating.
     """
-    key = auth.api_key() if auth else None
+    key = auth.api_key if auth else None
     if not key:
         return value
     if isinstance(value, str):
@@ -105,7 +110,7 @@ class _StreamScrubber:
     """Scrubs streamed text, holding back a tail that could be the start of a key split across chunks."""
 
     def __init__(self, on_text: Callable[[str], None], auth: Auth | None):
-        self.on_text, self.key = on_text, (auth.api_key() if auth else None)
+        self.on_text, self.key = on_text, (auth.api_key if auth else None)
         self.pending = ""
 
     def __call__(self, text: str) -> None:
@@ -138,7 +143,7 @@ def auth_status(auth: Auth | None = None) -> dict[str, Any]:
 
 def ensure_logged_in(auth: Auth | None = None) -> dict[str, Any]:
     if auth and auth.mode == API_KEY:
-        if not auth.api_key():
+        if not auth.api_key:
             raise ClaudeNotLoggedIn(
                 "PRelude is set to use an API key (claude.auth: api_key) but has none: "
                 "set ANTHROPIC_API_KEY or run `prelude api-key`."
@@ -293,11 +298,13 @@ def run_stream(
                     delta = ev.get("delta") or {}
                     if delta.get("type") == "text_delta" and delta.get("text"):
                         on_text(delta["text"])
-                elif ev.get("type") == "content_block_start" and on_activity:
+                elif ev.get("type") == "content_block_start":
                     block = ev.get("content_block") or {}
                     if block.get("type") == "tool_use":
-                        on_activity(block.get("name", "tool"))
-                    elif block.get("type") == "text":
+                        on_text.flush()  # a key can't span blocks; don't hold text back while tools run
+                        if on_activity:
+                            on_activity(block.get("name", "tool"))
+                    elif block.get("type") == "text" and on_activity:
                         # Separate text from successive assistant messages.
                         on_text("")
             elif etype == "result":

@@ -114,6 +114,27 @@ def test_run_output_never_carries_the_key(fake_claude, monkeypatch, tmp_path):
     assert "".join(chunks) == "the key is [API key]" and KEY not in streamed.text
 
 
+def test_stream_scrubber_holds_back_only_a_possible_key_prefix():
+    out = []
+    s = claude._StreamScrubber(out.append, claude.Auth(claude.API_KEY))
+    s.__dict__["key"] = KEY  # as if resolved
+    s("Reading the file now ")
+    s.flush()  # a tool starts: everything said so far is shown
+    assert "".join(out) == "Reading the file now "
+    s(KEY[:5])
+    s(KEY[5:] + " done")
+    s.flush()
+    assert "".join(out) == "Reading the file now [API key] done"
+
+
+def test_a_run_is_scrubbed_for_the_key_it_was_given(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    auth = api_auth(tmp_path, KEY)
+    assert auth.api_key == KEY
+    (tmp_path / "anthropic_api_key").write_text("sk-ant-replaced-meanwhile")  # `prelude api-key` during a run
+    assert claude._scrub(f"x {KEY}", auth) == "x [API key]"
+
+
 def test_stream_delivers_text_and_activity(fake_claude, monkeypatch, tmp_path):
     monkeypatch.setenv("FAKE_CLAUDE_REPLY", "Hello there, reviewer.")
     chunks, tools = [], []

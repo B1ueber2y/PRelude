@@ -117,6 +117,8 @@ instead, which is billed per token in the Claude Console and recommended for hea
 .venv/bin/prelude api-key     # paste the key (hidden); stored in .prelude-data/ readable only by you
 ```
 
+Use a key made just for PRelude, with a spending limit set in the Console.
+
 then set `auth: api_key` under `claude:` in `config.yaml` and restart PRelude
 (`prelude auth` shows which one is in use). An `ANTHROPIC_API_KEY` in PRelude's own
 environment takes precedence over the stored key. Some plans include monthly API credits
@@ -155,8 +157,11 @@ forward in an SSH app such as Termius) or another private tunnel such as `tailsc
   checkout, with settings, hooks, plugins and MCP servers disabled, so code in the
   reviewed repository is never executed. Only the credential you chose reaches it: on the
   subscription, API-key variables are removed; with `claude.auth: api_key`, only that key
-  is passed (in its environment, never on the command line), and it's scrubbed from errors
-  and from everything a run returns, so it can't end up in a finding or a GitHub draft.
+  is passed (in its environment, never on the command line), and any verbatim copy of it
+  is removed from errors and from everything a run returns. Claude can still read its own
+  environment and files, as it can your subscription login, so a PR written to trick it
+  could try to get the key out in some disguised form; use a dedicated key with a spending
+  limit, and you still read every comment before you submit it.
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment); submitting a review is not possible from PRelude, and tests enforce it.
 
