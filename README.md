@@ -2,6 +2,9 @@
 
 **Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
+A free, personal tool built on Claude Code, not a replacement for Anthropic's own
+[Code Review](https://code.claude.com/docs/en/code-review); for team review, use theirs.
+
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
 </p>
@@ -92,8 +95,8 @@ October 2026:
   subscription login (in API-key mode it keeps only the key you give it).
 - **Don't run it for other people.** Subscriptions may not be shared or used "on behalf of"
   other users, and products built on Claude should use an API key. Keep PRelude personal:
-  your login, your machine, your reviews. For heavier or team use, switch to an
-  [API key](#subscription-or-api-key) (billed per token) and check with Anthropic.
+  your login, your machine, your reviews. For heavier personal use, switch to an
+  [API key](#subscription-or-api-key) (billed per token).
 - **Keep it ordinary, individual usage.** Pro and Max limits "assume ordinary, individual
   usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
