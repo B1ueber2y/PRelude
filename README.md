@@ -29,7 +29,7 @@ sees. It works the way you'd review a change:
 | A contributor opens a PR | Claude proposes a set of review comments             |
 | Approve                  | **Add** the comment to your GitHub draft review      |
 | Suggest changes          | **Edit** the wording                                 |
-| Comment thread           | **Discuss** it with Claude, one thread per comment   |
+| Comment thread           | **Discuss** it with Claude, many threads at once     |
 | Reject                   | **Discard** it                                       |
 | Release                  | You add your own comments and submit on GitHub       |
 | The contributor improves | PRelude **remembers** your principles and style      |
@@ -40,7 +40,7 @@ you can see. New comments start there and you discard the ones you don't want (w
 comments of your own and submit the review yourself (Comment / Approve / Request changes).
 Optionally, each comment is prefixed with `AI review with PRelude:` so authors know where it came from.
 
-You don't have to wait for Claude's reply in a discussion: send, move on to the next
+**Discussions run in parallel.** You don't wait for Claude's reply: send, move on to the next
 comment, and come back. Each PR has a discussion page that indexes every live comment as a
 thread, with the ones that have a new reply first, plus threads of your own about anything
 else in the PR. Claude replies to all of them in parallel (with a phone notification if you set
@@ -61,6 +61,10 @@ PRelude fits wherever you'd want a careful second reviewer:
 - **Answer review requests faster.** With `triggers` on, when a colleague requests your
   review, a draft is waiting by the time you look; you keep, reword or drop each comment
   and submit.
+- **Ask Claude about a PR while you work through it.** On the PR's discussion page, every
+  comment is a thread (push back there and Claude can revise or withdraw it), and so is
+  each question of your own, like how a change works or whether a case is covered. They
+  run in parallel: ask, move on, and come back to the answers.
 - **First pass on contributions to a project you maintain.** Turn on `triggers`, add your
   repos on the **Repos** page, and PRelude prepares a review of each new PR; contributors
   only see what you approved.
