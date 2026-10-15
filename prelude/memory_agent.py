@@ -38,7 +38,7 @@ def chat(store: Store, cfg: Config, scope: str, text: str) -> None:
     history = [m for m in store.memory_messages(scope, limit=12) if m["role"] in ("user", "assistant")]
     store.add_memory_message(scope, "user", text)
     try:
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
         transcript = "".join(f"\n{'Reviewer' if m['role'] == 'user' else 'You'}: {m['content']}" for m in history)
         prompt = memory_chat_prompt(
             what=describe(scope),
@@ -92,7 +92,7 @@ def learn_style_from_edit(store: Store, cfg: Config, finding_id: int) -> str | N
         if f is None or not f["user_draft"] or f["user_draft"] == f["claude_comment"]:
             return None
         memory = Memory(cfg)
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
         out = _run(
             cfg,
             memory,
@@ -113,7 +113,7 @@ def learn_style_from_edit(store: Store, cfg: Config, finding_id: int) -> str | N
 def init_style(store: Store, cfg: Config, repo: str, comments: list[str]) -> str | None:
     """Write the style guide from the reviewer's past comments. Returns the summary."""
     memory = Memory(cfg)
-    claude.ensure_logged_in()
+    claude.ensure_logged_in(claude.auth_for(cfg))
     text = "\n\n".join(f"<comment>{c.strip()}</comment>" for c in comments if c.strip())
     out = _run(cfg, memory, style_from_history_prompt(repo=repo, comments=text), STYLE_SCHEMA)
     return _save(
@@ -172,7 +172,7 @@ def learn_from_finding(store: Store, cfg: Config, finding_id: int, action: str) 
         )
         memory = Memory(cfg)
         existing = "\n".join(filter(None, [memory.read(GLOBAL), memory.read(repo)]))
-        claude.ensure_logged_in()
+        claude.ensure_logged_in(claude.auth_for(cfg))
         out = _run(
             cfg,
             memory,
@@ -225,5 +225,6 @@ def _run(cfg: Config, memory: Memory, prompt: str, schema: dict, timeout: int | 
         schema=schema,
         model=cfg.claude.model,
         timeout=timeout or cfg.claude.discuss_timeout_seconds,
+        auth=claude.auth_for(cfg),
     )
     return result.structured if isinstance(result.structured, dict) else {}

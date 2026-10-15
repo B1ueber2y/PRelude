@@ -24,6 +24,9 @@ only_repo: B1ueber2y/PRelude
 
 # Claude settings. `model: null` uses Claude Code's default model.
 claude:
+  # subscription: your Claude Code login (Pro/Max). api_key: an Anthropic API key, billed per
+  # token (from ANTHROPIC_API_KEY or `prelude api-key`); better for heavy use.
+  auth: subscription
   model: null
   # Independent reviewers per review (more = more thorough, uses more of your plan).
   # With more than one, a meta-reviewer merges their reports. "auto" picks by PR size
@@ -103,6 +106,7 @@ DEFAULT_LENSES = (
 
 @dataclass
 class ClaudeConfig:
+    auth: str = "subscription"  # or "api_key"
     model: str | None = None
     reviewers: int = AUTO
     reviewers_by_size: list[tuple[int | None, int]] = field(default_factory=lambda: list(DEFAULT_BY_SIZE))
@@ -190,6 +194,7 @@ def load_config(data_dir: Path | None = None) -> Config:
         data_dir=data_dir,
         only_repo=(raw.get("only_repo") or None),
         claude=ClaudeConfig(
+            auth=_auth(claude_raw.get("auth", "subscription")),
             model=claude_raw.get("model"),
             reviewers=_reviewers(claude_raw.get("reviewers", "auto")),
             reviewers_by_size=[
@@ -228,6 +233,13 @@ def _notify_details(raw: dict) -> str:
         return "full" if raw["include_details"] is True else "none"
     value = str(raw.get("details", "ref"))
     return value if value in ("none", "ref", "full") else "ref"
+
+
+def _auth(value) -> str:
+    value = str(value or "subscription").strip().lower().replace("-", "_")
+    if value not in ("subscription", "api_key"):
+        raise ValueError(f"claude.auth must be subscription or api_key, not {value!r}")
+    return value
 
 
 def _reviewers(value) -> int:
