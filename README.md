@@ -190,8 +190,11 @@ ssh -L 8787:127.0.0.1:8787 you@that-machine
 - **GitHub drafts:** set `github_drafts.enabled: true` so comments can go into your pending
   GitHub review (new findings then start there; `github_drafts.auto: false` to add them
   yourself).
-- **Automatic reviews:** set `triggers.enabled: true` and restart; then choose repos on the
-  **Repos** page. `prelude check` shows what would be reviewed, without starting anything.
+- **Limited automatic reviews:** set `triggers.enabled: true` and restart; then choose repos
+  on the **Repos** page. They're capped at `triggers.max_reviews_per_day` (20 by default,
+  over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
+  when the next slot frees up. Your own PRs in repos listed under `triggers.cap_exempt`
+  don't count. `prelude check` shows what would be reviewed, without starting anything.
 
 ### Subscription or API key
 
