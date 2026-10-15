@@ -6,13 +6,13 @@ A small personal project built on Claude Code. **Note that for code review as a 
 [Code Review](https://code.claude.com/docs/en/code-review) is the natural choice and this project
 is not applicable.**
 
-<p align="center"><strong>Laptop</strong><br>
-  <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
+<h3 align="center">Laptop</h3>
+<p align="center">
+  <img src="docs/images/laptop.png" width="70%" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
 </p>
-<p align="center"><strong>Phone</strong><br>
-  <img src="docs/images/home.png" width="32%" alt="The review list, one card per PR">
-  <img src="docs/images/review.png" width="32%" alt="A review: summary, actions and the first finding with its code">
-  <img src="docs/images/finding.png" width="32%" alt="One finding: the code, why Claude flagged it, and your wording">
+<h3 align="center">Phone</h3>
+<p align="center">
+  <img src="docs/images/phones.png" width="70%" alt="On a phone: the review list, a review with its first finding, and one finding with the code, why Claude flagged it and your wording">
 </p>
 
 AI reviewers are good at finding problems and bad at knowing which ones matter to *you*.
