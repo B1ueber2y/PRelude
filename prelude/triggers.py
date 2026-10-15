@@ -17,6 +17,9 @@ class TriggerConfigError(ValueError):
     pass
 
 
+OWN_PR = "your PR"  # the reason given for reviewing your own PRs
+
+
 @dataclass
 class TriggerConfig:
     enabled: bool = False
@@ -30,6 +33,7 @@ class TriggerConfig:
     team_requests: bool = True
     skip_draft_prs: bool = True
     max_reviews_per_day: int = 20
+    cap_exempt: set[str] = field(default_factory=set)  # repos where your own PRs don't count toward the cap
     requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
 
     @classmethod
@@ -57,6 +61,7 @@ class TriggerConfig:
             team_requests=bool(raw.get("team_requests", True)),
             skip_draft_prs=bool(raw.get("skip_draft_prs", True)),
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
+            cap_exempt={str(x).lower() for x in raw.get("cap_exempt") or []},
             requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
         )
         t.validate()
@@ -82,6 +87,10 @@ class TriggerConfig:
             return slug
         matches = [p for p in self.repos if fnmatchcase(slug, p)]
         return max(matches, key=lambda p: len(p.replace("*", ""))) if matches else None
+
+    def counts_toward_cap(self, slug: str, reason: str) -> bool:
+        """Every automatic review counts, except your own PRs in cap_exempt repos."""
+        return reason != OWN_PR or not any(fnmatchcase(slug.lower(), p) for p in self.cap_exempt)
 
     def repo_mode(self, slug: str) -> str:
         pattern = self.repo_pattern(slug)
@@ -130,7 +139,7 @@ def decide(
             return False, "your PR (own_prs off)"
         if own_since and c.created_at and c.created_at < own_since:
             return False, f"your PR, opened before {own_since[:10]}, when watching started"
-        return True, "your PR"
+        return True, OWN_PR
 
     if mode == "all_prs" and not (since and c.created_at and c.created_at < since):
         return True, f"new PR in {c.slug} (all_prs)"
