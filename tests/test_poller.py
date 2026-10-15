@@ -86,13 +86,14 @@ def test_daily_cap(poller, reader, cfg):
     assert len(poller.poll_once()) == 1
 
 
-def test_cap_exempt_repos_neither_count_nor_wait(poller, reader, cfg, store):
+def test_own_prs_in_cap_exempt_repos_neither_count_nor_wait(poller, reader, cfg, store):
     cfg.triggers.max_reviews_per_day = 1
     cfg.triggers.cap_exempt = {"b1ueber2y/*"}
     store.create_review("colmap", "colmap", 9, "u", "auto: new PR in colmap/colmap (all_prs)")
-    reader.add(1, direct=["bob"])
-    reader.add(2, direct=["bob"])
-    assert len(poller.poll_once()) == 2  # exempt: not held back by the cap
+    reader.add(1, author="me")
+    reader.add(2, author="me")
+    reader.add(3, direct=["bob"])  # someone else's request in the same repo still counts
+    assert sorted(store.get_review(i)["number"] for i in poller.poll_once()) == [1, 2]  # #3 waits for the cap
     assert poller._capped_today() == 1  # only the colmap review counts
 
 

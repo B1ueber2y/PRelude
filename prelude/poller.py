@@ -122,7 +122,7 @@ class Poller:
                     continue
                 if seen and seen["reviewed_sha"]:
                     continue  # new commits on a reviewed PR: shown in the app, re-review is your call
-                if t.counts_toward_cap(ref.slug) and self._capped_today() >= t.max_reviews_per_day:
+                if t.counts_toward_cap(ref.slug, reason) and self._capped_today() >= t.max_reviews_per_day:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue
                 review_id = start_review(self.store, self.cfg, ref, trigger_reason=f"auto: {reason}")
@@ -142,8 +142,8 @@ class Poller:
 
     def _capped_today(self) -> int:
         """Automatic reviews in the last 24 hours that count toward max_reviews_per_day."""
-        repos = self.store.auto_reviewed_repos_since(time.time() - 86400)
-        return sum(1 for slug in repos if self.cfg.triggers.counts_toward_cap(slug))
+        reviews = self.store.auto_reviews_since(time.time() - 86400)
+        return sum(1 for slug, reason in reviews if self.cfg.triggers.counts_toward_cap(slug, reason))
 
     def stop(self) -> None:
         self._stop.set()

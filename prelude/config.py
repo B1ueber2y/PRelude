@@ -66,7 +66,7 @@ triggers:
   team_requests: true
   skip_draft_prs: true
   max_reviews_per_day: 20
-  cap_exempt: []                  # repos (patterns ok) whose automatic reviews don't count toward the cap
+  cap_exempt: []                  # repos (patterns ok) where your own PRs don't count toward the cap
   requests_since: null            # e.g. 2026-10-10: ignore review requests on older PRs
 
 # Phone notifications via the ntfy app. Run `prelude notify-setup` to create a topic.
