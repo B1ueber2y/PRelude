@@ -46,8 +46,9 @@ PRelude fits wherever you'd want a careful second reviewer:
   developed this way: every PR in this repo went through several such rounds.
 - **Get a second opinion on a risky change.** Ask for a panel (3 or 5 reviewers, or add
   more later with **+N**) and see which problems several reviewers found independently.
-- **Answer review requests faster.** When a colleague requests your review, a draft is
-  waiting by the time you look; you keep, reword or drop each comment and submit.
+- **Answer review requests faster.** With `triggers` on, when a colleague requests your
+  review, a draft is waiting by the time you look; you keep, reword or drop each comment
+  and submit.
 - **First pass on contributions to a project you maintain.** Turn on `triggers`, add your
   repos on the **Repos** page, and PRelude prepares a review of each new PR; contributors
   only see what you approved.
