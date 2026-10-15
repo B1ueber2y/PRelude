@@ -82,8 +82,7 @@ October 2026:
   Claude credentials.
 - **Don't run it for other people.** Subscriptions may not be shared or used "on behalf of"
   other users, and products built on Claude should use an API key. Keep PRelude personal:
-  your login, your machine, your reviews. For heavier or team use, switch to API-key mode
-  (`claude.auth: api_key`, billed per token) and check with Anthropic.
+  your login, your machine, your reviews. For a team, check with Anthropic first.
 - **Keep it ordinary, individual usage.** Pro and Max limits "assume ordinary, individual
   usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
