@@ -131,3 +131,12 @@ def test_legend_says_when_own_prs_are_reviewed(client):
     client.cfg.triggers.own_prs = False
     page = client.get("/repos").text
     assert "plus your own PRs" not in page and "<strong>never</strong>: nothing" in page
+
+
+def test_last_activity_counts_reviewers_added_later(client, store):
+    import time
+
+    rid = store.create_review("cvg", "limap", 1, "u", "t")
+    store.update_review(rid, created_at=time.time() - 8 * 3600, finished_at=time.time() - 120)
+    page = client.get("/repos").text
+    assert "last 2 min ago" in page and "last 8 h ago" not in page
