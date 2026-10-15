@@ -43,9 +43,11 @@ def reviews_toward_cap(store: Store, t: TriggerConfig) -> int:
 
 
 def next_cap_slot(store: Store, t: TriggerConfig) -> float | None:
-    """When the oldest counted review leaves the 24-hour window (None if none count)."""
-    starts = [started for _, started in _counted(store, t)]
-    return min(starts) + CAP_WINDOW if starts else None
+    """When the cap has room again, if it's full now (None if it has room, or a cap of 0 never will)."""
+    starts = sorted(started for _, started in _counted(store, t))
+    if len(starts) < t.max_reviews_per_day or t.max_reviews_per_day <= 0:
+        return None
+    return starts[len(starts) - t.max_reviews_per_day] + CAP_WINDOW  # enough have aged out
 
 
 class Poller:

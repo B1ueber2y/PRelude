@@ -20,7 +20,7 @@
 </form>
 
 {% if watching %}
-<p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %} · <span title="Automatic reviews in the last 24 hours, of the daily cap">{{ cap_used }}/{{ cap }} in 24 h</span>{% if cap_used >= cap and next_slot %} · <span class="error">cap reached, next slot in {{ next_slot | until }}</span>{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
+<p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %} · <span title="Automatic reviews in the last 24 hours, of the daily cap">{{ cap_used }}/{{ cap }} in 24 h</span>{% if next_slot %} · <span class="error">cap reached, next slot in {{ next_slot | until }}</span>{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
 {% endif %}
 <div class="section-head">
   <h2 class="section-title">Reviews</h2>

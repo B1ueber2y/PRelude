@@ -162,10 +162,30 @@ def test_cap_usage_by_repo_and_next_free_slot(client, store):
     auto("B1ueber2y", "PRelude", "your PR", 1)  # exempt: doesn't count
     auto("cvg", "limap", "new PR in cvg/limap (all_prs)", 30)  # outside the window
     page = client.get("/repos").text
-    assert "<strong>3/20</strong>" in page and "the next one frees up in 3 h." in page
+    assert "<strong>3/20</strong>" in page and "frees up" not in page  # room left: nothing to wait for
 
     def capped(slug):
         rest = page[page.index(f">{slug}<") :]
         return rest[: rest.index("toward the cap")].rsplit("<strong>", 1)[1]
 
     assert capped("cvg/limap").startswith("2<") and capped("colmap/colmap").startswith("1<")
+
+
+def test_next_slot_when_the_cap_is_full_or_exceeded(store):
+    import time
+
+    from prelude.poller import next_cap_slot
+    from prelude.triggers import TriggerConfig
+
+    now = time.time()
+    for hours_ago in (20, 10, 5):
+        rid = store.create_review("o", "r", 1, "u", "auto: new PR in o/r (all_prs)")
+        store.update_review(rid, created_at=now - hours_ago * 3600)
+    t = TriggerConfig.from_raw({"max_reviews_per_day": 3})
+    assert abs(next_cap_slot(store, t) - (now + 4 * 3600)) < 5  # the oldest ages out
+    t.max_reviews_per_day = 2  # over the cap: two must age out before there's room
+    assert abs(next_cap_slot(store, t) - (now + 14 * 3600)) < 5
+    t.max_reviews_per_day = 4
+    assert next_cap_slot(store, t) is None
+    t.max_reviews_per_day = 0
+    assert next_cap_slot(store, t) is None
