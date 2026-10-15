@@ -100,6 +100,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "show": show,
             "counts": counts,
             "drafts_enabled": w.cfg.drafts.enabled,
+            "drafts_auto": w.cfg.drafts.auto,
             "prefix_on": drafting.prefix_on(w.store),
             "prefix": w.cfg.drafts.prefix,
             "latest": w.store.latest_review_for(r["owner"], r["repo"], r["number"], done_only=False),
