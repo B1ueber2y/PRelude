@@ -201,11 +201,22 @@ def test_repo_lock_lets_one_writer_in_at_a_time(cfg):
     assert overlaps == [0, 0, 0, 0]
 
 
-def test_removal_is_skipped_while_the_repo_is_being_checked_out(cfg):
-    from prelude.workspace import _repo_lock, remove_checkout
+def test_prune_removes_only_old_unused_checkouts_of_idle_repos(cfg):
+    import os
+    import time
 
-    wt = cfg.worktrees_dir / "o__r__1__abc"
-    wt.mkdir(parents=True)
-    with _repo_lock(cfg, "o", "r"):  # a checkout in progress, maybe about to reuse wt
-        assert remove_checkout(cfg, "o", "r", wt) is False
-    assert wt.exists()
+    from prelude.workspace import _repo_lock, prune_checkouts
+
+    def checkout(name, age):
+        wt = cfg.worktrees_dir / name
+        wt.mkdir(parents=True)
+        os.utime(wt, (time.time() - age, time.time() - age))
+        return wt
+
+    old = checkout("o__r__1__aaa", 7200)
+    fresh = checkout("o__r__2__bbb", 60)  # just made or reused by a review that hasn't recorded it yet
+    used = checkout("o__r__3__ccc", 7200)
+    busy = checkout("o__busy__4__ddd", 7200)
+    with _repo_lock(cfg, "o", "busy"):  # a checkout of that repo is in progress
+        prune_checkouts(cfg, in_use={str(used)})
+    assert not old.exists() and fresh.exists() and used.exists() and busy.exists()

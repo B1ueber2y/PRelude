@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -15,6 +16,7 @@ from ..db import Store
 from ..drafts import DraftWriter
 from ..github import GitHubReader
 from ..review import add_reviewers, run_review
+from ..workspace import prune_checkouts
 from . import auth, findings, memory, reviews
 from .auth import COOKIE
 from .context import PACKAGE, Web
@@ -49,6 +51,10 @@ def create_app(
 ) -> FastAPI:
     store = store or Store(cfg.db_path)
     store.fail_stale_reviews()
+    if not watch:  # with triggers on, the poller prunes every round
+        threading.Thread(
+            target=lambda: prune_checkouts(cfg, store.worktrees_in_use()), daemon=True, name="prune"
+        ).start()
     w = Web(
         cfg=cfg,
         store=store,

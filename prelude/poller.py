@@ -16,6 +16,7 @@ from .github import GitHubReader, PrRef
 from .guard import RepoNotAllowed
 from .review import run_review, start_review
 from .triggers import Candidate, decide
+from .workspace import prune_checkouts
 
 log = logging.getLogger(__name__)
 
@@ -168,7 +169,11 @@ class Poller:
         except Exception as e:
             log.warning("polling GitHub failed", exc_info=True)
             self.store.set_setting(LAST_ERROR, f"{type(e).__name__}: {e}"[:300])
-        for step in (self.refresh_drafts, lambda: prstate.refresh(self.store, self.cfg, self.reader)):
+        for step in (
+            self.refresh_drafts,
+            lambda: prstate.refresh(self.store, self.cfg, self.reader),
+            lambda: prune_checkouts(self.cfg, self.store.worktrees_in_use()),
+        ):
             try:
                 step()
             except Exception:

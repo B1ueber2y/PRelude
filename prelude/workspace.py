@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import fcntl
+import logging
 import os
 import re
 import shutil
 import stat
 import subprocess
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -17,6 +19,8 @@ from .config import Config
 from .github import PullRequest
 from .guard import check_repo
 from .retry import retry
+
+log = logging.getLogger(__name__)
 
 # Use the `gh` login for HTTPS git access, ignoring any other credential helpers.
 _GIT_AUTH = ["-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential"]
@@ -160,23 +164,38 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
             _git(*_GIT_AUTH, *gd, "worktree", "add", "--quiet", "--detach", str(wt), pr.head_sha, timeout=1800)
             _make_read_only(wt)
         # else: reuse it; other reviews and discussions of this commit may be using it right now
+        os.utime(wt)  # in use as of now: prune_checkouts leaves it alone
 
     diff = _git(*gd, "diff", "--no-color", "--no-ext-diff", "-M", f"{merge_base}..{pr.head_sha}")
     names = _git(*gd, "diff", "--name-only", "-M", f"{merge_base}..{pr.head_sha}").split()
     return Checkout(worktree=wt, merge_base=merge_base, diff=diff, changed_files=names)
 
 
-def remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> bool:
-    """Remove a review's checkout. Skipped (False) while a checkout of the repo is in progress,
-    since that one may be about to reuse this worktree."""
-    if not wt.resolve().is_relative_to(cfg.worktrees_dir.resolve()):
-        raise ValueError(f"refusing to remove {wt}: not under {cfg.worktrees_dir}")
-    try:
-        with _repo_lock(cfg, owner, repo, wait=False):
-            _remove_checkout(cfg, owner, repo, wt)
-    except RepoBusy:
-        return False
-    return True
+def prune_checkouts(cfg: Config, in_use: set[str], min_age: float = 3600) -> int:
+    """Remove checkouts no review uses any more. Returns how many were removed.
+
+    A checkout counts as unused once no review records it and it hasn't been checked out or
+    reused for `min_age` seconds (a new review records its checkout a moment after making it).
+    Repos with a checkout in progress are skipped until next time.
+    """
+    if not cfg.worktrees_dir.exists():
+        return 0
+    removed = 0
+    for wt in sorted(cfg.worktrees_dir.iterdir()):
+        owner, _, rest = wt.name.partition("__")
+        repo = rest.partition("__")[0]
+        if not wt.is_dir() or not repo or str(wt) in in_use or time.time() - wt.stat().st_mtime < min_age:
+            continue
+        try:
+            with _repo_lock(cfg, owner, repo, wait=False):
+                if time.time() - wt.stat().st_mtime >= min_age:  # not reused while we waited
+                    _remove_checkout(cfg, owner, repo, wt)
+                    removed += 1
+        except RepoBusy:
+            continue
+        except Exception:
+            log.warning("couldn't remove checkout %s", wt, exc_info=True)
+    return removed
 
 
 def _remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:

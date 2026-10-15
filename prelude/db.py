@@ -281,9 +281,9 @@ class Store:
             c.execute("UPDATE reviews SET previous_review_id = NULL WHERE previous_review_id = ?", (review_id,))
             c.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
 
-    def worktree_in_use(self, worktree: str) -> bool:
+    def worktrees_in_use(self) -> set[str]:
         with self.connect() as c:
-            return c.execute("SELECT 1 FROM reviews WHERE worktree = ? LIMIT 1", (worktree,)).fetchone() is not None
+            return {r[0] for r in c.execute("SELECT DISTINCT worktree FROM reviews WHERE worktree IS NOT NULL")}
 
     def latest_review_for(self, owner: str, repo: str, number: int, done_only: bool = True) -> sqlite3.Row | None:
         with self.connect() as c:
