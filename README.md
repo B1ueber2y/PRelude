@@ -32,9 +32,10 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
 
 You don't need a stream of other people's PRs. PRelude is just as useful on your own work:
 
-- **Review your own PRs before anyone else does.** Open a PR and PRelude reviews it (your
-  own PRs are reviewed automatically). Fix what's right, push, tap **Review again → Changes
-  only**, and repeat until the re-review comes back clean. This pairs well with a coding
+- **Review your own PRs before anyone else does.** Open a PR and have PRelude review it
+  (paste the link, or turn on `triggers` and your own non-draft PRs are reviewed
+  automatically). Fix what's right, push, tap **Review again → Changes only**, and repeat
+  until the re-review comes back clean. This pairs well with a coding
   agent: one Claude writes the change, another reviews it, and you judge both. PRelude is
   developed this way: every PR in this repo went through several such rounds.
 - **Get a second opinion on a risky change.** Ask for a panel (3 or 5 reviewers, or add
