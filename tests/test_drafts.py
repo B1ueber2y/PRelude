@@ -184,3 +184,121 @@ def test_deleted_pending_review_returns_findings_to_pending(enabled, store, done
     drafting.refresh_submitted(store, enabled, writer, done_review)
     row = store.get_finding(f1["id"])
     assert row["status"] == "pending" and row["github_comment_id"] is None
+
+
+def test_review_page_opens_on_drafts_when_nothing_is_left(client, store, done_review):
+    assert "To review" in client.get(f"/reviews/{done_review}").text
+    for f in store.findings_for(done_review):
+        store.update_finding(f["id"], status="drafted")
+    page = client.get(f"/reviews/{done_review}").text
+    assert 'class="on" href="?show=drafted"' in page
+
+
+def test_auto_add_skips_bad_comments_and_handled_findings(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def picky(owner, repo, review_id, **kw):
+        if kw["line"] == f1["line"]:
+            raise DraftError("GitHub rejected the comment location")
+        return real(owner, repo, review_id, **kw)
+
+    writer.add_comment = picky
+    assert drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]]) == 1
+    assert store.get_finding(f1["id"])["status"] == "pending"
+    assert store.get_finding(f2["id"])["auto_drafted"] == 1
+
+    store.update_finding(f1["id"], status="discarded")
+    writer.add_comment = real
+    assert drafting.auto_add(store, enabled, writer, [f1["id"]]) == 0
+    assert store.get_finding(f1["id"])["status"] == "discarded"
+
+
+def test_auto_drafts_count_as_undecided_until_touched(client, enabled, store, done_review, writer, github):
+    from prelude import stats
+    from prelude.prompts import outcome
+
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]])
+    assert [outcome(f) for f in store.findings_for(done_review)] == ["pending", "pending"]
+    total = stats.overview(store)["total"]
+    assert (total.kept, total.pending) == (0, 2)
+    store.update_finding(f2["id"], auto_drafted=0)  # as if added by hand
+    total = stats.overview(store)["total"]
+    assert (total.kept, total.pending) == (1, 1)
+
+    client.post(f"/findings/{f1['id']}/draft", data={"text": "My words."})
+    assert store.get_finding(f1["id"])["auto_drafted"] == 0 and outcome(store.get_finding(f1["id"])) == "drafted"
+    github.reviews[store.get_finding(f2["id"])["github_review_id"]] = "COMMENTED"
+    drafting.refresh_submitted(store, enabled, writer, done_review)
+    assert outcome(store.get_finding(f2["id"])) == "posted"
+
+
+def test_discard_during_add_wins_and_leaves_no_comment(enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def slow(*a, **kw):
+        cid = real(*a, **kw)
+        store.update_finding(f1["id"], status="discarded")  # the reviewer discards meanwhile
+        return cid
+
+    writer.add_comment = slow
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    assert store.get_finding(f1["id"])["status"] == "discarded" and not github.comments
+
+
+def test_supersede_leaves_findings_the_reviewer_touched_meanwhile(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"], f2["id"]])
+    later = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    real = writer.delete_comment
+
+    def edit_meanwhile(owner, repo, review_id, comment_id):
+        store.update_finding(f2["id"], auto_drafted=0)  # the reviewer edits f2 while f1 is removed
+        return real(owner, repo, review_id, comment_id)
+
+    writer.delete_comment = edit_meanwhile
+    assert drafting.supersede(store, enabled, writer, later) == 1
+    assert store.get_finding(f1["id"])["status"] == "superseded"
+    assert store.get_finding(f2["id"])["status"] == "drafted" and len(github.comments) == 1
+
+
+def test_edit_loses_cleanly_to_a_supersede_that_got_there_first(client, enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    real = store.update_finding_if
+
+    def supersede_first(finding_id, expected, **fields):
+        real(finding_id, {"status": "drafted"}, status="superseded")
+        return real(finding_id, expected, **fields)
+
+    store.update_finding_if = supersede_first
+    page = client.post(f"/findings/{f1['id']}/draft", data={"text": "Mine."}).text
+    store.update_finding_if = real
+    assert "replaced this comment" in page and store.get_finding(f1["id"])["user_draft"] is None
+
+
+def test_supersede_goes_on_past_a_submitted_review(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    github.reviews[store.get_finding(f1["id"])["github_review_id"]] = "COMMENTED"  # submitted on GitHub
+    drafting.auto_add(store, enabled, writer, [f2["id"]])  # lands in a new pending review
+    later = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    assert drafting.supersede(store, enabled, writer, later) == 1
+    assert store.get_finding(f2["id"])["status"] == "superseded"
+
+
+def test_edit_during_add_is_kept_and_not_drafted_stale(enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def edit_meanwhile(*a, **kw):
+        cid = real(*a, **kw)
+        store.update_finding(f1["id"], user_draft="My words.", auto_drafted=0)
+        return cid
+
+    writer.add_comment = edit_meanwhile
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    row = store.get_finding(f1["id"])
+    assert row["status"] == "pending" and row["user_draft"] == "My words." and not github.comments
