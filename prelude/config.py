@@ -220,8 +220,8 @@ def load_config(data_dir: Path | None = None) -> Config:
 
 
 def _notify_details(raw: dict) -> str:
-    if raw.get("include_details") is True:  # older configs
-        return "full"
+    if "include_details" in raw and "details" not in raw:  # older configs
+        return "full" if raw["include_details"] is True else "none"
     value = str(raw.get("details", "ref"))
     return value if value in ("none", "ref", "full") else "ref"
 
