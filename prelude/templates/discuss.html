@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set ref = owner ~ '/' ~ repo ~ '#' ~ number %}
+{% block title %}Discuss {{ ref }} · PRelude{% endblock %}
+{% block pageclass %}narrow{% endblock %}
+{% block back %}{% if review %}<a class="back" href="/reviews/{{ review.id }}">‹ {{ repo }}#{{ number }}</a>{% else %}<a class="back" href="/">‹ Reviews</a>{% endif %}{% endblock %}
+{% block topright %}{% if review %}<a class="ext" href="{{ review.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endif %}{% endblock %}
+{% block content %}
+<section class="review-head">
+  <div class="repo">{{ ref }}</div>
+  <h1>{{ (review.title if review else None) or 'Pull request' }}</h1>
+  <p class="hint">Each message you start here is its own thread with Claude. Threads reply in parallel, so you can ask several things, leave, and come back.{% if source %} Claude sees the code at <code>{{ (source.head_sha or '')[:7] }}</code>, as of the review from {{ (source.finished_at or source.created_at) | ago }}.{% endif %}</p>
+</section>
+
+{% if findings %}
+<details class="existing">
+  <summary>Discussions about findings ({{ findings | length }})</summary>
+  <ul>
+  {% for f in findings %}
+    <li><a href="/findings/{{ f.id }}">#{{ f.ordinal }} {{ f.title }}</a> <span class="hint inline">{{ f.messages }} message{{ '' if f.messages == 1 else 's' }} · {{ f.last_at | ago }}</span></li>
+  {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
+<div id="chats" class="chats">
+{% for t in threads %}
+  {% with c=t.c, messages=t.messages, open=t.open %}{% include "_chat.html" %}{% endwith %}
+{% endfor %}
+</div>
+{% if not threads %}<p class="empty-line" id="no-threads">No threads yet.</p>{% endif %}
+
+{% if source %}
+<form class="composer new-thread" hx-post="/prs/{{ owner }}/{{ repo }}/{{ number }}/discuss" hx-target="#chats" hx-swap="beforeend"
+      hx-on::after-request="if (event.detail.successful && event.detail.target.id === 'chats') { this.reset(); document.getElementById('no-threads')?.remove(); }">
+  <textarea name="text" rows="2" class="autogrow" placeholder="Start a new thread: ask about the PR, the code or the review" required></textarea>
+  <button class="btn primary" type="submit">Send</button>
+</form>
+{% else %}
+<p class="hint">You can start threads once a review of this PR has finished.</p>
+{% endif %}
+{% endblock %}

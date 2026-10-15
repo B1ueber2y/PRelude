@@ -34,6 +34,7 @@ def _review_list(w: Web) -> dict:
         "reviews": w.store.list_reviews(latest_only=latest_only),
         "latest_only": latest_only,
         "earlier": w.store.earlier_reviews() if latest_only else {},
+        "unread": w.store.chat_unread(),
     }
 
 
@@ -117,6 +118,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "new_commits": _has_new_commits(w, r),
             "leftovers": prstate.leftovers(findings),
             "max_more": MAX_MORE,
+            "threads": w.store.chats_for(r["owner"], r["repo"], r["number"]),
         },
     )
 

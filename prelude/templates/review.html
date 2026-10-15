@@ -31,6 +31,15 @@
           hx-confirm="Remove the unsubmitted draft comments from GitHub and mark the rest as not posted?">Clear leftovers</button>
 </div>
 {% endif %}
+{% if r.status == 'done' or threads %}
+{% set n_unread = threads | selectattr('unread') | list | length %}
+{% set n_busy = threads | selectattr('busy') | list | length %}
+<a class="callout small discuss-link" href="/prs/{{ r.owner }}/{{ r.repo }}/{{ r.number }}/discuss">
+  <span>Discuss this PR with Claude{% if threads %} · {{ threads | length }} thread{{ '' if threads | length == 1 else 's' }}{% endif %}</span>
+  {% if n_unread %}<span class="tag accent">{{ n_unread }} new repl{{ 'y' if n_unread == 1 else 'ies' }}</span>{% elif n_busy %}<span class="tag">Claude is replying…</span>{% endif %}
+  <span class="chev">›</span>
+</a>
+{% endif %}
 {% if latest and latest.id != r.id %}
 <a class="callout small newer" href="/reviews/{{ latest.id }}">There's a newer review of this PR ›</a>
 {% endif %}

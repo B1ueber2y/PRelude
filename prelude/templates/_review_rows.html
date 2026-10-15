@@ -14,6 +14,8 @@
         {% if older %}<span class="tag">earlier</span>{% endif %}
         {% set hidden = earlier.get((r.owner, r.repo, r.number)) if earlier else None %}
         {% if hidden %}<span class="tag{{ ' warn' if hidden[1] and not closed }}">+{{ hidden[0] }} older{% if hidden[1] and not closed %} · {{ hidden[1] }} still open{% endif %}</span>{% endif %}
+        {% set new_replies = unread.get((r.owner, r.repo, r.number)) if unread and r.newest else None %}
+        {% if new_replies %}<span class="tag accent">{{ new_replies }} new repl{{ 'y' if new_replies == 1 else 'ies' }}</span>{% endif %}
         {% if closed %}<span class="tag pr-{{ r.pr_state }}">{{ r.pr_state | capitalize }}</span>{% endif %}
         <span class="status status-{{ r.status }}{{ ' status-clean' if r.status == 'done' and r.total == 0 }}">
           {%- if r.status == 'done' -%}

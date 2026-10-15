@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
-import queue
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response
 
 from .. import drafting
 from ..discuss import DiscussionBusy, post_message
 from ..drafts import DraftError
-from .context import WebDep
+from .context import WebDep, event_stream
 from .reviews import _pick
 
 router = APIRouter()
@@ -175,29 +173,9 @@ def busy(w: WebDep, finding_id: int):
 @router.get("/findings/{finding_id}/stream")
 def stream(w: WebDep, finding_id: int):
     w.finding_or_404(finding_id)
-    q = w.broker.subscribe(finding_id)
 
-    def events():
-        try:
-            yield "retry: 3000\n\n"
-            while True:
-                try:
-                    ev = q.get(timeout=15)
-                except queue.Empty:
-                    t = w.store.thread(finding_id)
-                    if not (t and t["busy"]):
-                        yield "event: done\ndata: {}\n\n"
-                        return
-                    yield ": keepalive\n\n"
-                    continue
-                yield f"event: {ev.kind}\ndata: {json.dumps(ev.data)}\n\n"
-                if ev.kind in ("done", "error"):
-                    return
-        finally:
-            w.broker.unsubscribe(finding_id, q)
+    def busy() -> bool:
+        t = w.store.thread(finding_id)
+        return bool(t and t["busy"])
 
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return event_stream(w.broker, finding_id, busy)

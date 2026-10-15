@@ -1,4 +1,5 @@
-<div class="thread" data-busy="{{ 1 if busy else 0 }}" data-finding-id="{{ f.id }}">
+<div class="thread" data-busy="{{ 1 if busy else 0 }}" data-base="/findings/{{ f.id }}"
+     data-target="#thread-{{ f.id }}" data-swap="innerHTML">
   {% if not messages and not busy %}
   <p class="hint">Challenge the finding, ask Claude to dig further, or ask for better wording. This conversation only covers this finding.</p>
   {% endif %}

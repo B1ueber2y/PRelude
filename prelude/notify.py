@@ -58,14 +58,29 @@ def send(
         return False
 
 
+def _prefix(cfg: NotifyConfig, ref: str, title: str | None) -> str:
+    if cfg.details == "full":
+        return f"{ref} {title or ''}".rstrip() + " · "
+    return ref + " · " if cfg.details == "ref" else ""
+
+
+def chat_replied(cfg: NotifyConfig, chat, title: str | None, ok: bool, sender: Sender | None = None) -> bool:
+    """A reply in a PR's discussion space is ready (or failed); `chat` is a database row."""
+    ref = f"{chat['owner']}/{chat['repo']}#{chat['number']}"
+    return send(
+        cfg,
+        "Claude replied" if ok else "Claude couldn't reply",
+        _prefix(cfg, ref, title) + ("in a discussion thread" if ok else "see PRelude for details"),
+        path=f"/chats/{chat['id']}",  # names no repo
+        tags=("speech_balloon" if ok else "warning") + ("" if cfg.details == "none" else f",{chat['repo']}"),
+        sender=sender,
+    )
+
+
 def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None = None) -> bool:
     """`review` and `findings` are database rows."""
     ref = f"{review['owner']}/{review['repo']}#{review['number']}"
-    prefix = ""
-    if cfg.details == "full":
-        prefix = f"{ref} {review['title'] or ''}".rstrip() + " · "
-    elif cfg.details == "ref":
-        prefix = ref + " · "
+    prefix = _prefix(cfg, ref, review["title"])
     repo_tag = "" if cfg.details == "none" else f",{review['repo']}"
     if review["status"] == "done":
         high = sum(1 for f in findings if f["severity"] == "high")

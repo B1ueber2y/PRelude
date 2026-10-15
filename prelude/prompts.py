@@ -451,6 +451,37 @@ def discuss_followup_prompt(*, current_draft: str, user_message: str) -> str:
 {DISCUSS_FORMAT}"""
 
 
+CHAT_FORMAT = """Reply format:
+- Answer conversationally and concisely, as a colleague would on a phone screen.
+- If you need to, investigate with Read/Grep/Glob before answering, and cite file:line.
+- You can't change code or post on GitHub. If they want a comment, write it out for them."""
+
+
+def chat_first_prompt(*, user_message: str, newer_commits: bool, memory: str = "") -> str:
+    newer = (
+        "\nThe PR has new commits since your review; you only see the reviewed commit, so say so if it matters.\n"
+        if newer_commits
+        else ""
+    )
+    return f"""The reviewer wants to talk about this pull request with you. This is a new thread in
+the PR's discussion space: other threads run separately, so only answer what is asked here.
+It isn't limited to your findings: anything about the PR, the code or the review is fair game.
+{newer}
+Reviewer:
+{user_message}
+
+{memory}
+
+{CHAT_FORMAT}"""
+
+
+def chat_followup_prompt(*, user_message: str) -> str:
+    return f"""Reviewer:
+{user_message}
+
+{CHAT_FORMAT}"""
+
+
 LEARN_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
