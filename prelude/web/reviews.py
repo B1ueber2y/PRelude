@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import threading
-from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -15,7 +14,6 @@ from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL
 from ..review import start_review
-from ..workspace import remove_checkout
 from .context import Web, WebDep
 
 log = logging.getLogger(__name__)
@@ -207,12 +205,7 @@ def delete_review(w: WebDep, review_id: int):
     r = w.review_or_404(review_id)
     if r["status"] in ("queued", "running") or r["progress"]:
         return w.flash("This review is still running; delete it when it's finished.")
-    w.store.delete_review(review_id)
-    if r["worktree"] and not w.store.worktree_in_use(r["worktree"]):
-        try:
-            remove_checkout(w.cfg, r["owner"], r["repo"], Path(r["worktree"]))
-        except Exception:
-            log.warning("couldn't remove checkout %s", r["worktree"], exc_info=True)
+    w.store.delete_review(review_id)  # its checkout is pruned later, once no review uses it
     return Response(status_code=204, headers={"HX-Redirect": "/"})
 
 

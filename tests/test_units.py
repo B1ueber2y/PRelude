@@ -176,3 +176,47 @@ def test_notify_details_setting():
     assert _notify_details({"include_details": False}) == "none"  # an explicit opt-out stays one
     assert _notify_details({"include_details": False, "details": "ref"}) == "ref"
     assert _notify_details({"details": "bogus"}) == "ref"
+
+
+def test_repo_lock_lets_one_writer_in_at_a_time(cfg):
+    import threading
+    import time
+
+    from prelude.workspace import _repo_lock
+
+    inside, overlaps = [], []
+
+    def work():
+        with _repo_lock(cfg, "o", "r"):
+            overlaps.append(len(inside))
+            inside.append(1)
+            time.sleep(0.05)
+            inside.pop()
+
+    threads = [threading.Thread(target=work) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert overlaps == [0, 0, 0, 0]
+
+
+def test_prune_removes_only_old_unused_checkouts_of_idle_repos(cfg):
+    import os
+    import time
+
+    from prelude.workspace import _repo_lock, prune_checkouts
+
+    def checkout(name, age):
+        wt = cfg.worktrees_dir / name
+        wt.mkdir(parents=True)
+        os.utime(wt, (time.time() - age, time.time() - age))
+        return wt
+
+    old = checkout("o__r__1__aaa", 7200)
+    fresh = checkout("o__r__2__bbb", 60)  # just made or reused by a review that hasn't recorded it yet
+    used = checkout("o__r__3__ccc", 7200)
+    busy = checkout("o__my__repo__4__ddd", 7200)  # repo names may contain "__"
+    with _repo_lock(cfg, "o", "my__repo"):  # a checkout of that repo is in progress
+        prune_checkouts(cfg, in_use={str(used) + "/."})  # spelled differently, same directory
+    assert not old.exists() and fresh.exists() and used.exists() and busy.exists()
