@@ -28,19 +28,25 @@ LATEST_ONLY = "home_latest_only"
 
 
 def _review_list(w: Web) -> dict:
-    """The home list: every review, or only each PR's newest (with how many earlier ones it hides)."""
+    """The home list: every review, or only each PR's newest.
+
+    `earlier` maps a PR to (hidden reviews, findings in them still to go), so nothing waiting is hidden silently.
+    """
     latest_only = w.store.setting(LATEST_ONLY, "1") == "1"
     reviews = w.store.list_reviews(limit=200 if latest_only else 50)
-    earlier: dict[tuple, int] = {}
+    earlier: dict[tuple, tuple[int, int]] = {}
     if latest_only:
-        newest, count = {}, Counter()
+        newest, count, to_go = {}, Counter(), Counter()
         for r in reviews:
             key = (r["owner"], r["repo"], r["number"])
             count[key] += 1
+            to_go[key] += r["pending"] + r["drafted"]
             if key not in newest or r["id"] > newest[key]["id"]:
                 newest[key] = r
         reviews = [r for r in reviews if newest[(r["owner"], r["repo"], r["number"])] is r][:50]
-        earlier = {k: n - 1 for k, n in count.items() if n > 1}
+        earlier = {
+            k: (n - 1, to_go[k] - newest[k]["pending"] - newest[k]["drafted"]) for k, n in count.items() if n > 1
+        }
     return {"reviews": reviews, "latest_only": latest_only, "earlier": earlier}
 
 

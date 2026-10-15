@@ -267,7 +267,11 @@ def test_home_shows_each_prs_newest_review_unless_all(client, store):
 
     page = client.get("/").text
     assert "Second look" in page and "Other PR" in page and "First look" not in page
-    assert "+1 earlier" in page
+    assert "+1 earlier</span>" in page
+    store.add_findings(
+        first, [{"path": "a", "severity": "low", "title": "x", "assessment": "", "suggested_comment": ""}]
+    )
+    assert "+1 earlier · 1 to go" in client.get("/").text  # still waiting in a hidden review
     assert "First look" not in client.get("/reviews/rows").text
 
     assert client.post("/settings/latest-only", data={"on": "0"}).status_code == 204
