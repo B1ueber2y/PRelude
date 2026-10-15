@@ -188,7 +188,10 @@ def prune_checkouts(cfg: Config, in_use: set[str], min_age: float = 3600) -> int
         owner, _, repo = parts[0].partition("__")
         if len(parts) != 3 or not wt.is_dir() or not repo or str(wt.resolve()) in in_use:
             continue
-        if time.time() - wt.stat().st_mtime < min_age:
+        try:
+            if time.time() - wt.stat().st_mtime < min_age:
+                continue
+        except OSError:  # removed meanwhile
             continue
         try:
             with _repo_lock(cfg, owner, repo, wait=False):
