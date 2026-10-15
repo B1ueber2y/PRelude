@@ -56,7 +56,7 @@ PRelude fits wherever you'd want a careful second reviewer:
   only see what you approved.
 
 All of it works from the phone, a laptop browser, or the terminal (`prelude findings`,
-`prelude draft`, `prelude discard`, … see [Usage](#usage)).
+`prelude draft`, `prelude discard`, … see [From the terminal](#from-the-terminal)).
 
 ## Built on Claude Code
 
@@ -114,19 +114,6 @@ October 2026:
   style guide (how you phrase things) and per-repo notes. They update as you discard,
   edit and discuss — like a colleague who learns from your feedback — and every change
   can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
-- **Phone and laptop.** A small installable web app, served privately from your own
-  machine, with notifications when a review is ready. On a laptop, a review opens as a
-  list of findings beside the selected one, with keyboard shortcuts (j/k, a, e, d).
-- **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
-  default), PRelude watches your repos for new PRs and review requests whenever it's
-  running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
-  The **Repos** page lists the watched repos; add one, switch it between all PRs / on
-  request / never, or exempt your own PRs there from the daily cap. Changes are saved to
-  `config.yaml`, comments included.
-
-Status: early, but in daily use. Reviews (single or panels), editing, discarding,
-discussing, memory, GitHub drafts, automatic review triggers (off until enabled in
-`config.yaml`), and phone notifications (via ntfy) all work.
 
 ## Install and run
 
@@ -211,27 +198,20 @@ environment takes precedence over the stored key. Use a key made just for PRelud
 spending limit set in the Console. Some plans include monthly API credits that cover
 `claude -p` with a key from your linked Console organization; check your plan.
 
-## Usage
+## From the terminal
+
+Everything also works without the web UI; `N` is the number `prelude findings` shows:
 
 ```bash
-.venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review from the terminal
+.venv/bin/prelude review https://github.com/OWNER/REPO/pull/123   # review now and print the findings
 .venv/bin/prelude review -n 3 OWNER/REPO#123                     # 3 reviewers + meta-reviewer
-.venv/bin/prelude                                                # run the web UI (127.0.0.1:8787); Ctrl+C stops it
-.venv/bin/prelude start | stop | status                          # the same, in the background
-.venv/bin/prelude check                                          # dry run: which PRs the triggers would review
-.venv/bin/prelude notify-setup                                   # phone notifications via the ntfy app
-.venv/bin/prelude url                                            # link that unlocks the UI on a device
-.venv/bin/prelude style-init OWNER/REPO                          # learn your comment style
-```
-
-The findings can also be triaged in the terminal; `N` is the number `prelude findings` shows:
-
-```bash
+.venv/bin/prelude review --again changes OWNER/REPO#123          # re-review only the new commits
 .venv/bin/prelude findings 32            # list a review's findings (add numbers for the full text)
 .venv/bin/prelude draft 32 1 3           # add to your GitHub draft (--all: every one still to review)
 .venv/bin/prelude discard 32 2           # discard (also takes it out of the draft)
 .venv/bin/prelude edit 32 1              # reword in $EDITOR (--text "...", --claude, --reset)
 .venv/bin/prelude discuss 32 1 "Is this really reachable?"
+.venv/bin/prelude style-init OWNER/REPO  # learn your comment style from your past comments
 ```
 
 ## Safety
