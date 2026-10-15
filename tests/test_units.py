@@ -199,3 +199,13 @@ def test_repo_lock_lets_one_writer_in_at_a_time(cfg):
     for t in threads:
         t.join()
     assert overlaps == [0, 0, 0, 0]
+
+
+def test_removal_is_skipped_while_the_repo_is_being_checked_out(cfg):
+    from prelude.workspace import _repo_lock, remove_checkout
+
+    wt = cfg.worktrees_dir / "o__r__1__abc"
+    wt.mkdir(parents=True)
+    with _repo_lock(cfg, "o", "r"):  # a checkout in progress, maybe about to reuse wt
+        assert remove_checkout(cfg, "o", "r", wt) is False
+    assert wt.exists()

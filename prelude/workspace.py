@@ -54,13 +54,23 @@ class Checkout:
     changed_files: list[str]
 
 
+class RepoBusy(Exception):
+    pass
+
+
 @contextmanager
-def _repo_lock(cfg: Config, owner: str, repo: str) -> Iterator[None]:
-    """One writer at a time per cached clone, across threads and processes (server, CLI)."""
+def _repo_lock(cfg: Config, owner: str, repo: str, wait: bool = True) -> Iterator[None]:
+    """One writer at a time per cached clone, across threads and processes (server, CLI).
+
+    With wait=False, raises RepoBusy instead of waiting.
+    """
     lock = cfg.repos_dir / owner / f"{repo}.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     with open(lock, "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+        except BlockingIOError:
+            raise RepoBusy(f"{owner}/{repo} is being checked out") from None
         try:
             yield
         finally:
@@ -156,11 +166,17 @@ def prepare_checkout(cfg: Config, pr: PullRequest) -> Checkout:
     return Checkout(worktree=wt, merge_base=merge_base, diff=diff, changed_files=names)
 
 
-def remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:
+def remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> bool:
+    """Remove a review's checkout. Skipped (False) while a checkout of the repo is in progress,
+    since that one may be about to reuse this worktree."""
     if not wt.resolve().is_relative_to(cfg.worktrees_dir.resolve()):
         raise ValueError(f"refusing to remove {wt}: not under {cfg.worktrees_dir}")
-    with _repo_lock(cfg, owner, repo):
-        _remove_checkout(cfg, owner, repo, wt)
+    try:
+        with _repo_lock(cfg, owner, repo, wait=False):
+            _remove_checkout(cfg, owner, repo, wt)
+    except RepoBusy:
+        return False
+    return True
 
 
 def _remove_checkout(cfg: Config, owner: str, repo: str, wt: Path) -> None:
