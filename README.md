@@ -1,6 +1,6 @@
 # PRelude
 
-**Review the AI review comments before they reach the author** (a harness around [Claude Code](#built-on-claude-code)).
+**Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
