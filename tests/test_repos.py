@@ -57,6 +57,43 @@ def test_add_change_and_remove_keep_comments(client):
     assert client.cfg.triggers.repo_mode("B1ueber2y/PRelude") == "on_request"  # the default again
 
 
+def test_saving_into_the_default_config_changes_only_the_repo_lines(cfg):
+    from prelude import repoconfig
+    from prelude.config import DEFAULT_CONFIG, load_config
+
+    (cfg.data_dir / "config.yaml").write_text(DEFAULT_CONFIG)
+    live = load_config(cfg.data_dir)
+    repoconfig.set_repo(live, "org/web-*", "on_request")  # partial wildcards work too
+    before, after = DEFAULT_CONFIG.splitlines(), text(live).splitlines()
+    changed = [line for line in after if line not in before]
+    assert changed == ["  repos:", "    org/web-*: on_request"]
+    assert [line for line in before if line not in after] == ["  repos: {}"]
+
+
+def test_saves_keep_yaml_1_1_booleans_and_the_running_enabled_flag(client):
+    path = client.cfg.data_dir / "config.yaml"
+    path.write_text(text(client.cfg).replace("  enabled: true\n", "  enabled: false\n  own_prs: no\n"))
+    client.post("/repos", data={"slug": "a/b", "mode": "never"})
+    t = client.cfg.triggers
+    assert t.own_prs is False  # `no` is False, as at startup
+    assert t.enabled is True  # turning the poller on or off needs a restart
+
+
+def test_concurrent_saves_all_land(client):
+    import threading
+
+    from prelude import repoconfig
+
+    slugs = [f"org/r{i}" for i in range(8)]
+    threads = [threading.Thread(target=repoconfig.set_repo, args=(client.cfg, s, "never")) for s in slugs]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert all(f"{s}: never" in text(client.cfg) for s in slugs)
+    assert all(client.cfg.triggers.repo_mode(s) == "never" for s in slugs)
+
+
 def test_all_prs_defaults_to_today(client):
     from datetime import date
 

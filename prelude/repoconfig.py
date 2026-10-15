@@ -6,18 +6,21 @@ import io
 import os
 import re
 import tempfile
+import threading
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
 
+import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from .config import Config
 from .triggers import MODES, TriggerConfig, TriggerConfigError
 
-PATTERN = re.compile(r"^[A-Za-z0-9-]+/(\*|[A-Za-z0-9._-]+)$")
+PATTERN = re.compile(r"^[A-Za-z0-9-]+/[A-Za-z0-9._*?-]+$")  # OWNER/REPO, wildcards allowed in REPO
+_LOCK = threading.Lock()  # one read-modify-write of config.yaml at a time
 
 
 class RepoConfigError(ValueError):
@@ -28,6 +31,7 @@ def _yaml() -> YAML:
     y = YAML()  # round-trip: comments, order and flow style survive
     y.preserve_quotes = True
     y.width = 4096
+    y.indent(mapping=2, sequence=4, offset=2)  # block lists as in the default config.yaml
     y.representer.add_representer(  # keep `null` written as null, not as an empty value
         type(None), lambda r, _: r.represent_scalar("tag:yaml.org,2002:null", "null")
     )
@@ -41,6 +45,11 @@ def _key(m: CommentedMap, slug: str) -> str | None:
 
 def _edit(cfg: Config, change: Callable[[CommentedMap], None]) -> TriggerConfig:
     """Apply `change` to the triggers section; validate, then write atomically and update cfg in place."""
+    with _LOCK:
+        return _edit_locked(cfg, change)
+
+
+def _edit_locked(cfg: Config, change: Callable[[CommentedMap], None]) -> TriggerConfig:
     path = cfg.data_dir / "config.yaml"
     y = _yaml()
     data = y.load(path.read_text()) or CommentedMap()
@@ -52,10 +61,11 @@ def _edit(cfg: Config, change: Callable[[CommentedMap], None]) -> TriggerConfig:
     buf = io.StringIO()
     y.dump(data, buf)
     text = buf.getvalue()
-    try:
-        new = TriggerConfig.from_raw(YAML(typ="safe").load(text).get("triggers"))
+    try:  # parsed as load_config parses it (PyYAML, YAML 1.1: `no` is False)
+        new = TriggerConfig.from_raw((yaml.safe_load(text) or {}).get("triggers"))
     except (TriggerConfigError, ValueError, TypeError) as e:
         raise RepoConfigError(str(e)) from e
+    new.enabled = cfg.triggers.enabled  # turning the poller on or off needs a restart
 
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".config.", suffix=".yaml")
     try:
