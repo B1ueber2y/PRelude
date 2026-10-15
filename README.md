@@ -83,7 +83,9 @@ So review quality follows Claude Code's, and usage counts against your Claude pl
 PRelude is an independent project, not made or endorsed by Anthropic, and this section is
 not legal advice. Read the current [Consumer Terms](https://www.anthropic.com/legal/consumer-terms),
 the [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
-page and your plan's help pages yourself; they changed several times in 2026. As of
+page and your plan's help pages yourself; they changed several times in 2026. You're
+responsible for using PRelude in line with Anthropic's terms and your plan; like the rest of
+the software, this guidance comes without warranty (see the [License](LICENSE)). As of
 October 2026:
 
 - **Scripted use of your own subscription is documented.** The Consumer Terms forbid
