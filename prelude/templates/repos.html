@@ -37,7 +37,7 @@
       <button class="btn small ghost danger" hx-post="/repos" hx-vals='{"slug": "{{ r.slug }}", "action": "remove"}'
               hx-confirm="Stop listing {{ r.slug }}? It falls back to {{ t.default_mode | replace('_', ' ') }}.">Remove</button>
     </div>
-    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}{% if r.capped %} · <strong>{{ r.capped }}</strong> toward the cap{% endif %}</div>
+    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}{% if r.capped %} · {% if t.max_reviews_per_day > 0 %}used <strong>{{ r.capped }}</strong> of the {{ t.max_reviews_per_day }}-review cap{% else %}<strong>{{ r.capped }}</strong> counted toward the cap{% endif %}{% endif %}</div>
     <div class="repo-controls">
       <div class="seg" role="group" aria-label="Mode for {{ r.slug }}">
         {% for m in modes %}
@@ -70,7 +70,7 @@
       <span class="repo">{{ r.slug }}</span>
       <span class="tag">default ({{ t.default_mode | replace('_', ' ') }})</span>
     </div>
-    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}{% if r.capped %} · <strong>{{ r.capped }}</strong> toward the cap{% endif %}</div>
+    <div class="meta">{{ r.reviews }} review{{ '' if r.reviews == 1 else 's' }}{% if r.last %} · last {{ r.last | ago }}{% endif %}{% if r.capped %} · {% if t.max_reviews_per_day > 0 %}used <strong>{{ r.capped }}</strong> of the {{ t.max_reviews_per_day }}-review cap{% else %}<strong>{{ r.capped }}</strong> counted toward the cap{% endif %}{% endif %}</div>
     <div class="repo-controls">
       <div class="seg" role="group" aria-label="Mode for {{ r.slug }}">
         {% for m in modes %}
