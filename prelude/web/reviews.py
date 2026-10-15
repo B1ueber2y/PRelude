@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import Counter
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -23,13 +24,33 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+LATEST_ONLY = "home_latest_only"
+
+
+def _review_list(w: Web) -> dict:
+    """The home list: every review, or only each PR's newest (with how many earlier ones it hides)."""
+    latest_only = w.store.setting(LATEST_ONLY, "1") == "1"
+    reviews = w.store.list_reviews(limit=200 if latest_only else 50)
+    earlier: dict[tuple, int] = {}
+    if latest_only:
+        newest, count = {}, Counter()
+        for r in reviews:
+            key = (r["owner"], r["repo"], r["number"])
+            count[key] += 1
+            if key not in newest or r["id"] > newest[key]["id"]:
+                newest[key] = r
+        reviews = [r for r in reviews if newest[(r["owner"], r["repo"], r["number"])] is r][:50]
+        earlier = {k: n - 1 for k, n in count.items() if n > 1}
+    return {"reviews": reviews, "latest_only": latest_only, "earlier": earlier}
+
+
 def _index(request: Request, w: Web, **extra) -> HTMLResponse:
     last_poll = w.store.setting(LAST_POLL, "")
     return w.render(
         request,
         "index.html",
         {
-            "reviews": w.store.list_reviews(),
+            **_review_list(w),
             "only_repo": w.cfg.only_repo,
             "default_reviewers": w.cfg.claude.reviewers,
             "watching": w.cfg.triggers.enabled and hasattr(request.app.state, "poller"),
@@ -55,7 +76,7 @@ def stats_page(w: WebDep, request: Request):
 
 @router.get("/reviews/rows", response_class=HTMLResponse)
 def review_rows(w: WebDep, request: Request):
-    return w.render(request, "_review_rows.html", {"reviews": w.store.list_reviews()})
+    return w.render(request, "_review_rows.html", _review_list(w))
 
 
 @router.post("/reviews")
@@ -202,6 +223,12 @@ def github_add_all(w: WebDep, review_id: int):
         return w.flash(str(e))
     if failed:
         return w.flash(f"Added {added}; {len(failed)} failed: " + " | ".join(failed))
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
+
+
+@router.post("/settings/latest-only")
+def set_latest_only(w: WebDep, on: str = Form("0")):
+    w.store.set_setting(LATEST_ONLY, "1" if on == "1" else "0")
     return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 

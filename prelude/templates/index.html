@@ -22,7 +22,15 @@
 {% if watching %}
 <p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
 {% endif %}
-<h2 class="section-title">Reviews</h2>
+<div class="section-head">
+  <h2 class="section-title">Reviews</h2>
+  <div class="seg" role="group" aria-label="Which reviews to show">
+    <button class="{{ 'on' if latest_only }}" hx-post="/settings/latest-only" hx-vals='{"on": "1"}'
+            title="One card per PR: its newest review">Latest</button>
+    <button class="{{ 'on' if not latest_only }}" hx-post="/settings/latest-only" hx-vals='{"on": "0"}'
+            title="Every review, re-reviews included">All</button>
+  </div>
+</div>
 <div id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
   {% include "_review_rows.html" %}
 </div>
