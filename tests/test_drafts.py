@@ -262,3 +262,28 @@ def test_supersede_leaves_findings_the_reviewer_touched_meanwhile(enabled, store
     assert drafting.supersede(store, enabled, writer, later) == 1
     assert store.get_finding(f1["id"])["status"] == "superseded"
     assert store.get_finding(f2["id"])["status"] == "drafted" and len(github.comments) == 1
+
+
+def test_edit_loses_cleanly_to_a_supersede_that_got_there_first(client, enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    real = store.update_finding_if
+
+    def supersede_first(finding_id, expected, **fields):
+        real(finding_id, {"status": "drafted"}, status="superseded")
+        return real(finding_id, expected, **fields)
+
+    store.update_finding_if = supersede_first
+    page = client.post(f"/findings/{f1['id']}/draft", data={"text": "Mine."}).text
+    store.update_finding_if = real
+    assert "replaced this comment" in page and store.get_finding(f1["id"])["user_draft"] is None
+
+
+def test_supersede_goes_on_past_a_submitted_review(enabled, store, done_review, writer, github):
+    f1, f2 = store.findings_for(done_review)
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    github.reviews[store.get_finding(f1["id"])["github_review_id"]] = "COMMENTED"  # submitted on GitHub
+    drafting.auto_add(store, enabled, writer, [f2["id"]])  # lands in a new pending review
+    later = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    assert drafting.supersede(store, enabled, writer, later) == 1
+    assert store.get_finding(f2["id"])["status"] == "superseded"

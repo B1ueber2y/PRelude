@@ -29,6 +29,13 @@ from ..textfmt import render_text
 PACKAGE = Path(__file__).resolve().parent.parent
 
 
+READ_ONLY = {
+    "posted": "This comment is already posted on GitHub; change it there.",
+    "dropped": "This PR was closed before the comment was posted.",
+    "superseded": "A later review of this PR replaced this comment.",
+}
+
+
 def ago(timestamp: float) -> str:
     seconds = max(0, time.time() - timestamp)
     for unit, size in (("d", 86400), ("h", 3600), ("min", 60)):
@@ -131,14 +138,8 @@ class Web:
 
     def refuse_if_posted(self, finding_id: int) -> HTMLResponse | None:
         """Posted comments live on GitHub now, and dropped ones belong to a closed PR: read-only."""
-        status = self.finding_or_404(finding_id)["status"]
-        if status == "posted":
-            return self.flash("This comment is already posted on GitHub; change it there.")
-        if status == "dropped":
-            return self.flash("This PR was closed before the comment was posted.")
-        if status == "superseded":
-            return self.flash("A later review of this PR replaced this comment.")
-        return None
+        why = READ_ONLY.get(self.finding_or_404(finding_id)["status"])
+        return self.flash(why) if why else None
 
     @staticmethod
     def wants_card(request: Request, finding_id: int) -> bool:
@@ -176,11 +177,13 @@ class Web:
         Returns an error message if the GitHub draft couldn't be updated.
         """
         f = self.finding_or_404(finding_id)
-        if f["status"] in ("posted", "dropped", "superseded"):
-            return "This comment can't be changed any more (posted, or its PR was closed)."
+        if f["status"] in READ_ONLY:
+            return READ_ONLY[f["status"]]
         text = text.strip() if text is not None else None
         user_draft = None if text is None or text == f["claude_comment"] else text
-        self.store.update_finding(finding_id, user_draft=user_draft, auto_drafted=0)  # the reviewer has looked
+        # auto_drafted=0: the reviewer has looked. Conditional, so a supersede that just claimed it wins.
+        if not self.store.update_finding_if(finding_id, {"status": f["status"]}, user_draft=user_draft, auto_drafted=0):
+            return READ_ONLY.get(self.store.get_finding(finding_id)["status"], "This comment just changed; reload.")
         if learn and user_draft is not None and user_draft != f["user_draft"]:
             self.learn(finding_id, "edit")
         try:
