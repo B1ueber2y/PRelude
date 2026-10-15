@@ -2,7 +2,7 @@
 
 **Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
-A small personal project built on Claude Code. **Note: for code review as a team, Anthropic's
+A small personal project built on Claude Code. **Note that for code review as a team, Anthropic's
 [Code Review](https://code.claude.com/docs/en/code-review) is the natural choice and this project
 is not applicable.**
 
