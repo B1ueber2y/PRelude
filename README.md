@@ -99,22 +99,6 @@ October 2026:
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
   modest. PRelude doesn't retry when Claude reports a usage limit.
 
-## What it does
-
-- **Investigates, not just diffs.** Claude explores the repository around the change
-  (callers, tests, config) in a read-only checkout and anchors each finding to a line.
-- **A panel, not one opinion.** Optionally run several independent reviewers, each with
-  a different focus, and a meta-reviewer that merges their reports, checks disputed
-  claims against the code, and records how many reviewers raised each finding.
-- **One thread per finding.** Challenging one comment never muddles another. Each
-  discussion continues from the review's context, so Claude doesn't start over.
-- **Your words stay yours.** Claude's suggestion and your edited wording are stored
-  separately; Claude can propose new wording but never overwrites yours.
-- **Learns how you review.** Review principles (what to flag, what to skip), a comment
-  style guide (how you phrase things) and per-repo notes. They update as you discard,
-  edit and discuss — like a colleague who learns from your feedback — and every change
-  can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
-
 ## Install and run
 
 ### 1. Install
