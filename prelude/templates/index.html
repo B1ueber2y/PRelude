@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block topright %}<nav class="toplinks"><a class="ext" href="/repos">Repos</a><a class="ext" href="/stats">Stats</a><a class="ext" href="/memory">Memory</a></nav>{% endblock %}
 {% block content %}
+<div class="home">
+<div class="home-side">
 <form class="new-review" method="post" action="/reviews">
   <label for="pr">Review a pull request</label>
   <div class="row">
@@ -31,7 +33,9 @@
             title="Every review, re-reviews included">All</button>
   </div>
 </div>
-<div id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
+</div>
+<div class="home-main" id="review-rows" hx-get="/reviews/rows" hx-trigger="every 5s" hx-swap="innerHTML">
   {% include "_review_rows.html" %}
+</div>
 </div>
 {% endblock %}

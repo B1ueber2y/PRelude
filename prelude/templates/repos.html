@@ -29,7 +29,7 @@
 
 <h2 class="section-title">Watched</h2>
 {% if not rows %}<p class="empty-line">No repos listed yet.</p>{% endif %}
-<ul class="list">
+<ul class="list repo-grid">
 {% for r in rows %}
   <li class="card repo-card">
     <div class="card-top">
@@ -63,7 +63,7 @@
 
 {% if others %}
 <h2 class="section-title">Reviewed, not listed</h2>
-<ul class="list">
+<ul class="list repo-grid">
 {% for r in others %}
   <li class="card repo-card">
     <div class="card-top">

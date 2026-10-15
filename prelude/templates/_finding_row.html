@@ -1,0 +1,18 @@
+<li>
+  <a id="frow-{{ f.id }}" class="frow{{ ' selected' if pane and pane.f.id == f.id }}{{ ' is-discarded' if f.status == 'discarded' }}"
+     data-finding-id="{{ f.id }}" href="/reviews/{{ r.id }}?show={{ show }}&amp;f={{ f.id }}"
+     hx-get="/reviews/{{ r.id }}?show={{ show }}&amp;f={{ f.id }}" hx-select="#pane" hx-target="#pane" hx-swap="outerHTML" hx-push-url="true" hx-sync="closest .flist:replace">
+    <div class="card-top">
+      <span class="sev sev-{{ f.severity }}">{{ f.severity }}</span>
+      {% if f.found_by %}<span class="tag">{{ f.found_by }}/{{ r.reviewers }}</span>{% endif %}
+      {% if f.added_later %}<span class="tag accent">new</span>{% endif %}
+      {% if f.status == 'drafted' %}<span class="tag accent">in draft</span>
+      {% elif f.status == 'posted' %}<span class="tag accent">posted</span>
+      {% elif f.status == 'discarded' %}<span class="tag">discarded</span>
+      {% elif f.status in ('dropped', 'superseded') %}<span class="tag">not posted</span>{% endif %}
+      {% if f.verdict == 'withdrawn' %}<span class="tag warn">withdrawn</span>{% endif %}
+    </div>
+    <div class="frow-title">{{ f.title }}</div>
+    <div class="loc">{{ f.path }}{% if f.line %}:{{ f.line }}{% endif %}</div>
+  </a>
+</li>

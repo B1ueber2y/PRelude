@@ -80,6 +80,8 @@
     });
     const thread = document.querySelector(".thread");
     if (thread && thread.dataset.busy === "1") startStream(thread);
+    const selected = root.querySelector(".frow.selected");  // laptop split view: show it in the list
+    if (selected) selected.scrollIntoView({ block: "nearest" });
   }
 
   // In-app navigation only swaps the page body, so new CSS/JS would never load:
@@ -113,6 +115,45 @@
       input.scrollIntoView({ behavior: "smooth", block: "center" });
       input.focus({ preventScroll: true });
     }
+  });
+
+  // Laptop split view: keep the selected row in sync with the pane, and keyboard shortcuts.
+  function markSelected() {
+    const pane = document.querySelector("#pane .finding");
+    const id = pane ? pane.dataset.findingId : null;
+    document.querySelectorAll(".frow").forEach(function (row) {
+      row.classList.toggle("selected", row.dataset.findingId === id);
+    });
+  }
+  document.addEventListener("htmx:afterSettle", markSelected);
+  document.addEventListener("htmx:historyRestore", markSelected);
+
+  document.addEventListener("keydown", function (e) {
+    if (!document.getElementById("pane") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const pane = document.getElementById("pane");
+    if (e.key === "Escape") {
+      const cancel = pane.querySelector('[data-key="esc"]');
+      const typing = e.target.closest("input, textarea, select, [contenteditable]");
+      if (e.isComposing || !cancel || (typing && !cancel.form.contains(e.target))) return;
+      e.preventDefault();
+      cancel.click();
+      return;
+    }
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    const rows = Array.from(document.querySelectorAll(".frow"));
+    if (e.key === "j" || e.key === "k") {
+      const at = rows.findIndex(function (r) { return r.classList.contains("selected"); });
+      const next = rows[e.key === "j" ? at + 1 : Math.max(0, at - 1)];
+      if (next && next !== rows[at]) {
+        e.preventDefault();
+        rows.forEach(function (r) { r.classList.toggle("selected", r === next); });  // before the pane arrives
+        next.click();
+        next.scrollIntoView({ block: "nearest" });
+      }
+      return;
+    }
+    const button = pane.querySelector('[data-key="' + e.key + '"]');
+    if (button && !button.disabled) { e.preventDefault(); button.click(); }
   });
 
   // Send with Cmd/Ctrl+Enter from the discussion box.

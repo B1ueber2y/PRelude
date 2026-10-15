@@ -280,7 +280,7 @@ textarea { resize: none; line-height: 1.45; }
 .original { margin-top: 12px; }
 .original summary { color: var(--muted); font-size: 0.9rem; cursor: pointer; margin-bottom: 8px; }
 
-.thread { display: grid; gap: 10px; }
+.thread { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }  /* long code in a reply must not widen the page */
 .msg { padding: 10px 14px; border-radius: 16px; max-width: 92%; white-space: pre-wrap; word-break: break-word; }
 .msg.me { justify-self: end; background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 6px; }
 .msg.claude { justify-self: start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 6px; }
@@ -456,6 +456,7 @@ input, textarea { padding: 9px 10px; border-radius: 10px; }
 .finding-full .block { margin-top: 8px; }
 .card-actions { margin-top: 8px; gap: 6px; }
 .why { margin-top: 6px; }
+@media (max-width: 639px) { .code-wrap, .finding > .code { margin-left: -14px; margin-right: -14px; } }  /* = .page padding */
 .code { font-size: 11.5px; line-height: 1.45; padding: 6px 0; }
 .code .no { width: 3em; }
 .expand { padding: 5px 12px; font-size: 0.78rem; }
@@ -620,3 +621,52 @@ table.stats .bar em { position: absolute; left: 10px; top: 6px; font-style: norm
 .repo-controls .since input { width: auto; padding: 4px 8px; }
 .repo-card .card-top .btn.danger { margin-left: auto; min-height: 28px; padding: 0; }
 .saved { color: var(--accent); }
+
+/* ---- laptop ------------------------------------------------------------ */
+kbd { font: 0.72rem var(--mono); padding: 0 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); color: var(--text); }
+@media (min-width: 1024px) {
+  body { font-size: 15.5px; padding-bottom: 24px; }
+  .topbar { padding-left: 28px; padding-right: 28px; }
+  .page { max-width: 1240px; padding: 20px 28px; }
+  .page.narrow { max-width: 860px; }
+  h1, .review-head h1 { font-size: 1.25rem; }
+  .code { font-size: 12.5px; line-height: 1.55; }
+  .btn.small { min-height: 30px; }
+
+  /* home: start a review and filters on the left, the list on the right */
+  .home { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: start; }
+  .home-side { position: sticky; top: 64px; }
+  .home-side .section-head { margin-top: 18px; }
+
+  .repo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+  /* review: header, actions and a compact finding list on the left; one finding on the right */
+  .split { display: grid; grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .split-side { position: sticky; top: 56px; max-height: calc(100vh - 68px); overflow-y: auto; padding: 0 8px 16px 0; scrollbar-gutter: stable; }
+  .flist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .frow { display: block; padding: 8px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+  .frow:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .frow.selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+  .frow.is-discarded { opacity: 0.6; }
+  .frow-title { font-weight: 600; font-size: 0.92rem; line-height: 1.3; margin-top: 4px; }
+  .frow .loc { font-size: 0.72rem; }
+  .split-pane { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px 0; }
+  .split-pane .finding h1 { font-size: 1.2rem; }
+  .split-pane .code-wrap, .split-pane .code { margin-left: 0; margin-right: 0; }
+  .keys { color: var(--muted); font-size: 0.75rem; margin: 18px 0 0; }
+  .pane-actions {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1.45fr 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 8px -22px 0;
+    padding: 12px 22px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 14px 14px;
+  }
+  .pane-actions .btn { min-height: 34px; font-size: 0.88rem; }
+}

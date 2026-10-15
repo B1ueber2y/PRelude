@@ -2,7 +2,9 @@
 {% block title %}{{ r.owner }}/{{ r.repo }}#{{ r.number }} · PRelude{% endblock %}
 {% block back %}<a class="back" href="/">‹ Reviews</a>{% endblock %}
 {% block topright %}<a class="ext" href="{{ r.url }}" target="_blank" rel="noopener">GitHub ↗</a>{% endblock %}
+{% block pageclass %}{{ 'wide-page' if split }}{% endblock %}
 {% block content %}
+{% if split %}<div class="split"><aside class="split-side">{% endif %}
 <section class="review-head">
   <div class="repo">{% if (r.pr_state or 'open') != 'open' %}<span class="tag pr-{{ r.pr_state }}">{{ r.pr_state | capitalize }}</span> {% endif %}{{ r.owner }}/{{ r.repo }}#{{ r.number }}{% if r.author %} · {{ r.author }}{% endif %}{% if r.changed_lines is not none %} · <span class="tag">size/{{ r.changed_lines | size_label }}</span> {{ r.changed_lines }} lines{% endif %}</div>
   <h1>{{ r.title or 'Pull request' }}</h1>
@@ -139,19 +141,32 @@
   <a class="{{ 'on' if show == 'discarded' }}" href="?show=discarded">Discarded <span>{{ counts.discarded }}</span></a>
   <a class="{{ 'on' if show == 'all' }}" href="?show=all">All <span>{{ counts.all }}</span></a>
 </nav>
-{% if not cards %}
+{% if not tab %}
 <p class="empty-line">
   {% if show == 'pending' and counts.all %}All findings handled.{% if counts.drafted %} Submit your review on <a href="{{ r.url }}/files" target="_blank" rel="noopener">GitHub</a>.{% endif %}
   {% elif counts.all == 0 %}Claude found nothing worth raising.
   {% else %}Nothing here.{% endif %}
 </p>
 {% endif %}
+{% if split %}
+<ul class="flist">
+{% for f in tab %}{% include "_finding_row.html" %}{% endfor %}
+</ul>
+{% else %}
 <div class="feed">
 {% for c in cards %}
   {% with f=c.f, r=c.r, draft=c.draft, edited=c.edited, code=c.code, drafts_enabled=c.drafts_enabled %}
   {% include "_finding_card.html" %}
   {% endwith %}
 {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+{% if split %}
+</aside>
+<section id="pane" class="split-pane" hx-headers='{"X-Pane": "1"}'>
+  {% if pane %}{% include "_finding_pane.html" %}{% else %}<p class="empty">Nothing to show in this tab.</p>{% endif %}
+</section>
 </div>
 {% endif %}
 {% endblock %}

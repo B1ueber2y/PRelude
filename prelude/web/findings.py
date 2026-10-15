@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import queue
+from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
@@ -12,6 +13,7 @@ from .. import drafting
 from ..discuss import DiscussionBusy, post_message
 from ..drafts import DraftError
 from .context import WebDep
+from .reviews import _pick
 
 router = APIRouter()
 
@@ -83,6 +85,8 @@ def discard(w: WebDep, request: Request, finding_id: int):
     w.learn(finding_id, "discard")
     if w.wants_card(request, finding_id):
         return w.card(request, finding_id)
+    if request.headers.get("X-Pane"):  # laptop split view: move on to the next finding
+        return Response(status_code=204, headers={"HX-Redirect": _next_in_pane(w, request, f)})
     next_id = w.finding_context(finding_id)["next_id"]
     return Response(
         status_code=204,
@@ -90,6 +94,16 @@ def discard(w: WebDep, request: Request, finding_id: int):
             "HX-Redirect": f"/findings/{next_id}" if next_id else f"/reviews/{f['review_id']}",
         },
     )
+
+
+def _next_in_pane(w, request: Request, f) -> str:
+    """The review page showing the finding after `f` in the tab the pane was on."""
+    show = parse_qs(urlparse(request.headers.get("HX-Current-URL", "")).query).get("show", [None])[0]
+    findings = w.store.findings_for(f["review_id"])
+    tab = [x["id"] for x in findings if x["id"] != f["id"] and (show in (None, "all") or x["status"] == show)]
+    nxt = _pick(tab, [x["id"] for x in findings], f["id"])
+    query = "&".join(p for p in (f"show={show}" if show else "", f"f={nxt}" if nxt else "") if p)
+    return f"/reviews/{f['review_id']}" + (f"?{query}" if query else "")
 
 
 @router.post("/findings/{finding_id}/restore")
