@@ -29,7 +29,7 @@ LATEST_ONLY = "home_latest_only"
 def _review_list(w: Web) -> dict:
     """The home list: every review, or only each PR's newest.
 
-    `earlier` maps a PR to (hidden reviews, findings in them still to do), so nothing waiting is hidden silently.
+    `earlier` maps a PR to (hidden reviews, findings in them still open), so nothing waiting is hidden silently.
     """
     latest_only = w.store.setting(LATEST_ONLY, "1") == "1"
     return {
