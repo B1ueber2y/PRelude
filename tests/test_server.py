@@ -255,3 +255,25 @@ def test_stats_page_renders(client, done_review, store):
     store.update_finding(f["id"], status="posted")
     page = client.get("/stats").text
     assert "By reviewer agreement" in page and "PRelude" in page and "100%" in page
+
+
+def test_home_shows_each_prs_newest_review_unless_all(client, store):
+    first = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(first, title="First look")
+    newest = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")
+    store.update_review(newest, title="Second look")
+    other = store.create_review("B1ueber2y", "PRelude", 2, "u", "t")
+    store.update_review(other, title="Other PR")
+
+    page = client.get("/").text
+    assert "Second look" in page and "Other PR" in page and "First look" not in page
+    assert "+1 earlier</span>" in page
+    store.add_findings(
+        first, [{"path": "a", "severity": "low", "title": "x", "assessment": "", "suggested_comment": ""}]
+    )
+    assert "+1 earlier · 1 to go" in client.get("/").text  # still waiting in a hidden review
+    assert "First look" not in client.get("/reviews/rows").text
+
+    assert client.post("/settings/latest-only", data={"on": "0"}).status_code == 204
+    page = client.get("/reviews/rows").text
+    assert all(t in page for t in ("First look", "Second look", "Other PR")) and "+1 earlier" not in page

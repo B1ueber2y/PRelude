@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS findings (
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
 );
+CREATE INDEX IF NOT EXISTS findings_by_review ON findings(review_id);
 
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY,
@@ -125,6 +126,9 @@ CREATE TABLE IF NOT EXISTS threads (
   busy INTEGER NOT NULL DEFAULT 0
 );
 """
+
+
+_NEWEST_PER_PR = "SELECT MAX(id) FROM reviews GROUP BY owner, repo, number"
 
 
 class Store:
@@ -289,7 +293,9 @@ class Store:
                 (owner, repo, number),
             ).fetchone()
 
-    def list_reviews(self, limit: int = 50) -> list[sqlite3.Row]:
+    def list_reviews(self, limit: int = 50, *, latest_only: bool = False) -> list[sqlite3.Row]:
+        """Newest first (open PRs before closed ones); `latest_only` keeps each PR's newest review."""
+        where = f"WHERE r.id IN ({_NEWEST_PER_PR})" if latest_only else ""
         with self.connect() as c:
             return c.execute(
                 "SELECT r.*,"
@@ -297,9 +303,19 @@ class Store:
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
                 " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id) AS total"
-                " FROM reviews r ORDER BY COALESCE(r.pr_state, 'open') != 'open', r.id DESC LIMIT ?",
+                f" FROM reviews r {where} ORDER BY COALESCE(r.pr_state, 'open') != 'open', r.id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
+
+    def earlier_reviews(self) -> dict[tuple[str, str, int], tuple[int, int]]:
+        """Per PR: how many reviews are older than its newest, and their findings still to go."""
+        with self.connect() as c:
+            rows = c.execute(
+                "SELECT r.owner, r.repo, r.number, COUNT(*),"
+                " SUM((SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status IN ('pending', 'drafted')))"
+                f" FROM reviews r WHERE r.id NOT IN ({_NEWEST_PER_PR}) GROUP BY r.owner, r.repo, r.number"
+            ).fetchall()
+        return {(o, r, n): (hidden, to_go) for o, r, n, hidden, to_go in rows}
 
     def fail_stale_reviews(self) -> int:
         """Fail reviews whose process is gone; another process may still be running some."""
