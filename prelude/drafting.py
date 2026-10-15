@@ -43,6 +43,8 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto
         raise DraftsDisabled("Adding to GitHub drafts is turned off (github_drafts.enabled in config.yaml).")
     f = store.get_finding(finding_id)
     if f["status"] == "drafted":
+        if f["auto_drafted"] and not auto:  # the reviewer chose to keep an auto-draft
+            store.update_finding_if(finding_id, {"status": "drafted", "auto_drafted": 1}, auto_drafted=0)
         return
     r = _review(store, f)
     review_id = writer.pending_review(r["owner"], r["repo"], r["number"], r["head_sha"])

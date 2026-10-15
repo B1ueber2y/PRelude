@@ -133,7 +133,8 @@ def _cmd_findings(args: argparse.Namespace) -> int:
             continue
         loc = f"{f['path']}:{f['line']}" if f["line"] else f["path"]
         edited = ", your wording" if f["user_draft"] is not None else ""
-        print(f"\n{f['ordinal']:>2}. [{f['severity']}] {f['title']}  ({f['status']}{edited})\n    {loc}")
+        status = "auto-drafted, not checked yet" if f["status"] == "drafted" and f["auto_drafted"] else f["status"]
+        print(f"\n{f['ordinal']:>2}. [{f['severity']}] {f['title']}  ({status}{edited})\n    {loc}")
         print(f"\n{textwrap.indent(current_draft(f), '      ')}")
         if args.numbers:
             print(f"\n    Why:\n{textwrap.indent(f['assessment'], '      ')}")
@@ -164,7 +165,7 @@ def _cmd_draft(args: argparse.Namespace) -> int:
                 raise DraftError(why)
             if args.cmd == "draft":
                 drafting.add(store, cfg, writer, f["id"])
-                print(f"{f['ordinal']}: in your GitHub draft")
+                print(f"{f['ordinal']}: {'kept in' if f['auto_drafted'] else 'added to'} your GitHub draft")
             elif args.cmd == "undraft":
                 if f["status"] != "drafted":
                     raise DraftError(f"not in your draft ({f['status']})")

@@ -102,3 +102,16 @@ def test_interrupted_discussion_frees_the_thread(run, store, done_review, monkey
     monkeypatch.setattr("prelude.discuss.threading.Thread.start", lambda self: None)  # no reply runs
     code, out = run("discuss", done_review, 1, "Really?")
     assert code == 130 and "Stopped" in out and not store.thread(f["id"])["busy"]
+
+
+def test_draft_keeps_an_auto_draft(run, store, done_review):
+    from prelude import drafting
+    from prelude.config import load_config
+
+    cfg = load_config()
+    f = store.findings_for(done_review)[0]
+    drafting.auto_add(store, cfg, drafts.DraftWriter(cfg), [f["id"]])
+    assert "auto-drafted, not checked yet" in run("findings", done_review)[1]
+    code, out = run("draft", done_review, 1)
+    assert code == 0 and "kept in your GitHub draft" in out
+    assert store.get_finding(f["id"])["auto_drafted"] == 0 and len(run.github.comments) == 1
