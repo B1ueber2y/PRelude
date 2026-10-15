@@ -85,7 +85,14 @@
 </section>
 {% else %}
 <section class="draft-bar">
-  {% if drafts_enabled %}
+  {% if drafts_enabled and drafts_auto %}
+  {# New findings start in the draft; this only catches ones taken out or not drafted. #}
+  {% if counts.pending %}
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this">
+    Add {{ counts.pending }} to draft
+  </button>
+  {% else %}<span></span>{% endif %}
+  {% elif drafts_enabled %}
   <button class="btn primary" hx-post="/reviews/{{ r.id }}/github/add-all" hx-disabled-elt="this" {{ 'disabled' if not counts.pending }}>
     Add all to draft
   </button>
@@ -104,15 +111,6 @@
           title="Only the commits since this review; skips findings you discarded">Changes only</button>
   <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
           title="The whole PR again; skips findings you discarded">Full</button>
-  {% if r.status == 'done' and not r.progress %}
-  <span class="again-label">· More reviewers</span>
-  {% for n in (1, 2, 3) %}
-  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": {{ n }}}' hx-disabled-elt="this"
-          title="{{ n }} more independent reviewer{{ 's' if n > 1 }}; new findings are added here">+{{ n }}</button>
-  {% endfor %}
-  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-prompt="How many more reviewers? (1–{{ max_more }})"
-          hx-disabled-elt="this" title="Choose how many more reviewers">+N</button>
-  {% endif %}
   {% if r.status not in ('queued', 'running') %}
   <details class="more">
     <summary aria-label="More">⋯</summary>
@@ -121,6 +119,17 @@
   </details>
   {% endif %}
 </div>
+{% if r.status == 'done' and not r.progress %}
+<div class="again">
+  <span class="again-label">More reviewers</span>
+  {% for n in (1, 2, 3) %}
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-vals='{"n": {{ n }}}' hx-disabled-elt="this"
+          title="{{ n }} more independent reviewer{{ 's' if n > 1 }}; new findings are added here">+{{ n }}</button>
+  {% endfor %}
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/more" hx-prompt="How many more reviewers? (1–{{ max_more }})"
+          hx-disabled-elt="this" title="Choose how many more reviewers">+N</button>
+</div>
+{% endif %}
 {% if counts.drafted %}<p class="hint">{{ counts.drafted }} in your GitHub draft. <a href="{{ r.url }}/files" target="_blank" rel="noopener">Review and submit on GitHub ↗</a></p>{% endif %}
 
 <nav class="tabs" hx-boost="true">

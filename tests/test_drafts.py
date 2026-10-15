@@ -302,3 +302,20 @@ def test_edit_during_add_is_kept_and_not_drafted_stale(enabled, store, done_revi
     drafting.auto_add(store, enabled, writer, [f1["id"]])
     row = store.get_finding(f1["id"])
     assert row["status"] == "pending" and row["user_draft"] == "My words." and not github.comments
+
+
+def test_add_all_is_a_small_catch_up_button_with_auto_drafts(client, enabled, store, done_review):
+    page = client.get(f"/reviews/{done_review}?show=all").text
+    assert "Add 2 to draft" in page and "Add all to draft" not in page
+    for f in store.findings_for(done_review):
+        store.update_finding(f["id"], status="drafted")
+    assert "/github/add-all" not in client.get(f"/reviews/{done_review}").text  # nothing left to add
+    enabled.drafts.auto = False
+    store.update_finding(store.findings_for(done_review)[0]["id"], status="pending")
+    assert "Add all to draft" in client.get(f"/reviews/{done_review}").text
+
+
+def test_more_reviewers_get_their_own_row(client, done_review):
+    page = client.get(f"/reviews/{done_review}").text
+    again, more = page.index(">Review again"), page.index(">More reviewers")
+    assert again < more and page.count('<div class="again">') == 2
