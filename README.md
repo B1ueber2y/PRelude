@@ -2,9 +2,8 @@
 
 **Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
-A small personal project built on Claude Code, meant to complement Anthropic's own
-[Code Review](https://code.claude.com/docs/en/code-review) rather than replace it; for team
-review, Anthropic's Code Review is the natural choice.
+A small personal project built on Claude Code. For code review as a team, Anthropic's
+[Code Review](https://code.claude.com/docs/en/code-review) is the natural choice.
 
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
