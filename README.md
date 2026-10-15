@@ -117,12 +117,11 @@ instead, which is billed per token in the Claude Console and recommended for hea
 .venv/bin/prelude api-key     # paste the key (hidden); stored in .prelude-data/ readable only by you
 ```
 
-Use a key made just for PRelude, with a spending limit set in the Console.
-
 then set `auth: api_key` under `claude:` in `config.yaml` and restart PRelude
 (`prelude auth` shows which one is in use). An `ANTHROPIC_API_KEY` in PRelude's own
-environment takes precedence over the stored key. Some plans include monthly API credits
-that cover `claude -p` with a key from your linked Console organization; check your plan.
+environment takes precedence over the stored key. Use a key made just for PRelude, with a
+spending limit set in the Console. Some plans include monthly API credits that cover
+`claude -p` with a key from your linked Console organization; check your plan.
 
 ## Usage
 
