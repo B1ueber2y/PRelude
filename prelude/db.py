@@ -549,15 +549,14 @@ class Store:
             ).fetchall()
 
     def supersede_untouched(self, review_id: int) -> int:
-        """Earlier reviews' findings of this PR still waiting in To review, never edited or discussed:
-        this review replaces them (it reports again the ones still present). Returns how many."""
+        """The previous review's findings still waiting in To review, never edited or discussed: this
+        re-review was shown them and reports again the ones still present, so it replaces them."""
         with self.connect() as c:
             return c.execute(
                 "UPDATE findings SET status = 'superseded', updated_at = ? WHERE status = 'pending'"
                 " AND user_draft IS NULL AND verdict IS NULL"
                 " AND NOT EXISTS (SELECT 1 FROM messages WHERE finding_id = findings.id)"
-                " AND review_id IN (SELECT o.id FROM reviews o JOIN reviews r ON o.owner = r.owner"
-                " AND o.repo = r.repo AND o.number = r.number WHERE r.id = ? AND o.id < r.id)",
+                " AND review_id = (SELECT previous_review_id FROM reviews WHERE id = ?)",
                 (time.time(), review_id),
             ).rowcount
 

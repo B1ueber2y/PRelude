@@ -403,9 +403,19 @@ def test_new_review_replaces_untouched_comments_still_to_review(cfg, store, chec
     store.update_finding(old["Edited"], user_draft="My words")
     store.add_message(old["Discussed"], "user", "Really?")
 
+    older = store.create_review("B1ueber2y", "PRelude", 1, "u", "t")  # not shown to the re-review below
+    store.add_findings(older, [dict(FINDING, title="Older")])
+
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "all fixed", "findings": []}))
-    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    fresh = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))  # shown nothing earlier
+    review.run_review(store, cfg, fresh, github=FakeReader(), writer=None)
+    assert store.findings_for(earlier)[0]["status"] == "pending"
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), previous_review_id=earlier, mode="full")
     review.run_review(store, cfg, rid, github=FakeReader(), writer=None)
+    assert store.findings_for(older)[0]["status"] == "pending"
     status = {f["title"]: f["status"] for f in store.findings_for(earlier) + store.findings_for(elsewhere)}
     assert status == {"Untouched": "superseded", "Edited": "pending", "Discussed": "pending", "Other PR": "pending"}
-    assert store.earlier_reviews()[("B1ueber2y", "PRelude", 1)] == (1, 2)  # the home card's "2 still open"
+    assert store.earlier_reviews()[("B1ueber2y", "PRelude", 1)] == (
+        3,
+        3,
+    )  # 3 earlier reviews; Edited, Discussed, Older still open
