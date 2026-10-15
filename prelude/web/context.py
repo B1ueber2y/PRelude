@@ -30,6 +30,14 @@ from ..textfmt import render_text
 PACKAGE = Path(__file__).resolve().parent.parent
 
 
+WIDE_COOKIE = "prelude_wide"  # set by the page itself: 1 on laptop-sized windows
+
+
+def is_wide(request: Request) -> bool:
+    """Laptop layout (split review view)? Phones never set the cookie to 1."""
+    return request.cookies.get(WIDE_COOKIE) == "1"
+
+
 def ago(timestamp: float) -> str:
     seconds = max(0, time.time() - timestamp)
     for unit, size in (("d", 86400), ("h", 3600), ("min", 60)):
@@ -85,6 +93,7 @@ class Web:
     # ---- responses ---------------------------------------------------------
 
     def render(self, request: Request, name: str, ctx: dict, status_code: int = 200) -> HTMLResponse:
+        ctx = {"wide": is_wide(request), **ctx}
         return self.templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
     @staticmethod

@@ -1,0 +1,8 @@
+{% with f=pane.f, snippet=pane.snippet, code=pane.code, draft=pane.draft, edited=pane.edited,
+        messages=pane.messages, busy=pane.busy, drafts_enabled=pane.drafts_enabled %}
+{% include "_finding_body.html" %}
+<p class="keys"><kbd>j</kbd>/<kbd>k</kbd> next/previous · <kbd>a</kbd> add to draft · <kbd>e</kbd> edit · <kbd>d</kbd> discard · <kbd>Esc</kbd> close the editor</p>
+<div class="pane-actions{{ ' posted' if f.status in ('posted', 'dropped', 'superseded') }}">
+{% include "_finding_actions.html" %}
+</div>
+{% endwith %}

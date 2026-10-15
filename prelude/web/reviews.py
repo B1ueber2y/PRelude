@@ -14,7 +14,7 @@ from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
 from ..poller import LAST_ERROR, LAST_POLL, next_cap_slot, reviews_toward_cap
 from ..review import start_review
-from .context import Web, WebDep
+from .context import Web, WebDep, is_wide
 
 log = logging.getLogger(__name__)
 
@@ -86,20 +86,26 @@ def create_review(w: WebDep, request: Request, pr: str = Form(...), reviewers: i
 
 
 @router.get("/reviews/{review_id}", response_class=HTMLResponse)
-def review_page(w: WebDep, request: Request, review_id: int, show: str | None = None):
+def review_page(w: WebDep, request: Request, review_id: int, show: str | None = None, f: int | None = None):
     r = w.review_or_404(review_id)
     _refresh_in_background(w, review_id)
     findings = w.store.findings_for(review_id)
-    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
+    counts = {s: sum(1 for x in findings if x["status"] == s) for s in ("pending", "drafted", "posted", "discarded")}
     counts["all"] = len(findings)
     if show is None:  # with auto-drafts, nothing may be left to review
         show = "drafted" if counts["drafted"] and not counts["pending"] else "pending"
+    tab = [x for x in findings if show == "all" or x["status"] == show]
+    split = is_wide(request) and r["status"] == "done"  # laptop: finding list + one finding in a pane
+    selected = _pick([x["id"] for x in tab], [x["id"] for x in findings], f) if split else None
     return w.render(
         request,
         "review.html",
         {
             "r": r,
-            "cards": [w.card_context(f, r) for f in findings if show == "all" or f["status"] == show],
+            "tab": tab,
+            "cards": [] if split else [w.card_context(x, r) for x in tab],
+            "split": split,
+            "pane": w.finding_context(selected) if selected else None,
             "show": show,
             "counts": counts,
             "drafts_enabled": w.cfg.drafts.enabled,
@@ -112,6 +118,19 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "max_more": MAX_MORE,
         },
     )
+
+
+def _pick(tab: list[int], ordered: list[int], wanted: int | None) -> int | None:
+    """The finding to show in the pane: the one asked for if it's in this tab, else the next one
+    after it (e.g. after discarding it from "To review"), else the tab's first."""
+    if not tab:
+        return None
+    if wanted in tab:
+        return wanted
+    if wanted in ordered:
+        later = [i for i in tab if ordered.index(i) > ordered.index(wanted)]
+        return later[0] if later else tab[-1]
+    return tab[0]
 
 
 def _refresh_in_background(w: Web, review_id: int) -> None:

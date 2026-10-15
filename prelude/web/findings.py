@@ -83,6 +83,8 @@ def discard(w: WebDep, request: Request, finding_id: int):
     w.learn(finding_id, "discard")
     if w.wants_card(request, finding_id):
         return w.card(request, finding_id)
+    if request.headers.get("X-Pane"):  # laptop split view: the page moves on to the next finding
+        return Response(status_code=204, headers=REFRESH)
     next_id = w.finding_context(finding_id)["next_id"]
     return Response(
         status_code=204,

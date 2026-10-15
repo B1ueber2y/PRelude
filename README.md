@@ -2,7 +2,10 @@
 
 **Review the AI review comments before they reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
-<p align="center">
+<p align="center"><strong>Laptop</strong><br>
+  <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
+</p>
+<p align="center"><strong>Phone</strong><br>
   <img src="docs/images/home.png" width="250" alt="The review list, one card per PR">
   <img src="docs/images/review.png" width="250" alt="A review: summary, actions and the first finding with its code">
   <img src="docs/images/finding.png" width="250" alt="One finding: the code, why Claude flagged it, and your wording">
@@ -53,8 +56,8 @@ PRelude fits wherever you'd want a careful second reviewer:
   repos on the **Repos** page, and PRelude prepares a review of each new PR; contributors
   only see what you approved.
 
-All of it works from the phone, or from the terminal (`prelude findings`, `prelude draft`,
-`prelude discard`, … see [Usage](#usage)).
+All of it works from the phone, a laptop browser, or the terminal (`prelude findings`,
+`prelude draft`, `prelude discard`, … see [Usage](#usage)).
 
 ## Built on Claude Code
 
@@ -112,8 +115,9 @@ October 2026:
   style guide (how you phrase things) and per-repo notes. They update as you discard,
   edit and discuss — like a colleague who learns from your feedback — and every change
   can be undone. `prelude style-init OWNER/REPO` seeds the style from your past comments.
-- **Built for the phone.** A small installable web app, served privately from your own
-  machine, with notifications when a review is ready.
+- **Phone and laptop.** A small installable web app, served privately from your own
+  machine, with notifications when a review is ready. On a laptop, a review opens as a
+  list of findings beside the selected one, with keyboard shortcuts (j/k, a, e, d).
 - **Reviews on its own, while you let it.** With `triggers` enabled in `config.yaml` (off by
   default), PRelude watches your repos for new PRs and review requests whenever it's
   running (`prelude`, or `prelude start` … `prelude stop`); nothing runs unless you started it.
