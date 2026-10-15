@@ -371,7 +371,7 @@ class Store:
             rows = [
                 dict(r)
                 for r in c.execute(
-                    "SELECT r.*,"
+                    f"SELECT {_CARD_COLUMNS},"  # not the large diff and report columns: this runs every 5 s
                     " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'pending') AS pending,"
                     " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'drafted') AS drafted,"
                     " (SELECT COUNT(*) FROM findings f WHERE f.review_id = r.id AND f.status = 'posted') AS posted,"
@@ -818,6 +818,29 @@ class Store:
             c.execute("UPDATE threads SET seen_at = ? WHERE finding_id = ?", (time.time(), finding_id))
 
 
+_CARD_COLUMNS = ", ".join(
+    f"r.{c}"
+    for c in [
+        "id",
+        "owner",
+        "repo",
+        "number",
+        "url",
+        "title",
+        "author",
+        "status",
+        "progress",
+        "error",
+        "pr_state",
+        "trigger_reason",
+        "reviewers",
+        "previous_review_id",
+        "mode",
+        "created_at",
+        "finished_at",
+    ]
+)
+
 _REVIEW_EVENT = (
     "CASE status WHEN 'done' THEN 'reviewed' WHEN 'failed' THEN 'review failed'"
     " WHEN 'skipped' THEN 'skipped' ELSE 'started' END"
@@ -837,6 +860,8 @@ def _action(fields: dict[str, Any]) -> dict[str, Any]:
     """Timestamps for an update, and which action it was if it changes the status or wording."""
     now = time.time()
     out: dict[str, Any] = {"updated_at": now}
+    if "acted_at" in fields:  # the caller says what it was (e.g. undoing a change, or nothing changed)
+        return out
     if "status" in fields:
         out.update(acted_at=now, action=ACTIONS.get(fields["status"], fields["status"]))
     elif "user_draft" in fields:

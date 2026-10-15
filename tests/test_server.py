@@ -381,3 +381,17 @@ def test_any_activity_moves_its_pr_up_the_home_list(client, done_review, store, 
     chat_id = store.create_chat(store.get_review(later))
     store.add_chat_message(chat_id, "user", "And this one?")
     assert [r["number"] for r in store.list_reviews(latest_only=True)] == [2, 1]
+
+
+def test_only_real_changes_count_as_activity(client, done_review, store):
+    f = store.findings_for(done_review)[0]
+    client.post(f"/findings/{f['id']}/draft", data={"text": f["claude_comment"]})  # saved, but unchanged
+    assert store.get_finding(f["id"])["action"] is None
+    client.post(f"/findings/{f['id']}/draft", data={"text": "Shorter."})
+    edited = store.get_finding(f["id"])
+    assert edited["action"] == "edited"
+    store.update_finding(f["id"], status="superseded")
+    store.update_finding_if(  # undoing a replace (as drafting.supersede does) restores what it was
+        f["id"], {"status": "superseded"}, status="pending", acted_at=edited["acted_at"], action=edited["action"]
+    )
+    assert store.get_finding(f["id"])["action"] == "edited"
