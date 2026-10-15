@@ -2,6 +2,10 @@
 
 **Meta-review a panel of independent AI code reviewers before their comments reach the author** (a harness around [Claude Code](#built-on-claude-code)).
 
+A small personal project built on Claude Code. **Note that for code review as a team, Anthropic's
+[Code Review](https://code.claude.com/docs/en/code-review) is the natural choice and this project
+is not applicable.**
+
 <p align="center"><strong>Laptop</strong><br>
   <img src="docs/images/laptop.png" width="780" alt="A review on a laptop: the findings listed on the left, the selected one in full on the right">
 </p>
@@ -40,7 +44,7 @@ Optionally, each comment is prefixed with `AI review with PRelude:` so authors k
 
 PRelude fits wherever you'd want a careful second reviewer:
 
-- **Review your own PRs before anyone else does.** Open a PR and have PRelude review it
+- **Review your own PRs during your own development** (surprisingly useful in practice). Open a PR and have PRelude review it
   (paste the link, or turn on `triggers` and your own non-draft PRs are reviewed
   automatically). Fix what's right, push, tap **Review again → Changes only**, and repeat
   until the re-review comes back clean. This pairs well with a coding
@@ -79,7 +83,9 @@ So review quality follows Claude Code's, and usage counts against your Claude pl
 PRelude is an independent project, not made or endorsed by Anthropic, and this section is
 not legal advice. Read the current [Consumer Terms](https://www.anthropic.com/legal/consumer-terms),
 the [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
-page and your plan's help pages yourself; they changed several times in 2026. As of
+page and your plan's help pages yourself; they changed several times in 2026. You're
+responsible for using PRelude in line with Anthropic's terms and your plan; like the rest of
+the software, this guidance comes without warranty (see the [License](LICENSE)). As of
 October 2026:
 
 - **Scripted use of your own subscription is documented.** The Consumer Terms forbid
@@ -92,12 +98,18 @@ October 2026:
   subscription login (in API-key mode it keeps only the key you give it).
 - **Don't run it for other people.** Subscriptions may not be shared or used "on behalf of"
   other users, and products built on Claude should use an API key. Keep PRelude personal:
-  your login, your machine, your reviews. For heavier or team use, switch to an
-  [API key](#subscription-or-api-key) (billed per token) and check with Anthropic.
+  your login, your machine, your reviews. For heavier personal use, switch to an
+  [API key](#subscription-or-api-key) (billed per token).
 - **Keep it ordinary, individual usage.** Pro and Max limits "assume ordinary, individual
   usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
   off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
   modest. PRelude doesn't retry when Claude reports a usage limit.
+- **Built to complement Anthropic's tools.** PRelude exists thanks to Claude Code and is
+  meant to work alongside Anthropic's own offerings, such as [Code
+  Review](https://code.claude.com/docs/en/code-review) for Team and Enterprise plans and the
+  open-source GitHub Action. It is a small, free, non-commercial project for one person's
+  own reviews: it runs on each user's own Claude plan or API key and isn't offered as a
+  service. For reviewing as a team, Anthropic's Code Review is designed for exactly that.
 
 ## Install and run
 
@@ -212,7 +224,11 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment); submitting a review is not possible from PRelude, and tests enforce it.
 
-## Development
+## Contributing
+
+Open-source contributions and discussions are welcome here on GitHub at any time: open an
+issue or a pull request. PRelude is released under the [MIT License](LICENSE). To run the
+checks locally:
 
 ```bash
 .venv/bin/pytest
