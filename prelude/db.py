@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS findings (
   confidence TEXT,
   claude_comment TEXT NOT NULL,
   user_draft TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded | dropped (PR closed first)
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | drafted | posted | discarded | dropped (PR closed first) | superseded (by a later review)
   verdict TEXT,                            -- latest Claude verdict from discussion
   github_review_id TEXT,                   -- pending review the comment was added to
   github_comment_id TEXT,
@@ -381,6 +381,16 @@ class Store:
     def get_finding(self, finding_id: int) -> sqlite3.Row | None:
         with self.connect() as c:
             return c.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
+
+    def update_finding_if(self, finding_id: int, expected: str, **fields: Any) -> bool:
+        """Update only if the finding's status is still `expected`; False if someone changed it first."""
+        fields["updated_at"] = time.time()
+        cols = ", ".join(f"{k} = ?" for k in fields)
+        with self.connect() as c:
+            cur = c.execute(
+                f"UPDATE findings SET {cols} WHERE id = ? AND status = ?", (*fields.values(), finding_id, expected)
+            )
+            return cur.rowcount == 1
 
     def update_finding(self, finding_id: int, **fields: Any) -> None:
         fields["updated_at"] = time.time()

@@ -232,3 +232,17 @@ def test_auto_drafts_count_as_undecided_until_touched(client, enabled, store, do
     github.reviews[store.get_finding(f2["id"])["github_review_id"]] = "COMMENTED"
     drafting.refresh_submitted(store, enabled, writer, done_review)
     assert outcome(store.get_finding(f2["id"])) == "posted"
+
+
+def test_discard_during_add_wins_and_leaves_no_comment(enabled, store, done_review, writer, github):
+    f1, _ = store.findings_for(done_review)
+    real = writer.add_comment
+
+    def slow(*a, **kw):
+        cid = real(*a, **kw)
+        store.update_finding(f1["id"], status="discarded")  # the reviewer discards meanwhile
+        return cid
+
+    writer.add_comment = slow
+    drafting.auto_add(store, enabled, writer, [f1["id"]])
+    assert store.get_finding(f1["id"])["status"] == "discarded" and not github.comments

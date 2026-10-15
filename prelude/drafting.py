@@ -58,14 +58,17 @@ def add(store: Store, cfg: Config, writer: DraftWriter, finding_id: int, *, auto
         start_line=f["start_line"],
         file_level=not f["in_diff"],
     )
-    store.update_finding(
+    claimed = store.update_finding_if(
         finding_id,
+        f["status"],
         status="drafted",
         github_review_id=review_id,
         github_comment_id=comment_id,
         drafted_body=body,
         auto_drafted=int(auto),
     )
+    if not claimed:  # discarded or added elsewhere while GitHub was busy: undo this copy
+        writer.delete_comment(r["owner"], r["repo"], review_id, comment_id)
 
 
 def sync(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None:
@@ -129,6 +132,23 @@ def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[i
             log.warning("couldn't add finding %s to the draft", finding_id, exc_info=True)
             break
     return added
+
+
+def supersede(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:
+    """Take earlier reviews' untouched auto-drafts of this PR out of the draft; this review replaces them."""
+    r = store.get_review(review_id)
+    done = 0
+    for f in store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id):
+        if not f["auto_drafted"]:
+            continue  # the reviewer kept or edited it
+        try:
+            remove(store, cfg, writer, f["id"], new_status="superseded")
+            done += 1
+        except NotPending:
+            break  # submitted or deleted on GitHub; refresh_submitted will notice
+        except Exception:
+            log.warning("couldn't take finding %s out of the draft", f["id"], exc_info=True)
+    return done
 
 
 def refresh_submitted(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> int:

@@ -232,16 +232,29 @@ def _record_failure(store: Store, cfg: Config, review_id: int, what: str, exc: E
 
 def _repeats(f, drafts) -> bool:
     """Whether a new finding is likely one already in the draft from an earlier review (same spot)."""
-    return any(d["path"] == f["path"] and abs((d["line"] or 0) - (f["line"] or 0)) <= 5 for d in drafts)
+
+    def same_spot(d) -> bool:
+        if d["path"] != f["path"] or d["side"] != f["side"] or (d["line"] is None) != (f["line"] is None):
+            return False
+        return d["line"] is None or abs(d["line"] - f["line"]) <= 5
+
+    return any(same_spot(d) for d in drafts)
 
 
-def _auto_draft(store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None) -> None:
+def _auto_draft(
+    store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None, *, replace: bool
+) -> None:
+    """Draft new findings. A new review (`replace`) first takes over earlier reviews' untouched auto-drafts."""
+    if not (ids and cfg.drafts.enabled and cfg.drafts.auto):
+        return
+    writer = writer or DraftWriter(cfg)
+    store.update_review(review_id, progress="Adding comments to your GitHub draft")
+    if replace:
+        drafting.supersede(store, cfg, writer, review_id)
     r = store.get_review(review_id)
     drafts = store.drafts_on_pr(r["owner"], r["repo"], r["number"], besides=review_id)
     ids = [i for i in ids if not _repeats(store.get_finding(i), drafts)]  # those wait in To review
-    if ids and cfg.drafts.enabled and cfg.drafts.auto:
-        store.update_review(review_id, progress="Adding comments to your GitHub draft")
-        drafting.auto_add(store, cfg, writer or DraftWriter(cfg), ids)
+    drafting.auto_add(store, cfg, writer, ids)
 
 
 def _in_draft(store: Store, ids: list[int]) -> str:
@@ -319,7 +332,7 @@ def run_review(
         files = parse_diff(co.diff)
         ids = store.add_findings(review_id, [_normalize(f, files) for f in out["findings"] if isinstance(f, dict)])
         if pr.state == "open":
-            _auto_draft(store, cfg, review_id, ids, writer)
+            _auto_draft(store, cfg, review_id, ids, writer, replace=True)
         store.update_review(
             review_id,
             status="done",
@@ -411,7 +424,7 @@ def add_reviewers(
         new = [_normalize(f, files) for f in out.get("new_findings") or [] if isinstance(f, dict)]
         ids = store.add_findings(review_id, new, added_later=True)
         if pr.state == "open":
-            _auto_draft(store, cfg, review_id, ids, writer)
+            _auto_draft(store, cfg, review_id, ids, writer, replace=False)
         store.update_review(
             review_id,
             progress=None,

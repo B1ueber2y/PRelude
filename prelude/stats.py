@@ -50,7 +50,7 @@ def _rows(store: Store, key_sql: str, where: str = "1=1") -> list[Row]:
             row.edited += n if edited else 0
         elif status == "discarded":
             row.discarded += n
-        elif status == "dropped":  # PR closed first: says nothing about the comment
+        elif status in ("dropped", "superseded"):  # never judged: says nothing about the comment
             row.findings -= n
         else:
             row.pending += n

@@ -172,6 +172,7 @@ OUTCOMES = {
     "posted": "the reviewer posted it on the PR",
     "discarded": "the reviewer DISMISSED it",
     "pending": "not handled yet",
+    "superseded": "not handled; replaced by a later review",
 }
 
 

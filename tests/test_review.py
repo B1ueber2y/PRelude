@@ -325,3 +325,34 @@ def test_repeats_of_earlier_drafts_are_not_drafted_again(cfg, store, checkout, f
     review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
     status = {f["title"]: f["status"] for f in store.findings_for(rid)}
     assert status == {"Missing token is accepted": "pending", "Elsewhere": "drafted"} and len(github.comments) == 1
+
+
+def test_new_review_replaces_untouched_auto_drafts(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    github = FakeGitHub()
+    writer = DraftWriter(cfg, transport=github)
+    kept = dict(FINDING, title="Kept", path="src/kept.ts")
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING, kept]}))
+    first = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, first, github=FakeReader(), writer=writer)
+    old = {f["title"]: f for f in store.findings_for(first)}
+    store.update_finding(old["Kept"]["id"], auto_drafted=0)  # the reviewer edited this one
+
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
+    second = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1))
+    review.run_review(store, cfg, second, github=FakeReader(), writer=writer)
+    old = {f["title"]: f["status"] for f in store.findings_for(first)}
+    assert old == {"Missing token is accepted": "superseded", "Kept": "drafted"}
+    assert store.findings_for(second)[0]["status"] == "drafted" and len(github.comments) == 2
+
+
+def test_repeats_need_the_same_side_and_kind_of_anchor():
+    d = {"path": "a.py", "side": "RIGHT", "line": 10}
+    assert review._repeats(dict(d, line=14), [d])
+    assert not review._repeats(dict(d, side="LEFT"), [d])
+    assert not review._repeats(dict(d, line=None), [d]) and not review._repeats(dict(d, line=3), [dict(d, line=None)])
+    assert review._repeats(dict(d, line=None), [dict(d, line=None)])

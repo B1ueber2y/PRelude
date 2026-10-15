@@ -136,6 +136,8 @@ class Web:
             return self.flash("This comment is already posted on GitHub; change it there.")
         if status == "dropped":
             return self.flash("This PR was closed before the comment was posted.")
+        if status == "superseded":
+            return self.flash("A later review of this PR replaced this comment.")
         return None
 
     @staticmethod
@@ -174,7 +176,7 @@ class Web:
         Returns an error message if the GitHub draft couldn't be updated.
         """
         f = self.finding_or_404(finding_id)
-        if f["status"] in ("posted", "dropped"):
+        if f["status"] in ("posted", "dropped", "superseded"):
             return "This comment can't be changed any more (posted, or its PR was closed)."
         text = text.strip() if text is not None else None
         user_draft = None if text is None or text == f["claude_comment"] else text
