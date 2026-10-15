@@ -192,7 +192,7 @@ def delete_review(w: WebDep, review_id: int):
     r = w.review_or_404(review_id)
     if r["status"] in ("queued", "running") or r["progress"]:
         return w.flash("This review is still running; delete it when it's finished.")
-    w.store.delete_review(review_id)  # its checkout goes in the next prune_checkouts, once unused
+    w.store.delete_review(review_id)  # its checkout is pruned later, once no review uses it
     return Response(status_code=204, headers={"HX-Redirect": "/"})
 
 

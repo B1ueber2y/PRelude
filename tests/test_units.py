@@ -216,7 +216,7 @@ def test_prune_removes_only_old_unused_checkouts_of_idle_repos(cfg):
     old = checkout("o__r__1__aaa", 7200)
     fresh = checkout("o__r__2__bbb", 60)  # just made or reused by a review that hasn't recorded it yet
     used = checkout("o__r__3__ccc", 7200)
-    busy = checkout("o__busy__4__ddd", 7200)
-    with _repo_lock(cfg, "o", "busy"):  # a checkout of that repo is in progress
-        prune_checkouts(cfg, in_use={str(used)})
+    busy = checkout("o__my__repo__4__ddd", 7200)  # repo names may contain "__"
+    with _repo_lock(cfg, "o", "my__repo"):  # a checkout of that repo is in progress
+        prune_checkouts(cfg, in_use={str(used) + "/."})  # spelled differently, same directory
     assert not old.exists() and fresh.exists() and used.exists() and busy.exists()

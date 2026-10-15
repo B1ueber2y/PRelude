@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -38,6 +39,16 @@ MANIFEST = json.dumps(
 )
 
 
+def _prune_forever(cfg: Config, store: Store, every: float = 1800) -> None:
+    """Remove checkouts no review uses any more (deleted reviews leave theirs behind)."""
+    while True:
+        try:
+            prune_checkouts(cfg, store.worktrees_in_use())
+        except Exception:
+            log.warning("pruning checkouts failed", exc_info=True)
+        time.sleep(every)
+
+
 def create_app(
     cfg: Config,
     store: Store | None = None,
@@ -51,10 +62,8 @@ def create_app(
 ) -> FastAPI:
     store = store or Store(cfg.db_path)
     store.fail_stale_reviews()
-    if not watch:  # with triggers on, the poller prunes every round
-        threading.Thread(
-            target=lambda: prune_checkouts(cfg, store.worktrees_in_use()), daemon=True, name="prune"
-        ).start()
+    if watch:
+        threading.Thread(target=_prune_forever, args=(cfg, store), daemon=True, name="prune").start()
     w = Web(
         cfg=cfg,
         store=store,
