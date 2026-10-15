@@ -39,7 +39,10 @@ def set_wording(
     text = text.strip() if text is not None else None
     user_draft = None if text is None or text == f["claude_comment"] else text
     # auto_drafted=0: the reviewer has looked. Conditional, so a supersede that just claimed it wins.
-    if not store.update_finding_if(finding_id, {"status": f["status"]}, user_draft=user_draft, auto_drafted=0):
+    unchanged = {} if user_draft != f["user_draft"] else {"acted_at": f["acted_at"], "action": f["action"]}
+    if not store.update_finding_if(
+        finding_id, {"status": f["status"]}, user_draft=user_draft, auto_drafted=0, **unchanged
+    ):
         return refusal(store.get_finding(finding_id)) or "This comment just changed; reload."
     if learn and user_draft is not None and user_draft != f["user_draft"]:
         learn(finding_id, "edit")

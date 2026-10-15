@@ -147,7 +147,10 @@ def supersede(store: Store, cfg: Config, writer: DraftWriter, review_id: int) ->
         try:
             writer.delete_comment(r["owner"], r["repo"], f["github_review_id"], f["github_comment_id"])
         except Exception as e:
-            store.update_finding_if(f["id"], {"status": "superseded"}, status="drafted")
+            # Undone: it's the same draft as before, not a new one.
+            store.update_finding_if(
+                f["id"], {"status": "superseded"}, status="drafted", acted_at=f["acted_at"], action=f["action"]
+            )
             if not isinstance(e, NotPending):  # NotPending: submitted on GitHub; refresh_submitted will notice
                 log.warning("couldn't take finding %s out of the draft", f["id"], exc_info=True)
             continue  # other drafts may sit in another, still pending review
