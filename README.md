@@ -176,11 +176,8 @@ ssh -L 8787:127.0.0.1:8787 you@that-machine
 
 1. **Reach it privately.** PRelude never listens on the network. Forward the port from the
    phone: in an SSH app such as Termius, add the machine as a host and a *local port
-   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps). Or use `tailscale serve`
-   on the machine and set `server.allowed_tailscale_user` to your Tailscale login.
-2. **Unlock it once.** Open the `prelude url` link in the phone's browser. With
-   `tailscale serve`, keep the `?key=…` part but replace `http://127.0.0.1:8787` with the
-   machine's Tailscale address, and set `notify.open_url` to that address too.
+   forward* from 8787 to `127.0.0.1:8787` (keep-alive on helps).
+2. **Unlock it once.** Open the `prelude url` link in the phone's browser.
 3. **Add it to the home screen.** iPhone: Safari → Share → *Add to Home Screen*. Android:
    Chrome → ⋮ → *Add to Home screen*. It then opens like an app.
 4. **Notifications (optional).** Run `.venv/bin/prelude notify-setup`, subscribe to the
