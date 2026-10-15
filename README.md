@@ -71,7 +71,7 @@ supplies the prompts, the read-only sandbox and the workflow around the results:
 - **PRelude does everything else:** deciding what to review, checking out the PR read-only,
   running independent reviewers and merging their reports, keeping one conversation per
   finding (forked Claude Code sessions), learning your preferences, the phone UI, and
-  writing drafts to GitHub only when you say so.
+  writing comments only into your private pending GitHub review.
 
 So review quality follows Claude Code's, and usage counts against your Claude plan.
 
