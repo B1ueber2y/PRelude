@@ -189,3 +189,9 @@ def test_next_slot_when_the_cap_is_full_or_exceeded(store):
     assert next_cap_slot(store, t) is None
     t.max_reviews_per_day = 0
     assert next_cap_slot(store, t) is None
+
+
+def test_a_cap_of_zero_says_it_pauses_reviews(client):
+    client.cfg.triggers.max_reviews_per_day = 0
+    page = client.get("/repos").text
+    assert "<strong>0/0</strong>" in page and "a cap of 0 pauses" in page

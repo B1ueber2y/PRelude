@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -38,12 +39,12 @@ def ago(timestamp: float) -> str:
 
 
 def until(timestamp: float) -> str:
-    """Time left, in its largest unit only (like `ago`)."""
-    seconds = max(0, timestamp - time.time())
-    for unit, size in (("d", 86400), ("h", 3600), ("min", 60)):
-        if seconds >= size:
-            return f"{int(seconds // size)} {unit}"
-    return f"{int(seconds)} s"
+    """Time left in its largest unit only, rounded up so the wait is never understated."""
+    seconds = max(0.0, timestamp - time.time())
+    for unit, size, limit in (("s", 1, 60), ("min", 60, 60), ("h", 3600, 24)):
+        if (n := math.ceil(seconds / size)) < limit:
+            return f"{max(1, n)} {unit}"
+    return f"{math.ceil(seconds / 86400)} d"
 
 
 @cache

@@ -222,13 +222,14 @@ def test_prune_removes_only_old_unused_checkouts_of_idle_repos(cfg):
     assert not old.exists() and fresh.exists() and used.exists() and busy.exists()
 
 
-def test_until_shows_only_the_largest_unit():
+def test_until_shows_the_largest_unit_rounded_up():
     import time
 
     from prelude.web.context import until
 
     now = time.time()
-    assert until(now + 15 * 3600 + 500) == "15 h"
-    assert until(now + 8 * 60 + 30) == "8 min"
-    assert until(now + 40.5) == "40 s"
-    assert until(now + 2 * 86400 + 60) == "2 d"
+    assert until(now + 14 * 3600 + 50 * 60) == "15 h"  # never shorter than the real wait
+    assert until(now + 8 * 60 + 30) == "9 min"
+    assert until(now + 40.5) == "41 s"
+    assert until(now + 59.5) == "1 min" and until(now + 3599) == "1 h"
+    assert until(now + 2 * 86400 + 60) == "3 d"
