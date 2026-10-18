@@ -185,6 +185,8 @@ add, edit or discard.
   over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
   when the next slot frees up. Your own PRs in repos listed under `triggers.cap_exempt`
   don't count. `prelude check` shows what would be reviewed, without starting anything.
+  New commits on a reviewed PR aren't reviewed automatically, unless someone requests your
+  review again after them: then PRelude reviews the changes since its last review.
 - **Posting automatically** is off for every repo. On the **Repos** page, "post automatically"
   turns it on for one repo: automatic reviews there go on the PR right away, as you, each
   comment prefixed `AI review (auto triggered):`, instead of waiting in your draft. Reviews

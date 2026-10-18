@@ -210,10 +210,13 @@ class GitHubReader:
             )
         return items
 
-    def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:
-        """Who asked for your review: (requested you directly, requested a team)."""
-        direct, team = set(), set()
-        for page in range(1, 4):
+    def review_requests(
+        self, owner: str, repo: str, number: int, me: str
+    ) -> tuple[set[str], set[str], list[tuple[str, str]]]:
+        """Who asked for your review: (requested you directly, requested a team,
+        (ISO time, who) of each direct request to you, oldest first)."""
+        direct, team, mine = set(), set(), []
+        for page in range(1, 11):  # GitHub lists events oldest first
             events = self._get(owner, repo, f"/issues/{number}/events?per_page=100&page={page}")
             assert isinstance(events, list)
             for e in events:
@@ -222,11 +225,12 @@ class GitHubReader:
                 actor = (e.get("actor") or {}).get("login") or "someone"
                 if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
                     direct.add(actor)
+                    mine.append((e.get("created_at") or "", actor))
                 elif e.get("requested_team"):
                     team.add(actor)
             if len(events) < 100:
                 break
-        return direct, team
+        return direct, team, mine
 
     def viewer_login(self) -> str:
         data = self._request("/user")
