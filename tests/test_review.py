@@ -482,3 +482,15 @@ def test_auto_post_that_may_have_gone_through_is_not_drafted_too(cfg, store, che
     assert f["status"] == "posted" and outcome(f) == "auto_posted"  # not the reviewer's decision
 
     assert TriggerConfig.from_raw({"auto_post_severities": []}).auto_post_severities == ()  # posts nothing
+
+
+def test_a_review_runs_at_its_own_effort(cfg, store, checkout, fake_claude, monkeypatch):
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "ok", "findings": []}))
+    cfg.claude.effort = "low"
+    for effort, expected in (("xhigh", "xhigh"), (None, "low")):
+        rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), effort=effort)
+        review.run_review(store, cfg, rid, github=FakeReader())
+        args = runs(fake_claude)[-1]["args"]
+        assert args[args.index("--effort") + 1] == expected
+    with pytest.raises(ValueError):
+        review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 1), effort="huge")

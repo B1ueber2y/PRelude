@@ -209,6 +209,7 @@ class Store:
                     "pr_checked_at": "REAL",
                     "pr_comments": "TEXT",
                     "comment_status": "TEXT",
+                    "effort": "TEXT",  # chosen for this review; NULL: claude.effort
                 },
             )
 
@@ -288,13 +289,14 @@ class Store:
         reviewers: int = 1,
         previous_review_id: int | None = None,
         mode: str = "full",
+        effort: str | None = None,
     ) -> int:
         now = time.time()
         with self.connect() as c:
             cur = c.execute(
                 "INSERT INTO reviews (owner, repo, number, url, trigger_reason, reviewers, previous_review_id, mode,"
-                " status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
-                (owner, repo, number, url, trigger_reason, reviewers, previous_review_id, mode, now, now),
+                " effort, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
+                (owner, repo, number, url, trigger_reason, reviewers, previous_review_id, mode, effort, now, now),
             )
             return int(cur.lastrowid)
 

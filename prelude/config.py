@@ -22,12 +22,13 @@ DEFAULT_CONFIG = """\
 # other GitHub repository (useful while trying it out).
 only_repo: null
 
-# Claude settings. `model: null` uses Claude Code's default model.
+# Claude settings. `model: null` and `effort: null` use Claude Code's defaults.
 claude:
   # subscription: your Claude Code login (Pro/Max). api_key: an Anthropic API key, billed per
   # token (from ANTHROPIC_API_KEY or `prelude api-key`); better for heavy use.
   auth: subscription
   model: null
+  effort: null                    # low, medium, high, xhigh or max; higher finds more, uses more of your plan
   # Independent reviewers per review (more = more thorough, uses more of your plan).
   # With more than one, a meta-reviewer merges their reports. "auto" picks by PR size
   # (changed lines) using reviewers_by_size: first row whose max_lines is not exceeded.
@@ -115,6 +116,7 @@ DEFAULT_LENSES = (
 class ClaudeConfig:
     auth: str = "subscription"  # or "api_key"
     model: str | None = None
+    effort: str | None = None
     reviewers: int = AUTO
     reviewers_by_size: list[tuple[int | None, int]] = field(default_factory=lambda: list(DEFAULT_BY_SIZE))
     lenses: list[str] = field(default_factory=lambda: list(DEFAULT_LENSES))
@@ -203,6 +205,7 @@ def load_config(data_dir: Path | None = None) -> Config:
         claude=ClaudeConfig(
             auth=_auth(claude_raw.get("auth", "subscription")),
             model=claude_raw.get("model"),
+            effort=_effort(claude_raw.get("effort")),
             reviewers=_reviewers(claude_raw.get("reviewers", "auto")),
             reviewers_by_size=[
                 (row.get("max_lines"), _reviewers(row.get("reviewers", 1)) or 1)
@@ -240,6 +243,17 @@ def _notify_details(raw: dict) -> str:
         return "full" if raw["include_details"] is True else "none"
     value = str(raw.get("details", "ref"))
     return value if value in ("none", "ref", "full") else "ref"
+
+
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _effort(value: Any) -> str | None:
+    if value is None:
+        return None
+    if str(value) not in EFFORTS:
+        raise ValueError(f"claude.effort: {value!r} isn't one of {', '.join(EFFORTS)}")
+    return str(value)
 
 
 def _auth(value) -> str:

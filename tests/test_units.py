@@ -250,3 +250,18 @@ def test_start_hides_the_key_in_an_older_log(tmp_path):
     _scrub_key(log)
     assert b"s3cret" not in log.read_bytes() and b"/?key=<hidden>&a=1" in log.read_bytes()
     _scrub_key(tmp_path / "missing.log")  # first start: no log yet
+
+
+def test_effort_is_passed_to_claude_only_when_set(tmp_path):
+    import pytest
+
+    from prelude.claude import _base_args
+    from prelude.config import load_config
+
+    cfg = load_config(tmp_path / "fresh")
+    assert cfg.claude.effort is None and "--effort" not in _base_args(None, cfg.claude.effort, None, False)
+    args = _base_args("opus", "high", None, False)
+    assert args[args.index("--effort") + 1] == "high"
+    (tmp_path / "fresh" / "config.yaml").write_text("claude:\n  effort: extreme\n")
+    with pytest.raises(ValueError, match="claude.effort"):
+        load_config(tmp_path / "fresh")

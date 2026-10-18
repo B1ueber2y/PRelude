@@ -162,6 +162,7 @@ def _reply(
             on_text=lambda s: broker.publish(finding_id, Event("text", s)),
             on_activity=lambda name: broker.publish(finding_id, Event("activity", name)),
             model=cfg.claude.model,
+            effort=cfg.claude.effort,
             resume=resume,
             fork=fork,
             timeout=cfg.claude.discuss_timeout_seconds,

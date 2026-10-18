@@ -15,7 +15,7 @@
   {% if r.trigger_reason %}
   {%- set auto = r.trigger_reason.startswith('auto:') -%}
   {%- set why = r.trigger_reason[5:].strip() if auto else r.trigger_reason -%}
-  <div class="meta">Started: {{ 'Auto' if auto else 'Manual' }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %} · {{ why }}</div>
+  <div class="meta">Started: {{ 'Auto' if auto else 'Manual' }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %}{% if r.effort %} · {{ r.effort }} effort{% endif %} · {{ why }}</div>
   {%- endif %}
 </section>
 
@@ -118,10 +118,14 @@
 </section>
 <div class="again">
   <span class="again-label">Review again{% if new_commits %} <span class="tag warn">new commits</span>{% endif %}</span>
-  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-disabled-elt="this"
-          title="Only the commits since this review; skips findings you discarded">Changes only</button>
-  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-disabled-elt="this"
-          title="The whole PR again; skips findings you discarded">Full</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "changes"}' hx-include="#again-effort"
+          hx-disabled-elt="this" title="Only the commits since this review; skips findings you discarded">Changes only</button>
+  <button class="btn small" hx-post="/reviews/{{ r.id }}/again" hx-vals='{"mode": "full"}' hx-include="#again-effort"
+          hx-disabled-elt="this" title="The whole PR again; skips findings you discarded">Full</button>
+  <select id="again-effort" name="effort" class="effort" aria-label="Effort" title="How hard Claude thinks; higher finds more and uses more of your plan">
+    <option value="">{{ cfg_effort or 'default' }} effort</option>
+    {% for e in efforts if e != cfg_effort %}<option value="{{ e }}">{{ e }} effort</option>{% endfor %}
+  </select>
   {% if r.status not in ('queued', 'running') %}
   <details class="more">
     <summary aria-label="More">⋯</summary>

@@ -174,10 +174,12 @@ class RunResult:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
-def _base_args(model: str | None, resume: str | None, fork: bool) -> list[str]:
+def _base_args(model: str | None, effort: str | None, resume: str | None, fork: bool) -> list[str]:
     args = [claude_bin(), "-p", *SAFE_FLAGS]
     if model:
         args += ["--model", model]
+    if effort:
+        args += ["--effort", effort]
     if resume:
         args += ["--resume", resume]
         if fork:
@@ -216,12 +218,13 @@ def _run_json_once(
     *,
     schema: dict[str, Any] | None = None,
     model: str | None = None,
+    effort: str | None = None,
     resume: str | None = None,
     fork: bool = False,
     timeout: int = 1500,
     auth: Auth | None = None,
 ) -> RunResult:
-    args = _base_args(model, resume, fork) + ["--output-format", "json"]
+    args = _base_args(model, effort, resume, fork) + ["--output-format", "json"]
     if schema is not None:
         args += ["--json-schema", json.dumps(schema)]
     try:
@@ -254,13 +257,14 @@ def run_stream(
     on_text: Callable[[str], None],
     on_activity: Callable[[str], None] | None = None,
     model: str | None = None,
+    effort: str | None = None,
     resume: str | None = None,
     fork: bool = False,
     timeout: int = 900,
     auth: Auth | None = None,
 ) -> RunResult:
     """Run and stream text deltas to `on_text` as they arrive."""
-    args = _base_args(model, resume, fork) + [
+    args = _base_args(model, effort, resume, fork) + [
         "--output-format",
         "stream-json",
         "--verbose",

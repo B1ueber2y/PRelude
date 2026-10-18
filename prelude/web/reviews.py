@@ -9,6 +9,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import drafting, prstate, stats
+from ..config import EFFORTS
 from ..drafts import DraftError
 from ..github import PrRef, parse_pr
 from ..guard import RepoNotAllowed
@@ -113,6 +114,8 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "pane": w.finding_context(selected) if selected else None,
             "show": show,
             "counts": counts,
+            "efforts": EFFORTS,
+            "cfg_effort": w.cfg.claude.effort,
             "drafts_enabled": w.cfg.drafts.enabled,
             "drafts_auto": w.cfg.drafts.auto,
             "prefix_on": drafting.prefix_on(w.store),
@@ -187,7 +190,7 @@ def more_reviewers(w: WebDep, request: Request, review_id: int, n: int = Form(1)
 
 
 @router.post("/reviews/{review_id}/again")
-def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
+def review_again(w: WebDep, review_id: int, mode: str = Form("full"), effort: str = Form("")):
     r = w.review_or_404(review_id)
     try:
         new_id = start_review(
@@ -198,6 +201,7 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full")):
             reviewers=r["reviewers"],
             previous_review_id=review_id,
             mode=mode,
+            effort=effort or None,
         )
     except (ValueError, RepoNotAllowed) as e:
         return w.flash(str(e))

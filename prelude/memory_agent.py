@@ -224,6 +224,7 @@ def _run(cfg: Config, memory: Memory, prompt: str, schema: dict, timeout: int | 
         memory.dir,
         schema=schema,
         model=cfg.claude.model,
+        effort=cfg.claude.effort,
         timeout=timeout or cfg.claude.discuss_timeout_seconds,
         auth=claude.auth_for(cfg),
     )
