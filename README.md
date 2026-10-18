@@ -185,6 +185,10 @@ add, edit or discard.
   over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
   when the next slot frees up. Your own PRs in repos listed under `triggers.cap_exempt`
   don't count. `prelude check` shows what would be reviewed, without starting anything.
+- **Posting automatically** is off for every repo. On the **Repos** page, "post automatically"
+  turns it on for one repo: automatic reviews there go on the PR right away, as you, each
+  comment prefixed `AI review (auto triggered):`, instead of waiting in your draft. Reviews
+  you start yourself stay drafts. `triggers.auto_post_severities` picks which comments are posted.
 
 ### Subscription or API key
 
@@ -228,9 +232,11 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
   is removed from errors and from everything a run returns. Claude can still read its own
   environment and files, as it can your subscription login, so a PR written to trick it
   could try to get the key out in some disguised form; use a dedicated key with a spending
-  limit, and you still read every comment before you submit it.
+  limit, and you still read every comment before you submit it (except in repos you set to
+  post automatically, where anyone who opens a PR gets Claude's comments posted as you).
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
-  draft comment); submitting a review is not possible from PRelude, and tests enforce it.
+  draft comment). PRelude submits a review only in repos you set to post automatically,
+  and then only as comments, never an approval or a request for changes; tests enforce it.
 
 ## Contributing
 

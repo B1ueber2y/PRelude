@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 
+from . import notify
 from .config import Config
 from .db import Store
 from .discuss import current_draft
-from .drafts import DraftError, DraftWriter, NotPending
+from .drafts import DraftError, DraftWriter, NotPending, PostUncertain
 
 PREFIX_SETTING = "draft_prefix"
 
@@ -26,12 +27,15 @@ def prefix_on(store: Store) -> bool:
     return store.setting(PREFIX_SETTING, "1") == "1"
 
 
+def _prefixed(prefix: str, text: str) -> str:
+    text = text.strip()
+    if not prefix:
+        return text
+    return f"{prefix}{chr(10) * 2 if text.startswith('```') else ' '}{text}"
+
+
 def body_for(store: Store, cfg: Config, finding) -> str:
-    text = current_draft(finding).strip()
-    if prefix_on(store) and cfg.drafts.prefix:
-        sep = "\n\n" if text.startswith("```") else " "
-        return f"{cfg.drafts.prefix}{sep}{text}"
-    return text
+    return _prefixed(cfg.drafts.prefix if prefix_on(store) else "", current_draft(finding))
 
 
 def _review(store: Store, finding):
@@ -110,6 +114,67 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
         except DraftError as e:
             failed.append(f"{f['title']}: {e}")
     return added, failed
+
+
+def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
+    """Post an automatic review's findings on the PR right away (triggers.auto_post). Returns those handled.
+
+    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, go on as usual.
+    """
+    r = store.get_review(review_id)
+    t = cfg.triggers
+    if not (
+        cfg.drafts.enabled and t.posts(f"{r['owner']}/{r['repo']}") and (r["trigger_reason"] or "").startswith("auto:")
+    ):
+        return []
+    picked = [
+        f
+        for f in map(store.get_finding, finding_ids)
+        if f["status"] == "pending" and f["in_diff"] and f["severity"] in t.auto_post_severities
+    ]
+    if not picked:
+        return []
+    prefix = t.auto_post_prefix
+    threads = []
+    for f in picked:
+        thread = {
+            "path": f["path"],
+            "body": _prefixed(prefix, current_draft(f)),
+            "line": f["line"],
+            "side": f["side"],
+        }
+        if f["start_line"]:
+            thread.update(startLine=f["start_line"], startSide=f["side"])
+        threads.append(thread)
+    try:
+        gh_review, comment_ids = writer.post_review(
+            r["owner"], r["repo"], r["number"], r["head_sha"], prefix.rstrip(": ") + ".", threads
+        )
+    except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
+        log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
+        notify.send(
+            cfg.notify,
+            "Check the PR",
+            notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
+            + "posting the automatic review may have failed; its comments wait in PRelude",
+            path=f"/reviews/{review_id}",
+            tags="warning",
+            link=r["url"],
+        )
+        return [f["id"] for f in picked]
+    except Exception:
+        log.warning("couldn't post review %s automatically; its findings go on as usual", review_id, exc_info=True)
+        return []
+    for f, thread, comment_id in zip(picked, threads, comment_ids, strict=True):
+        store.update_finding(
+            f["id"],
+            status="posted",
+            github_review_id=gh_review,
+            github_comment_id=comment_id,
+            drafted_body=thread["body"],
+            auto_drafted=1,  # posted without the reviewer's judgement
+        )
+    return [f["id"] for f in picked]
 
 
 def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[int]) -> int:

@@ -121,6 +121,7 @@ def configured(cfg: Config) -> list[dict[str, Any]]:
                 "mode": t.repos.get(str(slug).lower(), t.default_mode),
                 "since": str(since) if since else None,
                 "exempt": str(slug).lower() in t.cap_exempt,
+                "post": str(slug).lower() in t.auto_post,
             }
         )
     return rows
@@ -163,26 +164,32 @@ def remove_repo(cfg: Config, slug: str) -> TriggerConfig:
         repos = _repos(t)
         if (key := _key(repos, slug)) is not None:
             del repos[key]
-        exempt = t.get("cap_exempt")
-        if isinstance(exempt, list):
-            for item in [x for x in exempt if str(x).lower() == slug.lower()]:
-                exempt.remove(item)
+        for name in ("cap_exempt", "auto_post"):
+            _set_listed(t, name, slug, False)
 
     return _edit(cfg, change)
+
+
+def _set_listed(t: CommentedMap, name: str, slug: str, on: bool) -> None:
+    """Add `slug` to (or remove it from) the repo list `name` in triggers."""
+    items = t.get(name)
+    if not isinstance(items, list):
+        if not on:
+            return
+        items = t[name] = CommentedSeq()
+        items.fa.set_flow_style()
+    present = [x for x in items if str(x).lower() == slug.lower()]
+    if on and not present:
+        items.append(slug)
+    for item in present if not on else []:
+        items.remove(item)
 
 
 def set_cap_exempt(cfg: Config, slug: str, exempt: bool) -> TriggerConfig:
     slug = check_pattern(slug)
+    return _edit(cfg, lambda t: _set_listed(t, "cap_exempt", slug, exempt))
 
-    def change(t: CommentedMap) -> None:
-        items = t.get("cap_exempt")
-        if not isinstance(items, list):
-            items = t["cap_exempt"] = CommentedSeq()
-            items.fa.set_flow_style()
-        present = [x for x in items if str(x).lower() == slug.lower()]
-        if exempt and not present:
-            items.append(slug)
-        for item in present if not exempt else []:
-            items.remove(item)
 
-    return _edit(cfg, change)
+def set_auto_post(cfg: Config, slug: str, on: bool) -> TriggerConfig:
+    slug = check_pattern(slug)
+    return _edit(cfg, lambda t: _set_listed(t, "auto_post", slug, on))
