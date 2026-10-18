@@ -449,9 +449,10 @@ def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, c
     assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
 
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "Fine.", "findings": []}))
-    rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
-    review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
-    assert github.posted_bodies == [None]  # nothing to say: nothing posted
+    quiet = FakeGitHub()  # no draft open here, so only the empty-review guard stops a post
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=quiet))
+    assert not hasattr(quiet, "posted_bodies") and not quiet.reviews  # nothing to say: nothing posted
 
     for reason, listed in (("manual", {"b1ueber2y/*"}), ("auto: your PR", {"someone/*"})):
         cfg.triggers.auto_post = listed
