@@ -115,6 +115,7 @@ class _Job:
             self.co.worktree,
             schema=schema,
             model=self.cfg.claude.model,
+            effort=self.cfg.claude.effort,
             timeout=self.cfg.claude.review_timeout_seconds,
             auth=claude.auth_for(self.cfg),
         )
