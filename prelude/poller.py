@@ -132,7 +132,7 @@ class Poller:
                 if seen and item.get("updated_at") and seen["updated_at"] == item["updated_at"]:
                     continue  # unchanged since last check: no further API calls
                 pr, ok, reason = self.evaluate(owner, repo, number, item)
-                again = self._rerequested(ref, pr) if ok and seen and seen["reviewed_sha"] else None
+                again = self._rerequested(ref, pr, seen) if ok and seen and seen["reviewed_sha"] else None
                 if again:
                     reason = f"re-requested by {again[1]}"
                 if seen and seen["head_sha"] == pr.head_sha and not again:
@@ -168,6 +168,8 @@ class Poller:
                     previous_review_id=again[0]["id"] if again else None,
                     mode="changes" if again else "full",
                 )
+                if again:
+                    self.store.set_watched(owner, repo, number, request_used=again[2])
                 self.store.update_review(review_id, title=pr.title, author=pr.author)  # shown while queued
                 self.store.set_watched(owner, repo, number, reviewed_sha=pr.head_sha)
                 self.queue.put(review_id)
@@ -176,17 +178,23 @@ class Poller:
                 continue
         return queued
 
-    def _rerequested(self, ref: PrRef, pr):
-        """(last finished review, who asked) when your review was requested again after that review
-        and the PR has new commits since; otherwise None."""
-        prev = self.store.latest_review_for(ref.owner, ref.repo, ref.number)
-        if prev is None or prev["head_sha"] == pr.head_sha:
-            return None
-        last = self.reader.last_request(ref.owner, ref.repo, ref.number, self._me)
-        if not last or not last[0]:
+    def _rerequested(self, ref: PrRef, pr, seen):
+        """(last finished review, who asked, when) if your review was requested again after the last
+        review and the PR has new commits; otherwise None. A request with nothing new is used up."""
+        last = self.reader.last_request(ref.owner, ref.repo, ref.number, self._me, ignore=self.cfg.triggers.block)
+        if not last or not last[0] or last[0] <= (seen["request_used"] or ""):
             return None
         asked = datetime.fromisoformat(last[0].replace("Z", "+00:00")).timestamp()
-        return (prev, last[1]) if asked > prev["created_at"] else None
+        latest = self.store.latest_review_for(ref.owner, ref.repo, ref.number, done_only=False)
+        if latest is None or latest["created_at"] >= asked:  # answered already (even if that review failed)
+            return None
+        prev = self.store.latest_review_for(ref.owner, ref.repo, ref.number)
+        if prev is None:
+            return None
+        if prev["head_sha"] == pr.head_sha:  # nothing new to look at: this request doesn't wait for a push
+            self.store.set_watched(ref.owner, ref.repo, ref.number, request_used=last[0])
+            return None
+        return prev, last[1], last[0]
 
     # ---- background threads ---------------------------------------------------
 

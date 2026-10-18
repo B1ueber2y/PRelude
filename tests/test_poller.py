@@ -38,9 +38,10 @@ class FakeReader:
         p = self.prs[number]
         return set(p["direct"]), set(p["team"])
 
-    def last_request(self, owner, repo, number, me):
+    def last_request(self, owner, repo, number, me, ignore=frozenset()):
         p = self.prs[number]
-        return (p["asked"], sorted(p["direct"])[0]) if p["asked"] and p["direct"] else None
+        who = p["asker"] or (sorted(p["direct"])[0] if p["direct"] else None)
+        return (p["asked"], who) if p["asked"] and who and who not in ignore else None
 
     def add(
         self,
@@ -52,8 +53,9 @@ class FakeReader:
         team=(),
         created="2999-01-01T00:00:00Z",
         asked="",
+        asker=None,
     ):
-        updated = f"u-{head}-{sorted(direct)}-{asked}"
+        updated = f"u-{head}-{sorted(direct)}-{asked}-{author}"
         self.prs[number] = dict(
             author=author,
             head=head,
@@ -63,6 +65,7 @@ class FakeReader:
             created=created,
             updated=updated,
             asked=asked,
+            asker=asker,
         )
 
 
@@ -99,15 +102,28 @@ def test_a_re_request_after_new_commits_gets_a_changes_only_review(poller, reade
 
     reader.add(1, direct=["bob"], asked="2999-01-01T00:00:00Z")  # asked again, nothing new to look at
     assert poller.poll_once() == []
-    reader.add(1, direct=["bob"], head="h2", asked="2000-01-01T00:00:00Z")  # pushed; the request is the old one
+    reader.add(1, direct=["bob"], head="h2", asked="2999-01-01T00:00:00Z")  # pushed later, not asked again
     assert poller.poll_once() == []
 
-    reader.add(1, direct=["bob"], head="h2", asked="2999-01-01T00:00:00Z")  # pushed and asked again
+    reader.add(1, direct=["bob"], head="h2", asked="2999-01-02T00:00:00Z")  # now asked again
     (again,) = poller.poll_once()
     r = store.get_review(again)
     assert r["trigger_reason"] == "auto: re-requested by bob"
     assert r["previous_review_id"] == first and r["mode"] == "changes"
     assert poller.poll_once() == []  # queued already
+
+    store.update_review(again, status="failed")
+    reader.add(1, direct=["bob"], head="h2", asked="2999-01-02T00:00:00Z", author="alice2")  # any later update
+    assert poller.poll_once() == []  # a failed re-review isn't retried on its own
+
+
+def test_re_requests_by_blocked_people_are_ignored(poller, reader, store):
+    poller.cfg.triggers.block = {"mallory"}
+    reader.add(1, direct=["bob"], asked="2000-01-01T00:00:00Z")
+    (first,) = poller.poll_once()
+    store.update_review(first, status="done", head_sha="h1")
+    reader.add(1, direct=["bob", "mallory"], head="h2", asked="2999-01-01T00:00:00Z", asker="mallory")
+    assert poller.poll_once() == []
 
 
 def test_new_commits_are_never_reviewed_automatically(poller, reader, store):

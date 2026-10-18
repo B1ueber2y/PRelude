@@ -210,10 +210,10 @@ class GitHubReader:
             )
         return items
 
-    def _request_events(self, owner: str, repo: str, number: int) -> list[dict]:
-        """The PR's review_requested events, oldest first."""
+    def _request_events(self, owner: str, repo: str, number: int, max_pages: int = 3) -> list[dict]:
+        """The PR's review_requested events, oldest first (GitHub lists events oldest first)."""
         found = []
-        for page in range(1, 4):
+        for page in range(1, max_pages + 1):
             events = self._get(owner, repo, f"/issues/{number}/events?per_page=100&page={page}")
             assert isinstance(events, list)
             found += [e for e in events if e.get("event") == "review_requested"]
@@ -232,12 +232,15 @@ class GitHubReader:
                 team.add(actor)
         return direct, team
 
-    def last_request(self, owner: str, repo: str, number: int, me: str) -> tuple[str, str] | None:
-        """(ISO time, who) of the latest request for your own review, if any."""
+    def last_request(
+        self, owner: str, repo: str, number: int, me: str, ignore: set[str] = frozenset()
+    ) -> tuple[str, str] | None:
+        """(ISO time, who) of the latest request for your own review, if any; `ignore`: lowercase logins."""
         mine = [
             e
-            for e in self._request_events(owner, repo, number)
+            for e in self._request_events(owner, repo, number, max_pages=10)  # the newest are on the last page
             if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower()
+            and ((e.get("actor") or {}).get("login") or "").lower() not in ignore
         ]
         if not mine:
             return None

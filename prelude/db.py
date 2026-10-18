@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS watched (
   head_sha TEXT,                           -- last head seen
   updated_at TEXT,                         -- PR's updated_at when last evaluated
   reviewed_sha TEXT,                       -- head of the last automatic review
+  request_used TEXT,                       -- latest re-request already answered (ISO time)
   decision TEXT,                           -- review | skip
   reason TEXT,
   checked_at REAL,
@@ -188,7 +189,7 @@ class Store:
                     "action": "TEXT",
                 },
             )
-            _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
+            _add_missing_columns(c, "watched", {"updated_at": "TEXT", "request_used": "TEXT"})
             if "seen_at" not in {r[1] for r in c.execute("PRAGMA table_info(threads)")}:
                 _add_missing_columns(c, "threads", {"seen_at": "REAL NOT NULL DEFAULT 0"})
                 c.execute("UPDATE threads SET seen_at = ?", (time.time(),))  # older replies count as seen
