@@ -11,7 +11,7 @@
 <p class="hint">
   <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}{% if t.always %}, except requests from your always list{% endif %}.
   <strong>My PRs skip the cap</strong>: your own PRs there don't count toward the daily cap (others' still do).
-  <strong>Post automatically</strong>: every review there, automatic or started by you, goes on the PR right away, as you, prefixed <code>{{ t.auto_post_prefix }}</code> (reviews you start: your draft prefix), instead of waiting in your draft.
+  <strong>Post automatically</strong>: every review there, automatic or started by you, goes on the PR right away, as you, prefixed <code>{{ t.auto_post_prefix }} 🔴 [high priority]</code> (reviews you start: your draft prefix), instead of waiting in your draft.
 </p>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}

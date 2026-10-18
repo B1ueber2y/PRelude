@@ -444,7 +444,9 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
     assert status == {"Missing token is accepted": "posted", "Nit": "pending", "Elsewhere": "pending"}
     assert not [r for r, state in github.reviews.items() if state == "PENDING"]  # no draft to block the next post
     posted = [c for c in github.comments.values() if c.get("posted")]
-    assert [c["body"] for c in posted] == ["AI review (auto triggered): Could we return 401 when the token is missing?"]
+    assert [c["body"] for c in posted] == [
+        "AI review (auto triggered): 🔴 [high priority] Could we return 401 when the token is missing?"
+    ]
     assert github.posted_bodies == [None]  # no review text, just the line comments
 
     assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
@@ -459,7 +461,9 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
     review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)  # started by hand, a re-review: posted too
     (f,) = store.findings_for(rid)
-    assert f["status"] == "posted" and github.comments[f["github_comment_id"]]["body"].startswith("AI review: ")
+    assert f["status"] == "posted" and github.comments[f["github_comment_id"]]["body"].startswith(
+        "AI review: 🔴 [high priority] "
+    )
 
     cfg.triggers.auto_post = {"someone/*"}
     rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
