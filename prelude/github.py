@@ -210,42 +210,27 @@ class GitHubReader:
             )
         return items
 
-    def _request_events(self, owner: str, repo: str, number: int, max_pages: int = 3) -> list[dict]:
-        """The PR's review_requested events, oldest first (GitHub lists events oldest first)."""
-        found = []
-        for page in range(1, max_pages + 1):
+    def review_requests(
+        self, owner: str, repo: str, number: int, me: str
+    ) -> tuple[set[str], set[str], list[tuple[str, str]]]:
+        """Who asked for your review: (requested you directly, requested a team,
+        (ISO time, who) of each direct request to you, oldest first)."""
+        direct, team, mine = set(), set(), []
+        for page in range(1, 11):  # GitHub lists events oldest first
             events = self._get(owner, repo, f"/issues/{number}/events?per_page=100&page={page}")
             assert isinstance(events, list)
-            found += [e for e in events if e.get("event") == "review_requested"]
+            for e in events:
+                if e.get("event") != "review_requested":
+                    continue
+                actor = (e.get("actor") or {}).get("login") or "someone"
+                if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
+                    direct.add(actor)
+                    mine.append((e.get("created_at") or "", actor))
+                elif e.get("requested_team"):
+                    team.add(actor)
             if len(events) < 100:
                 break
-        return found
-
-    def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:
-        """Who asked for your review: (requested you directly, requested a team)."""
-        direct, team = set(), set()
-        for e in self._request_events(owner, repo, number):
-            actor = (e.get("actor") or {}).get("login") or "someone"
-            if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
-                direct.add(actor)
-            elif e.get("requested_team"):
-                team.add(actor)
-        return direct, team
-
-    def last_request(
-        self, owner: str, repo: str, number: int, me: str, ignore: set[str] = frozenset()
-    ) -> tuple[str, str] | None:
-        """(ISO time, who) of the latest request for your own review, if any; `ignore`: lowercase logins."""
-        mine = [
-            e
-            for e in self._request_events(owner, repo, number, max_pages=10)  # the newest are on the last page
-            if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower()
-            and ((e.get("actor") or {}).get("login") or "").lower() not in ignore
-        ]
-        if not mine:
-            return None
-        e = max(mine, key=lambda e: e.get("created_at") or "")
-        return e.get("created_at") or "", (e.get("actor") or {}).get("login") or "someone"
+        return direct, team, mine
 
     def viewer_login(self) -> str:
         data = self._request("/user")

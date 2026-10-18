@@ -36,12 +36,8 @@ class FakeReader:
 
     def review_requests(self, owner, repo, number, me):
         p = self.prs[number]
-        return set(p["direct"]), set(p["team"])
-
-    def last_request(self, owner, repo, number, me, ignore=frozenset()):
-        p = self.prs[number]
         who = p["asker"] or (sorted(p["direct"])[0] if p["direct"] else None)
-        return (p["asked"], who) if p["asked"] and who and who not in ignore else None
+        return set(p["direct"]), set(p["team"]), [(p["asked"], who)] if p["asked"] and who else []
 
     def add(
         self,

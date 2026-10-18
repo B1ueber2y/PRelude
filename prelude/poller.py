@@ -97,10 +97,10 @@ class Poller:
         return found
 
     def evaluate(self, owner: str, repo: str, number: int, item: dict):
-        """(pull request, review?, reason) for one candidate."""
+        """(pull request, review?, reason, direct requests to you) for one candidate."""
         self._me = self._me or self.reader.viewer_login()
         pr = self.reader.pull_request(PrRef(owner, repo, number))
-        direct, team = self.reader.review_requests(owner, repo, number, self._me)
+        direct, team, mine = self.reader.review_requests(owner, repo, number, self._me)
         t = self.cfg.triggers
         pattern = t.repo_pattern(f"{owner}/{repo}")
         since = self.since(pattern) if pattern and t.repos[pattern] == "all_prs" else None
@@ -119,7 +119,7 @@ class Poller:
             since=since,
             own_since=self.since(OWN),
         )
-        return pr, ok, reason
+        return pr, ok, reason, mine
 
     def poll_once(self) -> list[int]:
         """Check GitHub once; returns the ids of reviews queued."""
@@ -131,8 +131,8 @@ class Poller:
                 seen = self.store.watched(owner, repo, number)
                 if seen and item.get("updated_at") and seen["updated_at"] == item["updated_at"]:
                     continue  # unchanged since last check: no further API calls
-                pr, ok, reason = self.evaluate(owner, repo, number, item)
-                again = self._rerequested(ref, pr, seen) if ok and seen and seen["reviewed_sha"] else None
+                pr, ok, reason, mine = self.evaluate(owner, repo, number, item)
+                again = self._rerequested(ref, pr, seen, mine) if ok and seen and seen["reviewed_sha"] else None
                 if again:
                     reason = f"re-requested by {again[1]}"
                 if seen and seen["head_sha"] == pr.head_sha and not again:
@@ -178,10 +178,11 @@ class Poller:
                 continue
         return queued
 
-    def _rerequested(self, ref: PrRef, pr, seen):
+    def _rerequested(self, ref: PrRef, pr, seen, mine: list[tuple[str, str]]):
         """(last finished review, who asked, when) if your review was requested again after the last
         review and the PR has new commits; otherwise None. A request with nothing new is used up."""
-        last = self.reader.last_request(ref.owner, ref.repo, ref.number, self._me, ignore=self.cfg.triggers.block)
+        asks = [(at, who) for at, who in mine if who.lower() not in self.cfg.triggers.block]
+        last = max(asks, default=None)
         if not last or not last[0] or last[0] <= (seen["request_used"] or ""):
             return None
         asked = datetime.fromisoformat(last[0].replace("Z", "+00:00")).timestamp()
