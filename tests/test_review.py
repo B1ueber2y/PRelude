@@ -444,7 +444,7 @@ def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, c
     assert status == {"Missing token is accepted": "posted", "Nit": "drafted", "Elsewhere": "drafted"}
     posted = [c for c in github.comments.values() if c.get("posted")]
     assert [c["body"] for c in posted] == ["AI review (auto triggered): Could we return 401 when the token is missing?"]
-    assert github.posted_bodies == ["AI review (auto triggered): Adds auth."]
+    assert github.posted_bodies == ["AI review (auto triggered)."]  # the summary is written for you, not the author
     assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
 
     for reason, listed in (("manual", {"b1ueber2y/*"}), ("auto: your PR", {"someone/*"})):

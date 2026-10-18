@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from . import notify
 from .config import Config
 from .db import Store
 from .discuss import current_draft
@@ -115,9 +116,7 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
     return added, failed
 
 
-def auto_post(
-    store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int], summary: str
-) -> list[int]:
+def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
     """Post an automatic review's findings on the PR right away (triggers.auto_post). Returns those handled.
 
     Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, go on as usual.
@@ -148,10 +147,18 @@ def auto_post(
         threads.append(thread)
     try:
         gh_review, comment_ids = writer.post_review(
-            r["owner"], r["repo"], r["number"], r["head_sha"], _prefixed(t.auto_post_prefix, summary), threads
+            r["owner"], r["repo"], r["number"], r["head_sha"], t.auto_post_prefix.rstrip(": ") + ".", threads
         )
     except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
         log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
+        notify.send(
+            cfg.notify,
+            "Check the PR",
+            "Posting the automatic review may have failed; its comments wait in PRelude",
+            path=f"/reviews/{review_id}",
+            tags="warning",
+            link=r["url"],
+        )
         return [f["id"] for f in picked]
     except Exception:
         log.warning("couldn't post review %s automatically; its findings go on as usual", review_id, exc_info=True)

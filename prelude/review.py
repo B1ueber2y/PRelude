@@ -339,7 +339,7 @@ def run_review(
         if pr.state == "open":
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
-            posted = drafting.auto_post(store, cfg, writer, review_id, ids, out.get("summary") or "")
+            posted = drafting.auto_post(store, cfg, writer, review_id, ids)
             _auto_draft(store, cfg, review_id, [i for i in ids if i not in posted], writer, replace=True)
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).
         store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
