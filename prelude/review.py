@@ -346,8 +346,9 @@ def run_review(
         if pr.state == "open":
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
-            posted = drafting.auto_post(store, cfg, writer, review_id, ids)
-            _auto_draft(store, cfg, review_id, [i for i in ids if i not in posted], writer, replace=True)
+            drafting.auto_post(store, cfg, writer, review_id, ids)
+            to_draft = [] if drafting.posts(cfg, ref.owner, ref.repo) else ids
+            _auto_draft(store, cfg, review_id, to_draft, writer, replace=True)
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).
         store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
         store.update_review(
@@ -443,7 +444,10 @@ def add_reviewers(
         new = [_normalize(f, files) for f in out.get("new_findings") or [] if isinstance(f, dict)]
         ids = store.add_findings(review_id, new, added_later=True)
         if pr.state == "open":
-            _auto_draft(store, cfg, review_id, ids, writer, replace=False)
+            writer = writer or DraftWriter(cfg)
+            drafting.auto_post(store, cfg, writer, review_id, ids)
+            if not drafting.posts(cfg, ref.owner, ref.repo):
+                _auto_draft(store, cfg, review_id, ids, writer, replace=False)
         store.update_review(
             review_id,
             progress=None,

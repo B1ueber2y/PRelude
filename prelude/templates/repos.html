@@ -11,7 +11,7 @@
 <p class="hint">
   <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}{% if t.always %}, except requests from your always list{% endif %}.
   <strong>My PRs skip the cap</strong>: your own PRs there don't count toward the daily cap (others' still do).
-  <strong>Post automatically</strong>: automatic reviews there go on the PR right away, as you, prefixed <code>{{ t.auto_post_prefix }}</code>, instead of waiting in your draft. Reviews you start yourself stay drafts.
+  <strong>Post automatically</strong>: every review there, automatic or started by you, goes on the PR right away, as you, prefixed <code>{{ t.auto_post_prefix }}</code> (reviews you start: your draft prefix), instead of waiting in your draft.
 </p>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
@@ -57,7 +57,7 @@
                hx-vals='js:{slug: "{{ r.slug }}", action: "exempt", exempt: event.target.checked ? "1" : "0"}'>
         my PRs skip the cap
       </label>
-      <label class="toggle" title="Automatic reviews here are posted on the PR right away, as you">
+      <label class="toggle" title="Reviews here are posted on the PR right away, as you">
         <input type="checkbox" {{ 'checked' if r.post }} hx-post="/repos" hx-trigger="change"
                hx-vals='js:{slug: "{{ r.slug }}", action: "post", post: event.target.checked ? "1" : "0"}'>
         post automatically

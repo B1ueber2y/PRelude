@@ -188,9 +188,9 @@ add, edit or discard.
   New commits on a reviewed PR aren't reviewed automatically, unless someone requests your
   review again after them: then PRelude reviews the changes since its last review.
 - **Posting automatically** is off for every repo. On the **Repos** page, "post automatically"
-  turns it on for one repo: automatic reviews there go on the PR right away, as you, each
-  comment prefixed `AI review (auto triggered):`, instead of waiting in your draft. Reviews
-  you start yourself stay drafts. `triggers.auto_post_severities` picks which comments are posted.
+  turns it on for one repo: every review there (automatic, started by you, or a re-review)
+  goes on the PR right away, as you, each comment prefixed `AI review (auto triggered):`
+  (`AI review:` for reviews you start), instead of waiting in your draft. `triggers.auto_post_severities` picks which comments are posted.
 
 ### Subscription or API key
 
