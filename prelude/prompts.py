@@ -170,6 +170,7 @@ Return the result in the required JSON format."""
 OUTCOMES = {
     "drafted": "the reviewer kept it (added to their GitHub review)",
     "posted": "the reviewer posted it on the PR",
+    "auto_posted": "posted on the PR automatically; the reviewer hasn't judged it",
     "discarded": "the reviewer DISMISSED it",
     "pending": "not handled yet",
     "superseded": "not handled; replaced by a later review",
@@ -177,8 +178,10 @@ OUTCOMES = {
 
 
 def outcome(f) -> str:
-    """The finding's status as the reviewer decided it; untouched auto-drafts aren't decided yet."""
-    return "pending" if f["status"] == "drafted" and f["auto_drafted"] else f["status"]
+    """The finding's status as the reviewer decided it; untouched auto-drafts and auto-posts aren't decided."""
+    if f["auto_drafted"] and f["status"] in ("drafted", "posted"):
+        return "pending" if f["status"] == "drafted" else "auto_posted"
+    return f["status"]
 
 
 def previous_section(*, mode: str, old_head: str, findings: list[dict], changes: str | None) -> str:

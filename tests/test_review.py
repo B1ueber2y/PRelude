@@ -452,3 +452,33 @@ def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, c
         rid = review.start_review(store, cfg, ref, trigger_reason=reason)
         review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
         assert "posted" not in {f["status"] for f in store.findings_for(rid)}
+
+
+def test_auto_post_that_may_have_gone_through_is_not_drafted_too(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+    from prelude.prompts import outcome
+    from prelude.triggers import TriggerConfig
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    cfg.triggers.auto_post = {"b1ueber2y/prelude"}
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
+    github = FakeGitHub()
+
+    def timeout(query, v):
+        if "event: COMMENT" in query:
+            raise TimeoutError("timed out")
+        return github(query, v)
+
+    ref = PrRef("B1ueber2y", "PRelude", 1)
+    rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=timeout))
+    assert store.findings_for(rid)[0]["status"] == "pending" and not github.comments
+
+    rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
+    (f,) = store.findings_for(rid)
+    assert f["status"] == "posted" and outcome(f) == "auto_posted"  # not the reviewer's decision
+
+    assert TriggerConfig.from_raw({"auto_post_severities": []}).auto_post_severities == ()  # posts nothing

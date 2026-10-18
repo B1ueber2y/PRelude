@@ -34,7 +34,7 @@ class FakeGitHub:
             for t in v["threads"]:
                 cid = f"C{next(self.ids)}"
                 self.comments[cid] = {**t, "posted": True}
-                nodes.append({"id": cid, "body": t["body"]})
+                nodes.append({"id": cid, "path": t["path"], "line": t["line"], "body": t["body"]})
             self.posted_bodies = getattr(self, "posted_bodies", []) + [v["body"]]
             review = {"id": rid, "state": "COMMENTED", "comments": {"nodes": nodes}}
             return {"data": {"addPullRequestReview": {"pullRequestReview": review}}}

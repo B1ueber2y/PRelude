@@ -232,7 +232,8 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
   is removed from errors and from everything a run returns. Claude can still read its own
   environment and files, as it can your subscription login, so a PR written to trick it
   could try to get the key out in some disguised form; use a dedicated key with a spending
-  limit, and you still read every comment before you submit it.
+  limit, and you still read every comment before you submit it (except in repos you set to
+  post automatically, where anyone who opens a PR gets Claude's comments posted as you).
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
   draft comment). PRelude submits a review only in repos you set to post automatically,
   and then only as comments, never an approval or a request for changes; tests enforce it.

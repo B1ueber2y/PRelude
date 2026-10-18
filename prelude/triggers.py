@@ -68,7 +68,9 @@ class TriggerConfig:
             cap_exempt={str(x).lower() for x in raw.get("cap_exempt") or []},
             requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
             auto_post={str(x).lower() for x in raw.get("auto_post") or []},
-            auto_post_severities=tuple(str(x) for x in raw.get("auto_post_severities") or SEVERITIES),
+            auto_post_severities=tuple(  # [] posts nothing
+                str(x) for x in (SEVERITIES if raw.get("auto_post_severities") is None else raw["auto_post_severities"])
+            ),
             auto_post_prefix=str(raw.get("auto_post_prefix") or "AI review (auto triggered):"),
         )
         t.validate()

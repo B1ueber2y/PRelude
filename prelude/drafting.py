@@ -7,7 +7,7 @@ import logging
 from .config import Config
 from .db import Store
 from .discuss import current_draft
-from .drafts import DraftError, DraftWriter, NotPending
+from .drafts import DraftError, DraftWriter, NotPending, PostUncertain
 
 PREFIX_SETTING = "draft_prefix"
 
@@ -118,7 +118,7 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
 def auto_post(
     store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int], summary: str
 ) -> list[int]:
-    """Post an automatic review's findings on the PR right away (triggers.auto_post). Returns those posted.
+    """Post an automatic review's findings on the PR right away (triggers.auto_post). Returns those handled.
 
     Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, go on as usual.
     """
@@ -150,6 +150,9 @@ def auto_post(
         gh_review, comment_ids = writer.post_review(
             r["owner"], r["repo"], r["number"], r["head_sha"], _prefixed(t.auto_post_prefix, summary), threads
         )
+    except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
+        log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
+        return [f["id"] for f in picked]
     except Exception:
         log.warning("couldn't post review %s automatically; its findings go on as usual", review_id, exc_info=True)
         return []
@@ -160,6 +163,7 @@ def auto_post(
             github_review_id=gh_review,
             github_comment_id=comment_id,
             drafted_body=thread["body"],
+            auto_drafted=1,  # posted without the reviewer's judgement
         )
     return [f["id"] for f in picked]
 

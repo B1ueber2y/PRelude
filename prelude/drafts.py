@@ -37,6 +37,10 @@ class DraftError(RuntimeError):
     pass
 
 
+class PostUncertain(DraftError):
+    """A posted review may or may not have reached GitHub; don't put its comments anywhere else."""
+
+
 class NotPending(DraftError):
     """The review is no longer a draft; PRelude stops writing to it."""
 
@@ -150,23 +154,28 @@ class DraftWriter:
         pr = self._pr(owner, repo, number)
         if any(r["viewerDidAuthor"] for r in pr["reviews"]["nodes"]):
             raise DraftError("you have a draft review on this PR; GitHub allows only one")
-        data = self._call(
-            owner,
-            repo,
-            """
-            mutation($pr: ID!, $commit: GitObjectID!, $body: String!, $threads: [DraftPullRequestReviewThread]!) {
-              addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, body: $body, threads: $threads, event: COMMENT}) {
-                pullRequestReview { id state comments(first: 100) { nodes { id body } } }
-              }
-            }""",
-            {"pr": pr["id"], "commit": commit, "body": body, "threads": threads},
-            post=True,
-        )
-        review = data["addPullRequestReview"]["pullRequestReview"]
+        try:
+            data = self._call(
+                owner,
+                repo,
+                """
+                mutation($pr: ID!, $commit: GitObjectID!, $body: String!, $threads: [DraftPullRequestReviewThread]!) {
+                  addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, body: $body, threads: $threads, event: COMMENT}) {
+                    pullRequestReview { id state comments(first: 100) { nodes { id path line body } } }
+                  }
+                }""",
+                {"pr": pr["id"], "commit": commit, "body": body, "threads": threads},
+                post=True,
+            )
+            review = data["addPullRequestReview"]["pullRequestReview"]
+        except DraftError:  # GitHub answered with an error: nothing was posted
+            raise
+        except Exception as e:  # e.g. a timeout: it may have been posted anyway
+            raise PostUncertain(f"no clear answer from GitHub: {e}") from e
         if review["state"] != "COMMENTED":
-            raise DraftError(f"the posted review is {review['state']}, expected COMMENTED")
-        ids = {c["body"]: c["id"] for c in review["comments"]["nodes"]}
-        return review["id"], [ids.get(t["body"]) for t in threads]
+            raise PostUncertain(f"the posted review is {review['state']}, expected COMMENTED")
+        ids = {(c["path"], c["line"], c["body"]): c["id"] for c in review["comments"]["nodes"]}
+        return review["id"], [ids.get((t["path"], t["line"], t["body"])) for t in threads]
 
     def add_comment(
         self,
