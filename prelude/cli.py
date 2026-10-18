@@ -411,7 +411,7 @@ def _cmd_check(_args: argparse.Namespace) -> int:
     if not found:
         print("No open PRs match your triggers right now.")
     for (owner, repo, number), item in sorted(found.items()):
-        _pr, ok, reason = poller.evaluate(owner, repo, number, item)
+        _pr, ok, reason, _asks = poller.evaluate(owner, repo, number, item)
         print(f"{'REVIEW' if ok else 'skip  '}  {owner}/{repo}#{number}  {reason}")
     return 0
 

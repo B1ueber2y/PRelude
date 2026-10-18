@@ -138,7 +138,8 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
     ]
     if not picked:
         return []
-    prefix = t.auto_post_prefix
+    automatic = (r["trigger_reason"] or "").startswith("auto:")
+    prefix = t.auto_post_prefix if automatic else (cfg.drafts.prefix if prefix_on(store) else "")
     threads = []
     for f in picked:
         thread = {
@@ -151,16 +152,14 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             thread.update(startLine=f["start_line"], startSide=f["side"])
         threads.append(thread)
     try:
-        gh_review, comment_ids = writer.post_review(
-            r["owner"], r["repo"], r["number"], r["head_sha"], prefix.rstrip(": ") + ".", threads
-        )
+        gh_review, comment_ids = writer.post_review(r["owner"], r["repo"], r["number"], r["head_sha"], threads)
     except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
         log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
         notify.send(
             cfg.notify,
             "Check the PR",
             notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
-            + "posting the automatic review may have failed; its comments wait in PRelude",
+            + "posting the review may have failed; its comments wait in PRelude",
             path=f"/reviews/{review_id}",
             tags="warning",
             link=r["url"],

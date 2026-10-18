@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS watched (
   head_sha TEXT,                           -- last head seen
   updated_at TEXT,                         -- PR's updated_at when last evaluated
   reviewed_sha TEXT,                       -- head of the last automatic review
+  request_used TEXT,                       -- latest re-request already answered (ISO time)
   decision TEXT,                           -- review | skip
   reason TEXT,
   checked_at REAL,
@@ -188,7 +189,7 @@ class Store:
                     "action": "TEXT",
                 },
             )
-            _add_missing_columns(c, "watched", {"updated_at": "TEXT"})
+            _add_missing_columns(c, "watched", {"updated_at": "TEXT", "request_used": "TEXT"})
             if "seen_at" not in {r[1] for r in c.execute("PRAGMA table_info(threads)")}:
                 _add_missing_columns(c, "threads", {"seen_at": "REAL NOT NULL DEFAULT 0"})
                 c.execute("UPDATE threads SET seen_at = ?", (time.time(),))  # older replies count as seen
@@ -634,14 +635,11 @@ class Store:
             )
             return 1 if cur.rowcount else 0
 
-    def drafts_on_pr(
-        self, owner: str, repo: str, number: int, *, besides: int, posted: bool = False
-    ) -> list[sqlite3.Row]:
-        """Findings of other reviews of this PR still in the pending GitHub review (`posted`: or on the PR)."""
-        statuses = "('drafted', 'posted')" if posted else "('drafted')"
+    def drafts_on_pr(self, owner: str, repo: str, number: int, *, besides: int) -> list[sqlite3.Row]:
+        """Findings of other reviews of this PR that are still in the pending GitHub review."""
         with self.connect() as c:
             return c.execute(
-                f"SELECT f.* FROM findings f JOIN reviews r ON r.id = f.review_id WHERE f.status IN {statuses}"
+                "SELECT f.* FROM findings f JOIN reviews r ON r.id = f.review_id WHERE f.status = 'drafted'"
                 " AND r.owner = ? AND r.repo = ? AND r.number = ? AND r.id != ?",
                 (owner, repo, number, besides),
             ).fetchall()

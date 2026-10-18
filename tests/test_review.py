@@ -445,18 +445,21 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
     assert not [r for r, state in github.reviews.items() if state == "PENDING"]  # no draft to block the next post
     posted = [c for c in github.comments.values() if c.get("posted")]
     assert [c["body"] for c in posted] == ["AI review (auto triggered): Could we return 401 when the token is missing?"]
-    assert github.posted_bodies == ["AI review (auto triggered)."]  # the summary is written for you, not the author
+    assert github.posted_bodies == [None]  # no review text, just the line comments
+
     assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
 
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "Fine.", "findings": []}))
+    quiet = FakeGitHub()  # no draft open here, so only the empty-review guard stops a post
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=quiet))
+    assert not hasattr(quiet, "posted_bodies") and not quiet.reviews  # nothing to say: nothing posted
+
     rid = review.start_review(store, cfg, ref, trigger_reason="manual", previous_review_id=rid, mode="changes")
-    second = dict(FINDING, title="Elsewhere in auth", line=2, side="LEFT")  # on the removed line
-    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING, second]}))
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
     review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)  # started by hand, a re-review: posted too
-    status = {f["title"]: f["status"] for f in store.findings_for(rid)}
-    assert status == {
-        "Missing token is accepted": "pending",
-        "Elsewhere in auth": "posted",
-    }  # no repeat of a posted one
+    (f,) = store.findings_for(rid)
+    assert f["status"] == "posted" and github.comments[f["github_comment_id"]]["body"].startswith("AI review: ")
 
     cfg.triggers.auto_post = {"someone/*"}
     rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
