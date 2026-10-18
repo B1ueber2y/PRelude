@@ -11,6 +11,7 @@ from fnmatch import fnmatchcase
 from typing import Any
 
 MODES = ("all_prs", "on_request", "never")
+SEVERITIES = ("high", "medium", "low", "nit")
 
 
 class TriggerConfigError(ValueError):
@@ -35,6 +36,9 @@ class TriggerConfig:
     max_reviews_per_day: int = 20
     cap_exempt: set[str] = field(default_factory=set)  # repos where your own PRs don't count toward the cap
     requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
+    auto_post: set[str] = field(default_factory=set)  # repos whose automatic reviews are posted, not drafted
+    auto_post_severities: tuple[str, ...] = SEVERITIES
+    auto_post_prefix: str = "AI review (auto triggered):"
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
@@ -63,6 +67,9 @@ class TriggerConfig:
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
             cap_exempt={str(x).lower() for x in raw.get("cap_exempt") or []},
             requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
+            auto_post={str(x).lower() for x in raw.get("auto_post") or []},
+            auto_post_severities=tuple(str(x) for x in raw.get("auto_post_severities") or SEVERITIES),
+            auto_post_prefix=str(raw.get("auto_post_prefix") or "AI review (auto triggered):"),
         )
         t.validate()
         return t
@@ -77,6 +84,8 @@ class TriggerConfig:
                     date.fromisoformat(str(value)[:10])
                 except ValueError:
                     raise TriggerConfigError(f"{label}: {value!r} is not a date like 2026-10-10") from None
+        if unknown := set(self.auto_post_severities) - set(SEVERITIES):
+            raise TriggerConfigError(f"auto_post_severities: unknown {', '.join(sorted(unknown))}")
         if both := self.always & self.block:
             raise TriggerConfigError(f"on both the always and block lists: {', '.join(sorted(both))}")
 
@@ -91,6 +100,10 @@ class TriggerConfig:
     def counts_toward_cap(self, slug: str, reason: str) -> bool:
         """Every automatic review counts, except your own PRs in cap_exempt repos."""
         return reason != OWN_PR or not any(fnmatchcase(slug.lower(), p) for p in self.cap_exempt)
+
+    def posts(self, slug: str) -> bool:
+        """Whether automatic reviews of this repo are posted on the PR right away."""
+        return any(fnmatchcase(slug.lower(), p) for p in self.auto_post)
 
     def repo_mode(self, slug: str) -> str:
         pattern = self.repo_pattern(slug)

@@ -88,7 +88,10 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
         high = sum(1 for f in findings if f["severity"] == "high")
         n = len(findings)
         drafted = sum(1 for f in findings if f["status"] == "drafted")
+        posted = sum(1 for f in findings if f["status"] == "posted")  # automatic reviews in auto_post repos
         msg = prefix + f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "")
+        if posted:
+            msg += ", all posted" if posted == n else f", {posted} posted"
         if drafted:
             msg += ", all in your draft" if drafted == n else f", {drafted} in your draft"
         return send(
@@ -97,7 +100,7 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
             msg,
             path=f"/reviews/{review['id']}",
             tags="mag" + repo_tag,
-            link=f"{review['url']}/files" if drafted else None,  # otherwise they wait in PRelude
+            link=f"{review['url']}/files" if drafted or posted else None,  # otherwise they wait in PRelude
             sender=sender,
         )
     why = (review["error"] or "").split(":", 1)[0] or "see PRelude for details"

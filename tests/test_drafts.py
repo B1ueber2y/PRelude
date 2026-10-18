@@ -27,6 +27,17 @@ class FakeGitHub:
             cid = f"C{next(self.ids)}"
             self.comments[cid] = {**v, "file_level": "subjectType: FILE" in query}
             return {"data": {"addPullRequestReviewThread": {"thread": {"comments": {"nodes": [{"id": cid}]}}}}}
+        if "event: COMMENT" in query:  # posted right away (auto_post)
+            rid = f"R{next(self.ids)}"
+            self.reviews[rid] = "COMMENTED"
+            nodes = []
+            for t in v["threads"]:
+                cid = f"C{next(self.ids)}"
+                self.comments[cid] = {**t, "posted": True}
+                nodes.append({"id": cid, "body": t["body"]})
+            self.posted_bodies = getattr(self, "posted_bodies", []) + [v["body"]]
+            review = {"id": rid, "state": "COMMENTED", "comments": {"nodes": nodes}}
+            return {"data": {"addPullRequestReview": {"pullRequestReview": review}}}
         if "addPullRequestReview(" in query:
             rid = f"R{next(self.ids)}"
             self.reviews[rid] = "PENDING"
@@ -78,6 +89,12 @@ def test_only_draft_mutations_are_allowed():
         check_query("mutation { addPullRequestReview(input: {pullRequestId: $p, event: APPROVE}) { x } }")
     with pytest.raises(DraftError):
         check_query("mutation { mergePullRequest(input: {pullRequestId: $p}) { x } }")
+    check_query("mutation { addPullRequestReview(input: {pullRequestId: $p, event: COMMENT}) { x } }", post=True)
+    for event in ("APPROVE", "REQUEST_CHANGES", "$event"):
+        with pytest.raises(DraftError):
+            check_query(
+                f"mutation {{ addPullRequestReview(input: {{pullRequestId: $p, event: {event}}}) {{ x }} }}", post=True
+            )
 
 
 def test_turning_drafts_off_blocks_writes(cfg, store, done_review, writer, github):

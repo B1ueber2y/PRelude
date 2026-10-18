@@ -419,3 +419,36 @@ def test_new_review_replaces_untouched_comments_still_to_review(cfg, store, chec
         3,
         3,
     )  # 3 earlier reviews; Edited, Discussed, Older still open
+
+
+def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, checkout, fake_claude, monkeypatch):
+    from prelude.drafts import DraftWriter
+
+    from .test_drafts import FakeGitHub
+
+    cfg.drafts.enabled = True
+    cfg.triggers.auto_post = {"b1ueber2y/*"}
+    cfg.triggers.auto_post_severities = ("high", "medium")
+    nit = dict(FINDING, title="Nit", line=2, severity="nit")
+    off_diff = dict(FINDING, title="Elsewhere", path="README.md")
+    monkeypatch.setenv(
+        "FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "Adds auth.", "findings": [FINDING, nit, off_diff]})
+    )
+    github = FakeGitHub()
+    writer = DraftWriter(cfg, transport=github)
+    ref = PrRef("B1ueber2y", "PRelude", 1)
+
+    rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
+    status = {f["title"]: f["status"] for f in store.findings_for(rid)}
+    assert status == {"Missing token is accepted": "posted", "Nit": "drafted", "Elsewhere": "drafted"}
+    posted = [c for c in github.comments.values() if c.get("posted")]
+    assert [c["body"] for c in posted] == ["AI review (auto triggered): Could we return 401 when the token is missing?"]
+    assert github.posted_bodies == ["AI review (auto triggered): Adds auth."]
+    assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
+
+    for reason, listed in (("manual", {"b1ueber2y/*"}), ("auto: your PR", {"someone/*"})):
+        cfg.triggers.auto_post = listed
+        rid = review.start_review(store, cfg, ref, trigger_reason=reason)
+        review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
+        assert "posted" not in {f["status"] for f in store.findings_for(rid)}
