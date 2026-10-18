@@ -1,7 +1,9 @@
 """Writes to GitHub, limited to the reviewer's own pending (draft) review.
 
 Only the four GraphQL mutations below can be sent. A review is never submitted: no
-`event` is ever passed, and after each write the review is checked to still be PENDING.
+`event` is passed, and after each write the review is checked to still be PENDING. The one
+exception is `post_review`, for repos in triggers.auto_post: a COMMENT review, never an
+approval or a request for changes.
 """
 
 from __future__ import annotations
@@ -35,17 +37,22 @@ class DraftError(RuntimeError):
     pass
 
 
+class PostUncertain(DraftError):
+    """A posted review may or may not have reached GitHub; don't put its comments anywhere else."""
+
+
 class NotPending(DraftError):
     """The review is no longer a draft; PRelude stops writing to it."""
 
 
-def check_query(query: str) -> None:
-    """Refuse anything but the allowed mutations, and any review `event`."""
+def check_query(query: str, post: bool = False) -> None:
+    """Refuse anything but the allowed mutations, and any review `event` (`post`: except COMMENT)."""
     if query.lstrip().startswith("mutation"):
         called = set(_MUTATION_CALL.findall(query))
         if not called or not called <= ALLOWED_MUTATIONS:
             raise DraftError(f"mutation not allowed: {sorted(called - ALLOWED_MUTATIONS) or 'unknown'}")
-    if re.search(r"\bevent\s*:", query):
+    events = re.findall(r"\bevent\s*:\s*(\w*)", query)
+    if events and not (post and events == ["COMMENT"]):
         raise DraftError("reviews are never submitted by PRelude")
 
 
@@ -77,9 +84,11 @@ class DraftWriter:
         self.cfg = cfg
         self._transport = transport
 
-    def _call(self, owner: str, repo: str, query: str, variables: dict, missing_ok: bool = False) -> dict:
+    def _call(
+        self, owner: str, repo: str, query: str, variables: dict, missing_ok: bool = False, post: bool = False
+    ) -> dict:
         check_repo(self.cfg, owner, repo)
-        check_query(query)
+        check_query(query, post=post)
         if self._transport is None:
             self._transport = _http_transport(gh_token())
         if query.lstrip().startswith("mutation"):
@@ -93,8 +102,8 @@ class DraftWriter:
             raise DraftError("; ".join(e.get("message", "?") for e in errors)[:500])
         return out["data"]
 
-    def pending_review(self, owner: str, repo: str, number: int, commit: str) -> str:
-        """The viewer's pending review on the PR, created if needed."""
+    def _pr(self, owner: str, repo: str, number: int) -> dict:
+        """The PR's node id and its pending reviews."""
         data = self._call(
             owner,
             repo,
@@ -109,7 +118,11 @@ class DraftWriter:
             }""",
             {"owner": owner, "repo": repo, "number": number},
         )
-        pr = data["repository"]["pullRequest"]
+        return data["repository"]["pullRequest"]
+
+    def pending_review(self, owner: str, repo: str, number: int, commit: str) -> str:
+        """The viewer's pending review on the PR, created if needed."""
+        pr = self._pr(owner, repo, number)
         for r in pr["reviews"]["nodes"]:
             if r["viewerDidAuthor"]:
                 return r["id"]
@@ -128,6 +141,41 @@ class DraftWriter:
         if review["state"] != "PENDING":
             raise NotPending(f"new review is {review['state']}, expected PENDING")
         return review["id"]
+
+    def post_review(
+        self, owner: str, repo: str, number: int, commit: str, body: str, threads: list[dict]
+    ) -> tuple[str, list[str | None]]:
+        """Post a COMMENT review with these line comments right away (triggers.auto_post repos only).
+
+        Returns the review id and each thread's comment id, in order.
+        """
+        if not self.cfg.triggers.posts(f"{owner}/{repo}"):
+            raise DraftError(f"{owner}/{repo} isn't set to post automatically")
+        pr = self._pr(owner, repo, number)
+        if any(r["viewerDidAuthor"] for r in pr["reviews"]["nodes"]):
+            raise DraftError("you have a draft review on this PR; GitHub allows only one")
+        try:
+            data = self._call(
+                owner,
+                repo,
+                """
+                mutation($pr: ID!, $commit: GitObjectID!, $body: String!, $threads: [DraftPullRequestReviewThread]!) {
+                  addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, body: $body, threads: $threads, event: COMMENT}) {
+                    pullRequestReview { id state comments(first: 100) { nodes { id path line body } } }
+                  }
+                }""",
+                {"pr": pr["id"], "commit": commit, "body": body, "threads": threads},
+                post=True,
+            )
+            review = data["addPullRequestReview"]["pullRequestReview"]
+        except DraftError:  # GitHub answered with an error: nothing was posted
+            raise
+        except Exception as e:  # e.g. a timeout: it may have been posted anyway
+            raise PostUncertain(f"no clear answer from GitHub: {e}") from e
+        if review["state"] != "COMMENTED":
+            raise PostUncertain(f"the posted review is {review['state']}, expected COMMENTED")
+        ids = {(c["path"], c["line"], c["body"]): c["id"] for c in review["comments"]["nodes"]}
+        return review["id"], [ids.get((t["path"], t["line"], t["body"])) for t in threads]
 
     def add_comment(
         self,

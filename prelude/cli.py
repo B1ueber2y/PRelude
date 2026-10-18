@@ -134,7 +134,11 @@ def _cmd_findings(args: argparse.Namespace) -> int:
             continue
         loc = f"{f['path']}:{f['line']}" if f["line"] else f["path"]
         edited = ", your wording" if f["user_draft"] is not None else ""
-        status = "auto-drafted, not checked yet" if f["status"] == "drafted" and f["auto_drafted"] else f["status"]
+        status = (
+            {"drafted": "auto-drafted, not checked yet", "posted": "posted automatically"}.get(f["status"], f["status"])
+            if f["auto_drafted"]
+            else f["status"]
+        )
         print(f"\n{f['ordinal']:>2}. [{f['severity']}] {f['title']}  ({status}{edited})\n    {loc}")
         print(f"\n{textwrap.indent(current_draft(f), '      ')}")
         if args.numbers:
