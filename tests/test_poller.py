@@ -122,6 +122,17 @@ def test_re_requests_by_blocked_people_are_ignored(poller, reader, store):
     assert poller.poll_once() == []
 
 
+def test_a_draft_marked_ready_is_reviewed_without_new_commits(poller, reader, store):
+    reader.add(1, direct=["bob"], draft=True)
+    assert poller.poll_once() == []
+    assert store.watched("B1ueber2y", "PRelude", 1)["reason"] == "draft PR"
+    reader.add(1, direct=["bob"])  # ready for review, same head
+    reader.prs[1]["updated"] += "-ready"
+    (rid,) = poller.poll_once()
+    assert store.get_review(rid)["trigger_reason"] == "auto: requested by bob"
+    assert poller.poll_once() == []
+
+
 def test_new_commits_are_never_reviewed_automatically(poller, reader, store):
     reader.add(1, direct=["bob"])
     poller.poll_once()
