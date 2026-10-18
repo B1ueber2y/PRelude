@@ -34,6 +34,15 @@ def _prefixed(prefix: str, text: str) -> str:
     return f"{prefix}{chr(10) * 2 if text.startswith('```') else ' '}{text}"
 
 
+PRIORITY_MARK = {"high": "🔴", "medium": "🟠", "low": "🟡", "nit": "⚪"}
+
+
+def _priority(finding) -> str:
+    """How a posted comment says its severity, e.g. 🟡 [low priority]."""
+    sev = finding["severity"]
+    return f"{PRIORITY_MARK.get(sev, '')} [{'nit' if sev == 'nit' else f'{sev} priority'}]".strip()
+
+
 def body_for(store: Store, cfg: Config, finding) -> str:
     return _prefixed(cfg.drafts.prefix if prefix_on(store) else "", current_draft(finding))
 
@@ -144,7 +153,7 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
     for f in picked:
         thread = {
             "path": f["path"],
-            "body": _prefixed(prefix, current_draft(f)),
+            "body": _prefixed(f"{prefix} {_priority(f)}".strip(), current_draft(f)),
             "line": f["line"],
             "side": f["side"],
         }

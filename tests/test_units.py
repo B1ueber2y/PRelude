@@ -265,3 +265,14 @@ def test_effort_is_passed_to_claude_only_when_set(tmp_path):
     (tmp_path / "fresh" / "config.yaml").write_text("claude:\n  effort: extreme\n")
     with pytest.raises(ValueError, match="claude.effort"):
         load_config(tmp_path / "fresh")
+
+
+def test_posted_comments_say_their_priority():
+    from prelude.drafting import _priority
+
+    assert [_priority({"severity": s}) for s in ("high", "medium", "low", "nit")] == [
+        "🔴 [high priority]",
+        "🟠 [medium priority]",
+        "🟡 [low priority]",
+        "⚪ [nit]",
+    ]
