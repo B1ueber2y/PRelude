@@ -9,7 +9,10 @@
     {% elif m.role == 'assistant' %}
     <div class="msg claude">
       <div class="prose">{{ m.content | text }}</div>
-      {% if m.verdict %}<div class="verdict verdict-{{ m.verdict }}">{{ {'confirmed': 'Claude stands by this finding', 'revised': 'Claude revised its view', 'withdrawn': 'Claude withdrew this finding'}[m.verdict] }}</div>{% endif %}
+      {% if m.verdict == 'withdrawn' and loop.last and f.status == 'discarded' %}
+      <div class="verdict verdict-withdrawn">Claude withdrew this finding, so it moved to Discarded
+        <button class="btn small ghost" hx-post="/findings/{{ f.id }}/restore">Restore</button></div>
+      {% elif m.verdict %}<div class="verdict verdict-{{ m.verdict }}">{{ {'confirmed': 'Claude stands by this finding', 'revised': 'Claude revised its view', 'withdrawn': 'Claude withdrew this finding'}[m.verdict] }}</div>{% endif %}
       {% if m.proposal %}
       <div class="proposal">
         <div class="proposal-label">Suggested wording</div>

@@ -181,7 +181,7 @@ def seen(w: WebDep, finding_id: int):
 def send_message(w: WebDep, request: Request, finding_id: int, text: str = Form(...)):
     w.finding_or_404(finding_id)
     try:
-        post_message(w.store, w.cfg, w.broker, finding_id, text)
+        post_message(w.store, w.cfg, w.broker, finding_id, text, writer=w.writer)
         extra = {}
     except (ValueError, DiscussionBusy) as e:
         extra = {"error": str(e), "draft_message": text}

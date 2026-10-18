@@ -12,6 +12,7 @@ from pathlib import Path
 from . import claude, memory_agent, notify
 from .config import Config
 from .db import Store
+from .drafts import DraftError, DraftWriter
 from .memory import Memory
 from .prompts import discuss_first_prompt, discuss_followup_prompt, parse_reply
 
@@ -70,7 +71,14 @@ def current_draft(finding) -> str:
 
 
 def post_message(
-    store: Store, cfg: Config, broker: Broker, finding_id: int, text: str, *, ping: bool = True
+    store: Store,
+    cfg: Config,
+    broker: Broker,
+    finding_id: int,
+    text: str,
+    *,
+    ping: bool = True,
+    writer: DraftWriter | None = None,
 ) -> threading.Thread:
     """Store the reviewer's message and start Claude's reply in the background (`ping`: notify when ready)."""
     text = text.strip()
@@ -109,12 +117,26 @@ def post_message(
 
     t = threading.Thread(
         target=_reply,
-        args=(store, cfg, broker, finding_id, prompt, Path(review["worktree"]), resume, fork, ping),
+        args=(store, cfg, broker, finding_id, prompt, Path(review["worktree"]), resume, fork, ping, writer),
         daemon=True,
         name=f"discuss-{finding_id}",
     )
     t.start()
     return t
+
+
+def _withdraw(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -> None:
+    """Claude agrees the comment shouldn't be made: discard it, and take it out of the GitHub draft."""
+    from . import drafting  # drafting imports this module
+
+    if store.get_finding(finding_id)["status"] not in ("pending", "drafted"):
+        return
+    try:
+        drafting.remove(store, cfg, writer, finding_id, new_status="discarded")
+    except Exception as e:  # GitHub refused or unreachable: Claude's reply itself still stands
+        if not isinstance(e, DraftError):
+            log.warning("couldn't remove the draft of withdrawn finding %s", finding_id, exc_info=True)
+        store.add_message(finding_id, "error", f"Couldn't remove the GitHub draft comment: {e}"[:2000])
 
 
 def _reply(
@@ -127,6 +149,7 @@ def _reply(
     resume: str,
     fork: bool,
     ping: bool = True,
+    writer: DraftWriter | None = None,
 ) -> None:
     session_id = None
     changed_mind = False
@@ -149,6 +172,8 @@ def _reply(
         store.add_message(finding_id, "assistant", text, proposal=proposal, verdict=verdict, session_id=session_id)
         if verdict:
             store.update_finding(finding_id, verdict=verdict)
+        if verdict == "withdrawn":
+            _withdraw(store, cfg, writer or DraftWriter(cfg), finding_id)
         changed_mind = verdict in ("revised", "withdrawn")
     except Exception as e:
         log.exception("discussion reply for finding %s failed", finding_id)
