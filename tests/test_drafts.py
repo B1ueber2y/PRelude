@@ -336,3 +336,25 @@ def test_withdrawn_in_discussion_leaves_the_draft(client, store, done_review, gi
     assert github.comments == {}
     page = client.get(f"/findings/{f['id']}").text
     assert "so it moved to Discarded" in page and f'hx-post="/findings/{f["id"]}/restore"' in page
+
+
+def test_withdraw_keeps_the_reply_when_github_is_unreachable(
+    client, store, done_review, writer, fake_claude, monkeypatch
+):
+    from tests.test_server import wait_idle
+
+    monkeypatch.setenv("FAKE_CLAUDE_REPLY", "Agreed, not worth raising.\nVERDICT: withdrawn")
+    f = store.findings_for(done_review)[0]
+    client.post(f"/findings/{f['id']}/github/add")
+
+    def unreachable(query, v):
+        raise ConnectionError("network down")
+
+    writer._transport = unreachable
+    client.post(f"/findings/{f['id']}/messages", data={"text": "Not worth it?"})
+    wait_idle(store, f["id"])
+
+    msgs = store.messages_for(f["id"])
+    assert [m["role"] for m in msgs] == ["user", "assistant", "error"]
+    assert msgs[2]["content"].startswith("Couldn't remove the GitHub draft comment")
+    assert store.get_finding(f["id"])["status"] == "drafted"

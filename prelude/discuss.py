@@ -133,7 +133,9 @@ def _withdraw(store: Store, cfg: Config, writer: DraftWriter, finding_id: int) -
         return
     try:
         drafting.remove(store, cfg, writer, finding_id, new_status="discarded")
-    except DraftError as e:
+    except Exception as e:  # GitHub refused or unreachable: Claude's reply itself still stands
+        if not isinstance(e, DraftError):
+            log.warning("couldn't remove the draft of withdrawn finding %s", finding_id, exc_info=True)
         store.add_message(finding_id, "error", f"Couldn't remove the GitHub draft comment: {e}"[:2000])
 
 
