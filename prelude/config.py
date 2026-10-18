@@ -49,7 +49,7 @@ claude:
 max_inline_diff_chars: 150000
 
 # Comments go into your pending GitHub review (you submit it yourself on GitHub), except
-# automatic reviews in triggers.auto_post repos.
+# in triggers.auto_post repos, where they are posted.
 # Set enabled: false to keep PRelude from writing to GitHub at all.
 github_drafts:
   enabled: true
@@ -74,8 +74,8 @@ triggers:
   max_reviews_per_day: 20
   cap_exempt: []                  # repos (patterns ok) where your own PRs don't count toward the cap
   requests_since: null            # e.g. 2026-10-10: ignore review requests on older PRs
-  # Repos (patterns ok) whose automatic reviews are posted on the PR right away, as you,
-  # instead of waiting in your draft. Off unless listed; reviews you start yourself stay drafts.
+  # Repos (patterns ok) whose reviews are posted on the PR right away, as you, instead of
+  # waiting in your draft: automatic ones, ones you start, and re-reviews. Off unless listed.
   auto_post: []
   auto_post_severities: [high, medium, low, nit]
   auto_post_prefix: "AI review (auto triggered):"

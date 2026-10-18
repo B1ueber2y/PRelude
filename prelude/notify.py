@@ -88,7 +88,7 @@ def review_finished(cfg: NotifyConfig, review, findings, sender: Sender | None =
         high = sum(1 for f in findings if f["severity"] == "high")
         n = len(findings)
         drafted = sum(1 for f in findings if f["status"] == "drafted")
-        posted = sum(1 for f in findings if f["status"] == "posted")  # automatic reviews in auto_post repos
+        posted = sum(1 for f in findings if f["status"] == "posted")  # in auto_post repos
         msg = prefix + f"{n} finding{'' if n == 1 else 's'}" + (f" ({high} high)" if high else "")
         if posted:
             msg += ", all posted" if posted == n else f", {posted} posted"

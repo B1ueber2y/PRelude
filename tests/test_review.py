@@ -421,7 +421,7 @@ def test_new_review_replaces_untouched_comments_still_to_review(cfg, store, chec
     )  # 3 earlier reviews; Edited, Discussed, Older still open
 
 
-def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, checkout, fake_claude, monkeypatch):
+def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkout, fake_claude, monkeypatch):
     from prelude.drafts import DraftWriter
 
     from .test_drafts import FakeGitHub
@@ -441,17 +441,27 @@ def test_auto_post_repos_post_automatic_reviews_and_draft_the_rest(cfg, store, c
     rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
     review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
     status = {f["title"]: f["status"] for f in store.findings_for(rid)}
-    assert status == {"Missing token is accepted": "posted", "Nit": "drafted", "Elsewhere": "drafted"}
+    assert status == {"Missing token is accepted": "posted", "Nit": "pending", "Elsewhere": "pending"}
+    assert not [r for r, state in github.reviews.items() if state == "PENDING"]  # no draft to block the next post
     posted = [c for c in github.comments.values() if c.get("posted")]
     assert [c["body"] for c in posted] == ["AI review (auto triggered): Could we return 401 when the token is missing?"]
     assert github.posted_bodies == ["AI review (auto triggered)."]  # the summary is written for you, not the author
     assert store.findings_for(rid)[0]["github_comment_id"] in github.comments
 
-    for reason, listed in (("manual", {"b1ueber2y/*"}), ("auto: your PR", {"someone/*"})):
-        cfg.triggers.auto_post = listed
-        rid = review.start_review(store, cfg, ref, trigger_reason=reason)
-        review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
-        assert "posted" not in {f["status"] for f in store.findings_for(rid)}
+    rid = review.start_review(store, cfg, ref, trigger_reason="manual", previous_review_id=rid, mode="changes")
+    second = dict(FINDING, title="Elsewhere in auth", line=2, side="LEFT")  # on the removed line
+    monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING, second]}))
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)  # started by hand, a re-review: posted too
+    status = {f["title"]: f["status"] for f in store.findings_for(rid)}
+    assert status == {
+        "Missing token is accepted": "pending",
+        "Elsewhere in auth": "posted",
+    }  # no repeat of a posted one
+
+    cfg.triggers.auto_post = {"someone/*"}
+    rid = review.start_review(store, cfg, ref, trigger_reason="auto: your PR")
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)
+    assert "posted" not in {f["status"] for f in store.findings_for(rid)}
 
 
 def test_auto_post_that_may_have_gone_through_is_not_drafted_too(cfg, store, checkout, fake_claude, monkeypatch):

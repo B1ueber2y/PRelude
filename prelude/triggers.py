@@ -36,7 +36,7 @@ class TriggerConfig:
     max_reviews_per_day: int = 20
     cap_exempt: set[str] = field(default_factory=set)  # repos where your own PRs don't count toward the cap
     requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
-    auto_post: set[str] = field(default_factory=set)  # repos whose automatic reviews are posted, not drafted
+    auto_post: set[str] = field(default_factory=set)  # repos whose reviews are posted, not drafted
     auto_post_severities: tuple[str, ...] = SEVERITIES
     auto_post_prefix: str = "AI review (auto triggered):"
 

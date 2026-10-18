@@ -116,16 +116,20 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
     return added, failed
 
 
-def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
-    """Post an automatic review's findings on the PR right away (triggers.auto_post). Returns those handled.
+def posts(cfg: Config, owner: str, repo: str) -> bool:
+    """Reviews of this repo are posted (triggers.auto_post); nothing goes to your draft by itself there,
+    since GitHub allows one draft review per PR and it would block the next post."""
+    return cfg.drafts.enabled and cfg.triggers.posts(f"{owner}/{repo}")
 
-    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, go on as usual.
+
+def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
+    """Post a review's findings on the PR right away (triggers.auto_post). Returns those handled.
+
+    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude.
     """
     r = store.get_review(review_id)
     t = cfg.triggers
-    if not (
-        cfg.drafts.enabled and t.posts(f"{r['owner']}/{r['repo']}") and (r["trigger_reason"] or "").startswith("auto:")
-    ):
+    if not posts(cfg, r["owner"], r["repo"]):
         return []
     picked = [
         f
@@ -162,8 +166,16 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             link=r["url"],
         )
         return [f["id"] for f in picked]
-    except Exception:
-        log.warning("couldn't post review %s automatically; its findings go on as usual", review_id, exc_info=True)
+    except Exception as e:
+        log.warning("couldn't post review %s automatically", review_id, exc_info=True)
+        notify.send(
+            cfg.notify,
+            "Couldn't post the review",
+            notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
+            + f"{str(e)[:200]}; its comments wait in PRelude",
+            path=f"/reviews/{review_id}",
+            tags="warning",
+        )
         return []
     for f, thread, comment_id in zip(picked, threads, comment_ids, strict=True):
         store.update_finding(
