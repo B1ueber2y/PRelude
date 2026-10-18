@@ -135,7 +135,8 @@ class Poller:
                 again = self._rerequested(ref, pr, seen, mine) if ok and seen and seen["reviewed_sha"] else None
                 if again:
                     reason = f"re-requested by {again[1]}"
-                if seen and seen["head_sha"] == pr.head_sha and not again:
+                became_eligible = ok and seen and seen["decision"] == "skip"  # e.g. a draft marked ready
+                if seen and seen["head_sha"] == pr.head_sha and not again and not became_eligible:
                     self.store.set_watched(owner, repo, number, updated_at=item.get("updated_at"))
                     continue  # nothing new since last time
                 self.store.set_watched(
