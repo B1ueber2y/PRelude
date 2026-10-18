@@ -52,7 +52,7 @@ max_inline_diff_chars: 150000
 github_drafts:
   enabled: true
   auto: true                      # new findings start in your draft; you remove what you don't want
-  prefix: "AI review with PRelude:"
+  prefix: "AI review:"
 
 # Automatic reviews while PRelude is running. Repo modes: all_prs | on_request | never;
 # patterns like my-org/* work, the most specific match wins. An all_prs repo only covers
@@ -127,7 +127,7 @@ class ServerConfig:
 class DraftsConfig:
     enabled: bool = True
     auto: bool = True
-    prefix: str = "AI review with PRelude:"
+    prefix: str = "AI review:"
 
 
 @dataclass
@@ -215,7 +215,7 @@ def load_config(data_dir: Path | None = None) -> Config:
         drafts=DraftsConfig(
             enabled=bool(drafts_raw.get("enabled", True)),
             auto=bool(drafts_raw.get("auto", True)),
-            prefix=str(drafts_raw.get("prefix", "AI review with PRelude:")),
+            prefix=str(drafts_raw.get("prefix", "AI review:")),
         ),
         triggers=TriggerConfig.from_raw(raw.get("triggers")),
         notify=NotifyConfig(
