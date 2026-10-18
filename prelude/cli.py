@@ -14,7 +14,7 @@ import textwrap
 from pathlib import Path
 
 from . import claude, triage
-from .config import load_config
+from .config import EFFORTS, load_config
 from .db import Store
 from .github import parse_pr
 from .guard import RepoNotAllowed, check_repo
@@ -37,6 +37,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
             reviewers=args.reviewers,
             previous_review_id=previous["id"] if previous else None,
             mode=args.again or "full",
+            effort=args.effort,
         )
     except (ValueError, RepoNotAllowed) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -440,6 +441,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=("full", "changes"),
         help="re-review after the last review: the whole PR again, or only the new commits",
     )
+    s.add_argument("--effort", choices=EFFORTS, help="how hard Claude thinks (default: claude.effort in config)")
     s.set_defaults(fn=_cmd_review)
 
     s = sub.add_parser("show", help="print a stored review")

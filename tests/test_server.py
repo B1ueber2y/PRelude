@@ -395,3 +395,14 @@ def test_only_real_changes_count_as_activity(client, done_review, store):
         f["id"], {"status": "superseded"}, status="pending", acted_at=edited["acted_at"], action=edited["action"]
     )
     assert store.get_finding(f["id"])["action"] == "edited"
+
+
+def test_review_again_with_a_chosen_effort(client, done_review, store):
+    page = client.get(f"/reviews/{done_review}").text
+    assert 'name="effort"' in page and '<option value="high">high effort</option>' in page
+    r = client.post(f"/reviews/{done_review}/again", data={"mode": "changes", "effort": "high"})
+    new_id = int(r.headers["HX-Redirect"].rsplit("/", 1)[1])
+    assert store.get_review(new_id)["effort"] == "high"
+    assert "high effort" in client.get(f"/reviews/{new_id}").text
+    r = client.post(f"/reviews/{done_review}/again", data={"mode": "full"})
+    assert store.get_review(int(r.headers["HX-Redirect"].rsplit("/", 1)[1]))["effort"] is None  # config default

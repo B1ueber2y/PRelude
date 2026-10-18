@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from . import claude, drafting, failures
-from .config import Config
+from .config import EFFORTS, Config
 from .db import Store
 from .diffmap import parse_diff
 from .drafts import DraftWriter
@@ -46,6 +46,7 @@ def start_review(
     reviewers: int | None = None,
     previous_review_id: int | None = None,
     mode: str = "full",
+    effort: str | None = None,
 ) -> int:
     """Record a queued review. Raises RepoNotAllowed before anything is stored.
 
@@ -55,6 +56,8 @@ def start_review(
     check_repo(cfg, ref.owner, ref.repo)
     if mode not in ("full", "changes"):
         raise ValueError(f"unknown review mode {mode!r}")
+    if effort is not None and effort not in EFFORTS:
+        raise ValueError(f"unknown effort {effort!r}")
     n = max(0, min(8, cfg.claude.reviewers if reviewers is None else reviewers))  # 0 = by PR size
     return store.create_review(
         ref.owner,
@@ -65,6 +68,7 @@ def start_review(
         reviewers=n,
         previous_review_id=previous_review_id,
         mode=mode,
+        effort=effort,
     )
 
 
@@ -101,6 +105,7 @@ class _Job:
     memory: str
     previous: str = ""
     comments: str = ""
+    effort: str | None = None
 
     @property
     def inline(self) -> bool:
@@ -115,7 +120,7 @@ class _Job:
             self.co.worktree,
             schema=schema,
             model=self.cfg.claude.model,
-            effort=self.cfg.claude.effort,
+            effort=self.effort,
             timeout=self.cfg.claude.review_timeout_seconds,
             auth=claude.auth_for(self.cfg),
         )
@@ -328,6 +333,7 @@ def run_review(
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
             previous=_previous(store, cfg, row, pr.head_sha),
             comments=comments_section(pr_comments),
+            effort=row["effort"] or cfg.claude.effort,
         )
         reports = None
         if n > 1:
@@ -407,6 +413,7 @@ def add_reviewers(
             memory=Memory(cfg).prompt_section(ref.owner, ref.repo, store.recent_edits()),
             comments=comments_section(_read_comments(github or GitHubReader(cfg), ref), judge=False),
             previous=_previous(store, cfg, row, pr.head_sha),
+            effort=row["effort"] or cfg.claude.effort,
         )
         before = row["reviewers"] or 1
         reports, cost = _run_reviewers(job, n, first_lens=before)
