@@ -101,7 +101,7 @@ def test_add_creates_one_pending_review_with_prefix(enabled, store, done_review,
 
     assert len(github.reviews) == 1 and set(github.reviews.values()) == {"PENDING"}
     bodies = sorted(c["body"] for c in github.comments.values())
-    assert "AI review with PRelude: Could we return 401 when the token is missing?" in bodies
+    assert "AI review: Could we return 401 when the token is missing?" in bodies
     assert "Could we return 401 when the token is missing?" in bodies
     row = store.get_finding(f1["id"])
     assert row["status"] == "drafted" and row["github_comment_id"] in github.comments
@@ -121,7 +121,7 @@ def test_edits_sync_unless_changed_on_github(client, enabled, store, done_review
     client.post(f"/findings/{f['id']}/github/add")
     client.post(f"/findings/{f['id']}/draft", data={"text": "Return 401 here?"})
     (cid,) = github.comments
-    assert github.comments[cid]["body"] == "AI review with PRelude: Return 401 here?"
+    assert github.comments[cid]["body"] == "AI review: Return 401 here?"
 
     github.comments[cid]["body"] = "Edited on GitHub."
     r = client.post(f"/findings/{f['id']}/draft", data={"text": "Another wording"})
@@ -164,7 +164,7 @@ def test_using_claudes_wording_updates_the_draft(client, store, done_review, git
     mid = store.add_message(f["id"], "assistant", "Shorter:", proposal="401 if missing?")
     client.post(f"/messages/{mid}/use")
     (comment,) = github.comments.values()
-    assert comment["body"] == "AI review with PRelude: 401 if missing?"
+    assert comment["body"] == "AI review: 401 if missing?"
 
 
 def test_submitted_review_marks_findings_posted(enabled, store, done_review, writer, github):
