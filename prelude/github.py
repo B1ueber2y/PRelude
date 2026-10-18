@@ -210,23 +210,39 @@ class GitHubReader:
             )
         return items
 
-    def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:
-        """Who asked for your review: (requested you directly, requested a team)."""
-        direct, team = set(), set()
+    def _request_events(self, owner: str, repo: str, number: int) -> list[dict]:
+        """The PR's review_requested events, oldest first."""
+        found = []
         for page in range(1, 4):
             events = self._get(owner, repo, f"/issues/{number}/events?per_page=100&page={page}")
             assert isinstance(events, list)
-            for e in events:
-                if e.get("event") != "review_requested":
-                    continue
-                actor = (e.get("actor") or {}).get("login") or "someone"
-                if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
-                    direct.add(actor)
-                elif e.get("requested_team"):
-                    team.add(actor)
+            found += [e for e in events if e.get("event") == "review_requested"]
             if len(events) < 100:
                 break
+        return found
+
+    def review_requests(self, owner: str, repo: str, number: int, me: str) -> tuple[set[str], set[str]]:
+        """Who asked for your review: (requested you directly, requested a team)."""
+        direct, team = set(), set()
+        for e in self._request_events(owner, repo, number):
+            actor = (e.get("actor") or {}).get("login") or "someone"
+            if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower():
+                direct.add(actor)
+            elif e.get("requested_team"):
+                team.add(actor)
         return direct, team
+
+    def last_request(self, owner: str, repo: str, number: int, me: str) -> tuple[str, str] | None:
+        """(ISO time, who) of the latest request for your own review, if any."""
+        mine = [
+            e
+            for e in self._request_events(owner, repo, number)
+            if (e.get("requested_reviewer") or {}).get("login", "").lower() == me.lower()
+        ]
+        if not mine:
+            return None
+        e = max(mine, key=lambda e: e.get("created_at") or "")
+        return e.get("created_at") or "", (e.get("actor") or {}).get("login") or "someone"
 
     def viewer_login(self) -> str:
         data = self._request("/user")

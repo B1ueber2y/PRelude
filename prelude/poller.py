@@ -132,7 +132,10 @@ class Poller:
                 if seen and item.get("updated_at") and seen["updated_at"] == item["updated_at"]:
                     continue  # unchanged since last check: no further API calls
                 pr, ok, reason = self.evaluate(owner, repo, number, item)
-                if seen and seen["head_sha"] == pr.head_sha:
+                again = self._rerequested(ref, pr) if ok and seen and seen["reviewed_sha"] else None
+                if again:
+                    reason = f"re-requested by {again[1]}"
+                if seen and seen["head_sha"] == pr.head_sha and not again:
                     self.store.set_watched(owner, repo, number, updated_at=item.get("updated_at"))
                     continue  # nothing new since last time
                 self.store.set_watched(
@@ -146,7 +149,7 @@ class Poller:
                 )
                 if not ok:
                     continue
-                if seen and seen["reviewed_sha"]:
+                if seen and seen["reviewed_sha"] and not again:
                     continue  # new commits on a reviewed PR: shown in the app, re-review is your call
                 latest = self.store.latest_review_for(owner, repo, number, done_only=False)
                 if latest and latest["status"] in ("queued", "running"):
@@ -157,7 +160,14 @@ class Poller:
                 if t.counts_toward_cap(ref.slug, reason) and self._capped_today() >= t.max_reviews_per_day:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue
-                review_id = start_review(self.store, self.cfg, ref, trigger_reason=f"auto: {reason}")
+                review_id = start_review(
+                    self.store,
+                    self.cfg,
+                    ref,
+                    trigger_reason=f"auto: {reason}",
+                    previous_review_id=again[0]["id"] if again else None,
+                    mode="changes" if again else "full",
+                )
                 self.store.update_review(review_id, title=pr.title, author=pr.author)  # shown while queued
                 self.store.set_watched(owner, repo, number, reviewed_sha=pr.head_sha)
                 self.queue.put(review_id)
@@ -165,6 +175,18 @@ class Poller:
             except RepoNotAllowed:
                 continue
         return queued
+
+    def _rerequested(self, ref: PrRef, pr):
+        """(last finished review, who asked) when your review was requested again after that review
+        and the PR has new commits since; otherwise None."""
+        prev = self.store.latest_review_for(ref.owner, ref.repo, ref.number)
+        if prev is None or prev["head_sha"] == pr.head_sha:
+            return None
+        last = self.reader.last_request(ref.owner, ref.repo, ref.number, self._me)
+        if not last or not last[0]:
+            return None
+        asked = datetime.fromisoformat(last[0].replace("Z", "+00:00")).timestamp()
+        return (prev, last[1]) if asked > prev["created_at"] else None
 
     # ---- background threads ---------------------------------------------------
 

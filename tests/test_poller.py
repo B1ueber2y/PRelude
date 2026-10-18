@@ -38,10 +38,31 @@ class FakeReader:
         p = self.prs[number]
         return set(p["direct"]), set(p["team"])
 
-    def add(self, number, author="alice", head="h1", draft=False, direct=(), team=(), created="2999-01-01T00:00:00Z"):
-        updated = f"u-{head}-{sorted(direct)}"
+    def last_request(self, owner, repo, number, me):
+        p = self.prs[number]
+        return (p["asked"], sorted(p["direct"])[0]) if p["asked"] and p["direct"] else None
+
+    def add(
+        self,
+        number,
+        author="alice",
+        head="h1",
+        draft=False,
+        direct=(),
+        team=(),
+        created="2999-01-01T00:00:00Z",
+        asked="",
+    ):
+        updated = f"u-{head}-{sorted(direct)}-{asked}"
         self.prs[number] = dict(
-            author=author, head=head, draft=draft, direct=direct, team=team, created=created, updated=updated
+            author=author,
+            head=head,
+            draft=draft,
+            direct=direct,
+            team=team,
+            created=created,
+            updated=updated,
+            asked=asked,
         )
 
 
@@ -69,6 +90,24 @@ def test_reviews_requested_prs_once(poller, reader, store):
     assert store.get_review(rid)["trigger_reason"] == "auto: requested by bob"
     assert poller.poll_once() == []  # same head: nothing new
     assert store.watched("B1ueber2y", "PRelude", 2)["reason"] == "no review request"
+
+
+def test_a_re_request_after_new_commits_gets_a_changes_only_review(poller, reader, store):
+    reader.add(1, direct=["bob"], asked="2000-01-01T00:00:00Z")
+    (first,) = poller.poll_once()
+    store.update_review(first, status="done", head_sha="h1")
+
+    reader.add(1, direct=["bob"], asked="2999-01-01T00:00:00Z")  # asked again, nothing new to look at
+    assert poller.poll_once() == []
+    reader.add(1, direct=["bob"], head="h2", asked="2000-01-01T00:00:00Z")  # pushed; the request is the old one
+    assert poller.poll_once() == []
+
+    reader.add(1, direct=["bob"], head="h2", asked="2999-01-01T00:00:00Z")  # pushed and asked again
+    (again,) = poller.poll_once()
+    r = store.get_review(again)
+    assert r["trigger_reason"] == "auto: re-requested by bob"
+    assert r["previous_review_id"] == first and r["mode"] == "changes"
+    assert poller.poll_once() == []  # queued already
 
 
 def test_new_commits_are_never_reviewed_automatically(poller, reader, store):
