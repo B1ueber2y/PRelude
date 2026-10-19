@@ -418,6 +418,7 @@ def test_start_a_review_that_waits_for_you(client, store, cfg):
     assert "Start review" in client.get(f"/reviews/{rid}").text
     home = client.get("/reviews/rows").text
     assert "Waiting for you" in home and f'hx-post="/reviews/{rid}/start"' in home and "Found" in home
+    assert "No reviews yet." in home  # only waiting ones so far
     client.post(f"/reviews/{rid}/start", data={"post": "1", "effort": "high"})
     for _ in range(50):
         if client.started:
@@ -428,3 +429,13 @@ def test_start_a_review_that_waits_for_you(client, store, cfg):
     cfg.drafts.enabled = True
     assert drafting.posts(cfg, r) and not cfg.triggers.posts("B1ueber2y/PRelude")  # your choice for this one
     assert "waiting any more" in client.post(f"/reviews/{rid}/start").text  # started once
+
+
+def test_a_waiting_re_review_keeps_the_open_findings_in_sight(client, store):
+    done = store.create_review("B1ueber2y", "PRelude", 8, "u", "manual")
+    store.update_review(done, status="done")
+    store.add_findings(done, [FINDING_FOR_ORDER])
+    again = store.create_review("B1ueber2y", "PRelude", 8, "u", "found: re-requested by bob", previous_review_id=done)
+    store.update_review(again, status="waiting")
+    home = client.get("/reviews/rows").text  # Latest: only the waiting re-review is listed
+    assert "+1 older · 1 still open" in home.split("Latest")[0]

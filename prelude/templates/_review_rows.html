@@ -8,15 +8,27 @@
       <div class="card-top">
         <span class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}</span>
         {% if r.previous_review_id %}<span class="tag accent">Re-review · changes only</span>{% endif %}
+        {% set hidden = earlier.get((r.owner, r.repo, r.number)) if earlier else None %}
+        {% if hidden %}<span class="tag{{ ' warn' if hidden[1] }}">+{{ hidden[0] }} older{% if hidden[1] %} · {{ hidden[1] }} still open{% endif %}</span>{% endif %}
       </div>
       {% if r.title %}<div class="card-title">{{ r.title }}</div>{% endif %}
       <div class="meta">Found {{ r.created_at | ago }} · {{ (r.trigger_reason or '').split(':', 1)[-1].strip() }}</div>
     </a>
     <div class="waiting-actions">
-      <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-disabled-elt="this"
-              title="As the repo is set: posted or in your draft. Open it for more choices.">Start review</button>
-      <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
-              hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">Dismiss</button>
+      <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-include="#post-{{ r.id }}, #effort-{{ r.id }}"
+              hx-disabled-elt="this">Start review</button>
+      {% if drafts_enabled %}
+      <select id="post-{{ r.id }}" name="post" class="effort" aria-label="Where comments go">
+        {% if repo_posts(r.owner, r.repo) %}<option value="1">post</option><option value="0">draft</option>
+        {% else %}<option value="0">draft</option><option value="1">post</option>{% endif %}
+      </select>
+      {% endif %}
+      <select id="effort-{{ r.id }}" name="effort" class="effort" aria-label="Effort">
+        <option value="">{{ cfg_effort or 'default' }}</option>
+        {% for e in efforts if e != cfg_effort %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
+      </select>
+      <button class="btn small ghost danger dismiss" hx-post="/reviews/{{ r.id }}/delete" aria-label="Dismiss" title="Dismiss"
+              hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">✕</button>
     </div>
   </li>
 {% endfor %}
@@ -32,7 +44,7 @@
   </div>
 </div>
 
-{% if not reviews %}
+{% if not reviews | rejectattr('status', 'equalto', 'waiting') | list %}
 <p class="empty-line">No reviews yet.</p>
 {% endif %}
 <ul class="list">
