@@ -346,7 +346,7 @@ def run_review(
         if pr.state == "open":
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
-            drafting.auto_post(store, cfg, writer, review_id, ids)
+            drafting.auto_post(store, cfg, writer, review_id, ids, clean_note=True)
             to_draft = [] if drafting.posts(cfg, ref.owner, ref.repo) else ids
             _auto_draft(store, cfg, review_id, to_draft, writer, replace=True)
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).

@@ -131,14 +131,25 @@ def posts(cfg: Config, owner: str, repo: str) -> bool:
     return cfg.drafts.enabled and cfg.triggers.posts(f"{owner}/{repo}")
 
 
-def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
+def auto_post(
+    store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int], *, clean_note: bool = False
+) -> list[int]:
     """Post a review's findings on the PR right away (triggers.auto_post). Returns those handled.
 
     Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude.
+    With `clean_note`, a review that found nothing says so.
     """
     r = store.get_review(review_id)
     t = cfg.triggers
     if not posts(cfg, r["owner"], r["repo"]):
+        return []
+    automatic = (r["trigger_reason"] or "").startswith("auto:")
+    prefix = t.auto_post_prefix if automatic else (cfg.drafts.prefix if prefix_on(store) else "")
+    if not finding_ids:
+        if clean_note and t.auto_post_severities:
+            changes = r["mode"] == "changes" and r["previous_review_id"]
+            note = f"🔍 Nothing flagged{' in the changes since the last review' if changes else ''}."
+            _post(cfg, writer, r, [], body=_prefixed(prefix, f"{note} This is not an approval."))
         return []
     picked = [
         f
@@ -147,8 +158,6 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
     ]
     if not picked:
         return []
-    automatic = (r["trigger_reason"] or "").startswith("auto:")
-    prefix = t.auto_post_prefix if automatic else (cfg.drafts.prefix if prefix_on(store) else "")
     threads = []
     for f in picked:
         thread = {
@@ -160,31 +169,12 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
         if f["start_line"]:
             thread.update(startLine=f["start_line"], startSide=f["side"])
         threads.append(thread)
-    try:
-        gh_review, comment_ids = writer.post_review(r["owner"], r["repo"], r["number"], r["head_sha"], threads)
-    except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
-        log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
-        notify.send(
-            cfg.notify,
-            "Check the PR",
-            notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
-            + "posting the review may have failed; its comments wait in PRelude",
-            path=f"/reviews/{review_id}",
-            tags="warning",
-            link=r["url"],
-        )
-        return [f["id"] for f in picked]
-    except Exception as e:
-        log.warning("couldn't post review %s automatically", review_id, exc_info=True)
-        notify.send(
-            cfg.notify,
-            "Couldn't post the review",
-            notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
-            + f"{str(e)[:200]}; its comments wait in PRelude",
-            path=f"/reviews/{review_id}",
-            tags="warning",
-        )
+    result = _post(cfg, writer, r, threads, waiting="; its comments wait in PRelude")
+    if result is None:
         return []
+    if result is _UNCERTAIN:  # may be on the PR already: leave them to review, not in a draft too
+        return [f["id"] for f in picked]
+    gh_review, comment_ids = result
     for f, thread, comment_id in zip(picked, threads, comment_ids, strict=True):
         store.update_finding(
             f["id"],
@@ -195,6 +185,37 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             auto_drafted=1,  # posted without the reviewer's judgement
         )
     return [f["id"] for f in picked]
+
+
+_UNCERTAIN = object()
+
+
+def _post(cfg: Config, writer: DraftWriter, r, threads: list[dict], body: str | None = None, waiting: str = ""):
+    """Post a review, telling the reviewer if that fails. Returns GitHub's ids, None, or _UNCERTAIN."""
+    where = notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
+    try:
+        return writer.post_review(r["owner"], r["repo"], r["number"], r["head_sha"], threads, body=body)
+    except PostUncertain:
+        log.warning("posting review %s automatically may have failed", r["id"], exc_info=True)
+        notify.send(
+            cfg.notify,
+            "Check the PR",
+            where + f"posting the review may have failed{waiting}",
+            path=f"/reviews/{r['id']}",
+            tags="warning",
+            link=r["url"],
+        )
+        return _UNCERTAIN
+    except Exception as e:
+        log.warning("couldn't post review %s automatically", r["id"], exc_info=True)
+        notify.send(
+            cfg.notify,
+            "Couldn't post the review",
+            where + f"{str(e)[:200]}{waiting}",
+            path=f"/reviews/{r['id']}",
+            tags="warning",
+        )
+        return None
 
 
 def auto_add(store: Store, cfg: Config, writer: DraftWriter, finding_ids: list[int]) -> int:

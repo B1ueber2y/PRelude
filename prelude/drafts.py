@@ -143,9 +143,9 @@ class DraftWriter:
         return review["id"]
 
     def post_review(
-        self, owner: str, repo: str, number: int, commit: str, threads: list[dict]
+        self, owner: str, repo: str, number: int, commit: str, threads: list[dict], body: str | None = None
     ) -> tuple[str, list[str | None]]:
-        """Post a COMMENT review of just these line comments, no review text (triggers.auto_post repos only).
+        """Post a COMMENT review of these line comments, with review text only if given (triggers.auto_post repos only).
 
         Returns the review id and each thread's comment id, in order.
         """
@@ -159,12 +159,12 @@ class DraftWriter:
                 owner,
                 repo,
                 """
-                mutation($pr: ID!, $commit: GitObjectID!, $threads: [DraftPullRequestReviewThread]!) {
-                  addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, threads: $threads, event: COMMENT}) {
+                mutation($pr: ID!, $commit: GitObjectID!, $threads: [DraftPullRequestReviewThread]!, $body: String) {
+                  addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, threads: $threads, body: $body, event: COMMENT}) {
                     pullRequestReview { id state comments(first: 100) { nodes { id path line body } } }
                   }
                 }""",
-                {"pr": pr["id"], "commit": commit, "threads": threads},
+                {"pr": pr["id"], "commit": commit, "threads": threads, "body": body},
                 post=True,
             )
             review = data["addPullRequestReview"]["pullRequestReview"]
