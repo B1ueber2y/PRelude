@@ -38,8 +38,6 @@ def _review_list(w: Web) -> dict:
         "unread": w.store.chat_unread(),
         "drafts_enabled": w.cfg.drafts.enabled,
         "repo_posts": lambda owner, repo: w.cfg.triggers.posts(f"{owner}/{repo}"),
-        "efforts": EFFORTS,
-        "cfg_effort": w.cfg.claude.effort,
     }
 
 

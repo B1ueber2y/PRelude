@@ -15,7 +15,7 @@
       <div class="meta">Found {{ r.created_at | ago }} · {{ (r.trigger_reason or '').split(':', 1)[-1].strip() }}</div>
     </a>
     <div class="waiting-actions">
-      <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-include="#post-{{ r.id }}, #effort-{{ r.id }}"
+      <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-include="#post-{{ r.id }}"
               hx-disabled-elt="this">Start review</button>
       {% if drafts_enabled %}
       <select id="post-{{ r.id }}" hx-preserve name="post" class="effort" aria-label="Where comments go">
@@ -23,10 +23,6 @@
         {% else %}<option value="0">draft</option><option value="1">post</option>{% endif %}
       </select>
       {% endif %}
-      <select id="effort-{{ r.id }}" hx-preserve name="effort" class="effort" aria-label="Effort">
-        <option value="">{{ cfg_effort or 'default' }}</option>
-        {% for e in efforts if e != cfg_effort %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
-      </select>
       <button class="btn small ghost danger dismiss" hx-post="/reviews/{{ r.id }}/delete" aria-label="Dismiss" title="Dismiss"
               hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">✕</button>
     </div>
