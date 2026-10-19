@@ -201,6 +201,7 @@ add, edit or discard.
   🔴 `[high priority]`, 🟠 `[medium priority]`, 🟡 `[low priority]` or ⚪ `[nit]`.
   `triggers.auto_post_severities` picks which comments are posted. A posted review that
   finds nothing posts one line instead: `🔍 Nothing flagged. This is not an approval.`
+  Re-reviews that find nothing post nothing.
 
 ### Subscription or API key
 

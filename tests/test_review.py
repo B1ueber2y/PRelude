@@ -459,8 +459,7 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
     review.run_review(store, cfg, again, github=FakeReader(), writer=DraftWriter(cfg, transport=quiet))
     assert quiet.posted_bodies == [
         "AI review (auto triggered): 🔍 Nothing flagged. This is not an approval.",
-        "AI review: 🔍 Nothing flagged in the changes since the last review. This is not an approval.",
-    ]
+    ]  # the clean re-review posts nothing
     assert set(quiet.reviews.values()) == {"COMMENTED"} and not quiet.comments
 
     drafted = FakeGitHub()
