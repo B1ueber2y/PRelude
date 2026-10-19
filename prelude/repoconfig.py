@@ -122,6 +122,7 @@ def configured(cfg: Config) -> list[dict[str, Any]]:
                 "since": str(since) if since else None,
                 "exempt": str(slug).lower() in t.cap_exempt,
                 "post": str(slug).lower() in t.auto_post,
+                "clean": str(slug).lower() in t.clean_note,
             }
         )
     return rows
@@ -164,7 +165,7 @@ def remove_repo(cfg: Config, slug: str) -> TriggerConfig:
         repos = _repos(t)
         if (key := _key(repos, slug)) is not None:
             del repos[key]
-        for name in ("cap_exempt", "auto_post"):
+        for name in ("cap_exempt", "auto_post", "clean_note"):
             _set_listed(t, name, slug, False)
 
     return _edit(cfg, change)
@@ -193,3 +194,8 @@ def set_cap_exempt(cfg: Config, slug: str, exempt: bool) -> TriggerConfig:
 def set_auto_post(cfg: Config, slug: str, on: bool) -> TriggerConfig:
     slug = check_pattern(slug)
     return _edit(cfg, lambda t: _set_listed(t, "auto_post", slug, on))
+
+
+def set_clean_note(cfg: Config, slug: str, on: bool) -> TriggerConfig:
+    slug = check_pattern(slug)
+    return _edit(cfg, lambda t: _set_listed(t, "clean_note", slug, on))
