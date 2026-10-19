@@ -125,18 +125,23 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
     return added, failed
 
 
+def repo_posts(cfg: Config, r) -> bool:
+    return cfg.triggers.posts(f"{r['owner']}/{r['repo']}")
+
+
 def posts(cfg: Config, r) -> bool:
     """This review is posted: your choice for it, else triggers.auto_post. Nothing goes to your draft by
     itself then, since GitHub allows one draft review per PR and it would block the next post."""
     if not cfg.drafts.enabled:
         return False
-    return bool(r["post"]) if r["post"] is not None else cfg.triggers.posts(f"{r['owner']}/{r['repo']}")
+    return bool(r["post"]) if r["post"] is not None else repo_posts(cfg, r)
 
 
 def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
     """Post a review's findings on the PR right away (triggers.auto_post). Returns those handled.
 
-    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude.
+    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude
+    (or your draft, outside repos that post).
     """
     r = store.get_review(review_id)
     t = cfg.triggers
@@ -184,7 +189,7 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             cfg.notify,
             "Couldn't post the review",
             notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
-            + f"{str(e)[:200]}; its comments wait in PRelude",
+            + f"{str(e)[:200]}; its comments wait in {'PRelude' if repo_posts(cfg, r) else 'your draft'}",
             path=f"/reviews/{review_id}",
             tags="warning",
         )

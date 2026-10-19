@@ -527,3 +527,9 @@ def test_a_review_you_chose_to_post_falls_back_to_the_draft(cfg, store, checkout
     review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=github))
     (f,) = store.findings_for(rid)
     assert f["status"] == "drafted" and not hasattr(github, "posted_bodies")  # GitHub allows one draft review
+
+    cfg.triggers.auto_post = {"b1ueber2y/prelude"}
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 2), trigger_reason="found: your PR")
+    store.update_review(rid, post=0)  # "to my draft" in a repo that posts
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=FakeGitHub()))
+    assert store.findings_for(rid)[0]["status"] == "drafted"

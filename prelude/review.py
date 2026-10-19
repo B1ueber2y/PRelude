@@ -251,10 +251,12 @@ def _repeats(f, drafts) -> bool:
     return any(same_spot(d) for d in drafts)
 
 
-def _unposted(cfg: Config, ref: PrRef, ids: list[int], handled: list[int]) -> list[int]:
-    """Findings to put in the draft: none in repos that post (a draft would block the next post),
-    else those not posted, e.g. all of them when posting a review you chose to post failed."""
-    return [] if cfg.drafts.enabled and cfg.triggers.posts(ref.slug) else [i for i in ids if i not in handled]
+def _unposted(cfg: Config, row, ids: list[int], handled: list[int]) -> list[int]:
+    """Findings to put in the draft: those not posted, e.g. all of them when posting a review you chose
+    to post failed. None when a posted review in a repo that posts fails: a draft would block the next post."""
+    if drafting.posts(cfg, row) and drafting.repo_posts(cfg, row):
+        return []
+    return [i for i in ids if i not in handled]
 
 
 def _auto_draft(
@@ -355,7 +357,9 @@ def run_review(
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
             handled = drafting.auto_post(store, cfg, writer, review_id, ids)
-            _auto_draft(store, cfg, review_id, _unposted(cfg, ref, ids, handled), writer, replace=True)
+            _auto_draft(
+                store, cfg, review_id, _unposted(cfg, store.get_review(review_id), ids, handled), writer, replace=True
+            )
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).
         store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
         store.update_review(
@@ -453,7 +457,9 @@ def add_reviewers(
         if pr.state == "open":
             writer = writer or DraftWriter(cfg)
             handled = drafting.auto_post(store, cfg, writer, review_id, ids)
-            _auto_draft(store, cfg, review_id, _unposted(cfg, ref, ids, handled), writer, replace=False)
+            _auto_draft(
+                store, cfg, review_id, _unposted(cfg, store.get_review(review_id), ids, handled), writer, replace=False
+            )
         store.update_review(
             review_id,
             progress=None,
