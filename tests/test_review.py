@@ -453,11 +453,6 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
 
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "Fine.", "findings": []}))
     quiet = FakeGitHub()
-    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="auto: your PR")
-    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=quiet))
-    assert not hasattr(quiet, "posted_bodies") and not quiet.reviews  # the note is off unless turned on
-
-    cfg.triggers.clean_note = {"b1ueber2y/prelude"}
     clean = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="auto: your PR")
     review.run_review(store, cfg, clean, github=FakeReader(), writer=DraftWriter(cfg, transport=quiet))
     again = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), previous_review_id=clean, mode="changes")
@@ -467,6 +462,12 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
         "AI review: 🔍 Nothing flagged in the changes since the last review. This is not an approval.",
     ]
     assert set(quiet.reviews.values()) == {"COMMENTED"} and not quiet.comments
+
+    drafted = FakeGitHub()
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="found: your PR")
+    store.update_review(rid, post=0)  # "to my draft" in a repo that posts
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=drafted))
+    assert not hasattr(drafted, "posted_bodies") and not drafted.reviews  # a drafted clean review posts nothing
 
     rid = review.start_review(store, cfg, ref, trigger_reason="manual", previous_review_id=rid, mode="changes")
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))

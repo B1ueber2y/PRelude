@@ -199,9 +199,8 @@ add, edit or discard.
   re-review) goes on the PR right away, as you, instead of waiting in your draft. Each
   comment starts with `AI review:` (`AI review (auto triggered):` for unattended ones) and its priority:
   🔴 `[high priority]`, 🟠 `[medium priority]`, 🟡 `[low priority]` or ⚪ `[nit]`.
-  `triggers.auto_post_severities` picks which comments are posted. With "say when nothing is
-  flagged", also off by default, a review that finds nothing posts one line instead:
-  `🔍 Nothing flagged. This is not an approval.`
+  `triggers.auto_post_severities` picks which comments are posted. A posted review that
+  finds nothing posts one line instead: `🔍 Nothing flagged. This is not an approval.`
 
 ### Subscription or API key
 
