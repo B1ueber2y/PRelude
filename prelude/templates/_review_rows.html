@@ -1,8 +1,42 @@
+{% set waiting = reviews | selectattr('status', 'equalto', 'waiting') | list %}
+{% if waiting %}
+<h2 class="section-title">Waiting for you</h2>
+<ul class="list waiting-list">
+{% for r in waiting %}
+  <li class="card review-card">
+    <a class="waiting-link" href="/reviews/{{ r.id }}">
+      <div class="card-top">
+        <span class="repo">{{ r.owner }}/{{ r.repo }}#{{ r.number }}</span>
+        {% if r.previous_review_id %}<span class="tag accent">Re-review · changes only</span>{% endif %}
+      </div>
+      {% if r.title %}<div class="card-title">{{ r.title }}</div>{% endif %}
+      <div class="meta">Found {{ r.created_at | ago }} · {{ (r.trigger_reason or '').split(':', 1)[-1].strip() }}</div>
+    </a>
+    <div class="waiting-actions">
+      <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-disabled-elt="this"
+              title="As the repo is set: posted or in your draft. Open it for more choices.">Start review</button>
+      <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+              hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">Dismiss</button>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+<div class="section-head">
+  <h2 class="section-title">Reviews</h2>
+  <div class="seg" role="group" aria-label="Which reviews to show">
+    <button class="{{ 'on' if latest_only }}" hx-post="/settings/latest-only" hx-vals='{"on": "1"}'
+            title="One card per PR: its newest review">Latest</button>
+    <button class="{{ 'on' if not latest_only }}" hx-post="/settings/latest-only" hx-vals='{"on": "0"}'
+            title="Every review, re-reviews included">All</button>
+  </div>
+</div>
+
 {% if not reviews %}
 <p class="empty-line">No reviews yet.</p>
 {% endif %}
 <ul class="list">
-{% for r in reviews %}
+{% for r in reviews if r.status != 'waiting' %}
   {% set pr_key = r.owner ~ '/' ~ r.repo ~ '#' ~ r.number %}
   {% set older = not r.newest %}
   <li>
@@ -27,7 +61,6 @@
             {%- else -%}Done{%- endif -%}
           {%- elif r.status == 'running' -%}Reviewing…
           {%- elif r.status == 'queued' -%}In line
-          {%- elif r.status == 'waiting' -%}Waiting for you
           {%- elif r.status == 'skipped' -%}Skipped
           {%- else -%}Failed{%- endif -%}
         </span>

@@ -416,6 +416,8 @@ def test_start_a_review_that_waits_for_you(client, store, cfg):
     rid = store.create_review("B1ueber2y", "PRelude", 7, "u", "found: your PR")
     store.update_review(rid, status="waiting")
     assert "Start review" in client.get(f"/reviews/{rid}").text
+    home = client.get("/reviews/rows").text
+    assert "Waiting for you" in home and f'hx-post="/reviews/{rid}/start"' in home and "Found" in home
     client.post(f"/reviews/{rid}/start", data={"post": "1", "effort": "high"})
     for _ in range(50):
         if client.started:

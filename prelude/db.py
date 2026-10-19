@@ -856,7 +856,7 @@ _CARD_COLUMNS = ", ".join(
 
 _REVIEW_EVENT = (
     "CASE status WHEN 'done' THEN 'reviewed' WHEN 'failed' THEN 'review failed'"
-    " WHEN 'skipped' THEN 'skipped' ELSE 'started' END"
+    " WHEN 'skipped' THEN 'skipped' WHEN 'waiting' THEN 'found' ELSE 'started' END"
 )
 
 ACTIONS = {
