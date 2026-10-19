@@ -56,15 +56,10 @@ def test_add_change_and_remove_keep_comments(client):
     client.post("/repos", data={"slug": "B1ueber2y/PRelude", "action": "post", "post": "1"})
     assert "auto_post: [B1ueber2y/PRelude]" in text(client.cfg) and client.cfg.triggers.posts("B1ueber2y/PRelude")
     assert "post automatically" in client.get("/repos").text
-    client.post("/repos", data={"slug": "B1ueber2y/PRelude", "action": "clean", "clean": "1"})
-    assert (
-        client.cfg.triggers.says_clean("B1ueber2y/PRelude")
-        and "say when nothing is flagged" in client.get("/repos").text
-    )
 
     client.post("/repos", data={"slug": "B1ueber2y/PRelude", "action": "remove"})
     assert "B1ueber2y/PRelude" not in text(client.cfg) and "b1ueber2y/prelude" not in client.cfg.triggers.cap_exempt
-    assert not client.cfg.triggers.posts("B1ueber2y/PRelude") and not client.cfg.triggers.clean_note
+    assert not client.cfg.triggers.posts("B1ueber2y/PRelude")
     assert client.cfg.triggers.repo_mode("B1ueber2y/PRelude") == "on_request"  # the default again
 
 

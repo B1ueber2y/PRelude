@@ -144,7 +144,7 @@ def auto_post(
 
     Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude
     (or your draft, outside repos that post).
-    With `clean_note`, a review that found nothing says so.
+    With `clean_note`, a posted review that found nothing says so.
     """
     r = store.get_review(review_id)
     t = cfg.triggers
@@ -153,7 +153,7 @@ def auto_post(
     automatic = (r["trigger_reason"] or "").startswith("auto:")
     prefix = t.auto_post_prefix if automatic else (cfg.drafts.prefix if prefix_on(store) else "")
     if not finding_ids:
-        if clean_note and t.says_clean(f"{r['owner']}/{r['repo']}") and t.auto_post_severities:
+        if clean_note and t.auto_post_severities:
             changes = r["mode"] == "changes" and r["previous_review_id"]
             note = f"🔍 Nothing flagged{' in the changes since the last review' if changes else ''}."
             _post(cfg, writer, r, [], body=_prefixed(prefix, f"{note} This is not an approval."))

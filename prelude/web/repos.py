@@ -58,9 +58,8 @@ def save_repo(
     since: str = Form(""),
     exempt: str = Form("0"),
     post: str = Form("0"),
-    clean: str = Form("0"),
 ):
-    """One change to a repo: set its mode (and since), toggle cap exemption, auto-posting or the clean note, or remove it."""
+    """One change to a repo: set its mode (and since), toggle cap exemption or auto-posting, or remove it."""
     try:
         if action == "remove":
             repoconfig.remove_repo(w.cfg, slug)
@@ -68,8 +67,6 @@ def save_repo(
             repoconfig.set_cap_exempt(w.cfg, slug, exempt == "1")
         elif action == "post":
             repoconfig.set_auto_post(w.cfg, slug, post == "1")
-        elif action == "clean":
-            repoconfig.set_clean_note(w.cfg, slug, clean == "1")
         else:
             repoconfig.set_repo(w.cfg, slug, mode, since.strip() or None)
     except repoconfig.RepoConfigError as e:

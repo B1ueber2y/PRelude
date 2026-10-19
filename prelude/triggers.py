@@ -40,7 +40,6 @@ class TriggerConfig:
     auto_post: set[str] = field(default_factory=set)  # repos whose reviews are posted, not drafted
     auto_post_severities: tuple[str, ...] = SEVERITIES
     auto_post_prefix: str = "AI review (auto triggered):"
-    clean_note: set[str] = field(default_factory=set)  # auto_post repos where a clean review says so
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any] | None) -> TriggerConfig:
@@ -75,7 +74,6 @@ class TriggerConfig:
                 str(x) for x in (SEVERITIES if raw.get("auto_post_severities") is None else raw["auto_post_severities"])
             ),
             auto_post_prefix=str(raw.get("auto_post_prefix") or "AI review (auto triggered):"),
-            clean_note={str(x).lower() for x in raw.get("clean_note") or []},
         )
         t.validate()
         return t
@@ -110,10 +108,6 @@ class TriggerConfig:
     def posts(self, slug: str) -> bool:
         """Whether automatic reviews of this repo are posted on the PR right away."""
         return any(fnmatchcase(slug.lower(), p) for p in self.auto_post)
-
-    def says_clean(self, slug: str) -> bool:
-        """Whether a review of this repo that finds nothing posts a note saying so."""
-        return self.posts(slug) and any(fnmatchcase(slug.lower(), p) for p in self.clean_note)
 
     def repo_mode(self, slug: str) -> str:
         pattern = self.repo_pattern(slug)
