@@ -189,7 +189,7 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             cfg.notify,
             "Couldn't post the review",
             notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
-            + f"{str(e)[:200]}; its comments wait in {'PRelude' if repo_posts(cfg, r) else 'your draft'}",
+            + f"{str(e)[:200]}; its comments wait in {'your draft' if cfg.drafts.auto and not repo_posts(cfg, r) else 'PRelude'}",
             path=f"/reviews/{review_id}",
             tags="warning",
         )
