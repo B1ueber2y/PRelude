@@ -251,6 +251,12 @@ def _repeats(f, drafts) -> bool:
     return any(same_spot(d) for d in drafts)
 
 
+def _unposted(cfg: Config, ref: PrRef, ids: list[int], handled: list[int]) -> list[int]:
+    """Findings to put in the draft: none in repos that post (a draft would block the next post),
+    else those not posted, e.g. all of them when posting a review you chose to post failed."""
+    return [] if cfg.drafts.enabled and cfg.triggers.posts(ref.slug) else [i for i in ids if i not in handled]
+
+
 def _auto_draft(
     store: Store, cfg: Config, review_id: int, ids: list[int], writer: DraftWriter | None, *, replace: bool
 ) -> None:
@@ -348,9 +354,8 @@ def run_review(
         if pr.state == "open":
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
-            drafting.auto_post(store, cfg, writer, review_id, ids)
-            to_draft = [] if drafting.posts(cfg, store.get_review(review_id)) else ids
-            _auto_draft(store, cfg, review_id, to_draft, writer, replace=True)
+            handled = drafting.auto_post(store, cfg, writer, review_id, ids)
+            _auto_draft(store, cfg, review_id, _unposted(cfg, ref, ids, handled), writer, replace=True)
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).
         store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
         store.update_review(
@@ -447,9 +452,8 @@ def add_reviewers(
         ids = store.add_findings(review_id, new, added_later=True)
         if pr.state == "open":
             writer = writer or DraftWriter(cfg)
-            drafting.auto_post(store, cfg, writer, review_id, ids)
-            if not drafting.posts(cfg, store.get_review(review_id)):
-                _auto_draft(store, cfg, review_id, ids, writer, replace=False)
+            handled = drafting.auto_post(store, cfg, writer, review_id, ids)
+            _auto_draft(store, cfg, review_id, _unposted(cfg, ref, ids, handled), writer, replace=False)
         store.update_review(
             review_id,
             progress=None,

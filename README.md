@@ -185,10 +185,10 @@ add, edit or discard.
 - **Finding PRs to review:** set `triggers.enabled: true` and restart; then choose repos
   on the **Repos** page. PRelude checks GitHub every few minutes, and each PR it finds
   waits for you on the home page, with a phone notification. Tap **Start review**, and
-  choose there whether its comments are posted on the PR or go to your draft; **Dismiss**
-  drops it. `prelude check` shows what would be found. New commits on a reviewed PR aren't
-  picked up, unless someone requests your review again after them: then the review covers
-  the changes since the last one.
+  choose there whether its comments are posted on the PR or go to your draft (if posting
+  fails, they go to your draft); **Dismiss** drops it. `prelude check` shows what would be
+  found. New commits on a reviewed PR aren't picked up, unless someone requests your review
+  again after them: then the review covers the changes since the last one.
 - **Starting reviews unattended** (`triggers.auto_start: true`) skips the tap; check
   Anthropic's terms on automated use first. These reviews are capped at
   `triggers.max_reviews_per_day` (20 by default, over a rolling 24 hours); the home and Repos
