@@ -77,7 +77,7 @@ def sent():
 
 @pytest.fixture
 def poller(cfg, store, reader, sent):
-    cfg.triggers = TriggerConfig.from_raw({"enabled": True, "default_mode": "on_request"})
+    cfg.triggers = TriggerConfig.from_raw({"enabled": True, "default_mode": "on_request", "auto_start": True})
     cfg.notify.ntfy_topic = "t"
     return Poller(store, cfg, reader=reader, run=lambda _id: None, sender=lambda *a: sent.append(a))
 
@@ -89,6 +89,21 @@ def test_reviews_requested_prs_once(poller, reader, store):
     assert store.get_review(rid)["trigger_reason"] == "auto: requested by bob"
     assert poller.poll_once() == []  # same head: nothing new
     assert store.watched("B1ueber2y", "PRelude", 2)["reason"] == "no review request"
+
+
+def test_found_prs_wait_for_you_to_start_them(poller, reader, store, cfg, sent):
+    cfg.triggers.auto_start = False  # the default
+    cfg.triggers.max_reviews_per_day = 1
+    reader.add(1, direct=["bob"])
+    reader.add(2, direct=["bob"])
+    first, second = poller.poll_once()  # the cap counts only reviews no one started
+    r = store.get_review(first)
+    assert (r["status"], r["trigger_reason"]) == ("waiting", "found: requested by bob")
+    assert poller.queue.empty() and not store.auto_reviews_since(0)
+    assert [a[2]["Title"] for a in sent] == ["Ready to review", "Ready to review"]
+    reader.add(1, direct=["bob"], head="h2")
+    assert poller.poll_once() == []  # still waiting: reviewed as it is when you start it
+    assert TriggerConfig.from_raw({}).auto_start is False
 
 
 def test_a_re_request_after_new_commits_gets_a_changes_only_review(poller, reader, store):

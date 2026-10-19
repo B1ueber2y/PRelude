@@ -22,7 +22,7 @@
 </form>
 
 {% if watching %}
-<p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %} · <span title="Automatic reviews in the last 24 hours, of the daily cap">{{ cap_used }}/{{ cap }} in 24 h</span>{% if cap_used >= cap %} · <span class="error">{% if cap <= 0 %}a cap of 0 pauses the automatic reviews that count toward it{% else %}cap reached{% if next_slot %}, next slot in {{ next_slot | until }}{% endif %}{% endif %}</span>{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
+<p class="hint watch">● Watching GitHub for PRs to review{% if last_poll %} · checked {{ last_poll | ago }}{% endif %}{% if not auto_start %} · they wait for you to start them{% else %} · <span title="Automatic reviews in the last 24 hours, of the daily cap">{{ cap_used }}/{{ cap }} in 24 h</span>{% if cap_used >= cap %} · <span class="error">{% if cap <= 0 %}a cap of 0 pauses the automatic reviews that count toward it{% else %}cap reached{% if next_slot %}, next slot in {{ next_slot | until }}{% endif %}{% endif %}</span>{% endif %}{% endif %}{% if poll_error %} · <span class="error">{{ poll_error }}</span>{% endif %}</p>
 {% endif %}
 <div class="section-head">
   <h2 class="section-title">Reviews</h2>

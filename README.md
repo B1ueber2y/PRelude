@@ -111,9 +111,11 @@ October 2026:
   your login, your machine, your reviews. For heavier personal use, switch to an
   [API key](#subscription-or-api-key) (billed per token).
 - **Keep it ordinary, individual usage.** Pro and Max limits "assume ordinary, individual
-  usage", and Anthropic can cap heavy or always-on background use. Automatic reviews are
-  off by default; when you turn them on, keep `max_reviews_per_day` and reviewer panels
-  modest. PRelude doesn't retry when Claude reports a usage limit.
+  usage", and Anthropic can cap heavy or always-on background use. PRelude finds PRs for
+  you but runs Claude only when you start a review; starting them unattended
+  (`triggers.auto_start`) is off by default. If you turn it on, check Anthropic's terms on
+  automated use, and keep `max_reviews_per_day` and reviewer panels modest. PRelude doesn't
+  retry when Claude reports a usage limit.
 - **Built to complement Anthropic's tools.** PRelude exists thanks to Claude Code and is
   meant to work alongside Anthropic's own offerings, such as [Code
   Review](https://code.claude.com/docs/en/code-review) for Team and Enterprise plans and the
@@ -180,17 +182,22 @@ add, edit or discard.
 - **GitHub drafts** are on out of the box: new findings start in your pending GitHub review,
   which only you see until you submit it. Set `github_drafts.auto: false` to add them
   yourself, or `github_drafts.enabled: false` to keep PRelude from writing to GitHub at all.
-- **Limited automatic reviews:** set `triggers.enabled: true` and restart; then choose repos
-  on the **Repos** page. They're capped at `triggers.max_reviews_per_day` (20 by default,
-  over a rolling 24 hours); the home and Repos pages show how much of the cap is used and
-  when the next slot frees up. Your own PRs in repos listed under `triggers.cap_exempt`
-  don't count. `prelude check` shows what would be reviewed, without starting anything.
-  New commits on a reviewed PR aren't reviewed automatically, unless someone requests your
-  review again after them: then PRelude reviews the changes since its last review.
+- **Finding PRs to review:** set `triggers.enabled: true` and restart; then choose repos
+  on the **Repos** page. PRelude checks GitHub every few minutes, and each PR it finds
+  waits for you on the home page, with a phone notification. Tap **Start review**, and
+  choose there whether its comments are posted on the PR or go to your draft (in repos that
+  don't post automatically, a failed post goes to your draft); **Dismiss** drops it. `prelude check` shows what would be
+  found. New commits on a reviewed PR aren't picked up, unless someone requests your review
+  again after them: then the review covers the changes since the last one.
+- **Starting reviews unattended** (`triggers.auto_start: true`) skips the tap; check
+  Anthropic's terms on automated use first. These reviews are capped at
+  `triggers.max_reviews_per_day` (20 by default, over a rolling 24 hours); the home and Repos
+  pages show how much of the cap is used. Your own PRs in repos listed under
+  `triggers.cap_exempt` don't count.
 - **Posting automatically** is off for every repo. On the **Repos** page, "post automatically"
-  turns it on for one repo: every review there (automatic, started by you, or a re-review)
-  goes on the PR right away, as you, instead of waiting in your draft. Each comment starts
-  with `AI review (auto triggered):` (`AI review:` for reviews you start) and its priority:
+  turns it on for one repo: every review there (found by PRelude, started by you, or a
+  re-review) goes on the PR right away, as you, instead of waiting in your draft. Each
+  comment starts with `AI review:` (`AI review (auto triggered):` for unattended ones) and its priority:
   🔴 `[high priority]`, 🟠 `[medium priority]`, 🟡 `[low priority]` or ⚪ `[nit]`.
   `triggers.auto_post_severities` picks which comments are posted. With "say when nothing is
   flagged", also off by default, a review that finds nothing posts one line instead:
@@ -241,8 +248,8 @@ Everything also works without the web UI; `N` is the number `prelude findings` s
   limit, and you still read every comment before you submit it (except in repos you set to
   post automatically, where anyone who opens a PR gets Claude's comments posted as you).
 - GitHub writes are limited to the reviewer's own pending review (add, edit, delete a
-  draft comment). PRelude submits a review only in repos you set to post automatically,
-  and then only as comments, never an approval or a request for changes; tests enforce it.
+  draft comment). PRelude submits a review only in repos you set to post automatically, or
+  when you choose to post one, and then only as comments, never an approval or a request for changes; tests enforce it.
 
 ## Contributing
 

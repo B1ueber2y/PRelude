@@ -74,6 +74,9 @@ triggers:
   max_reviews_per_day: 20
   cap_exempt: []                  # repos (patterns ok) where your own PRs don't count toward the cap
   requests_since: null            # e.g. 2026-10-10: ignore review requests on older PRs
+  # PRs found by polling wait for you to start their review (one tap). true starts them
+  # right away, with no one in the loop; on a Claude subscription, check Anthropic's terms first.
+  auto_start: false
   # Repos (patterns ok) whose reviews are posted on the PR right away, as you, instead of
   # waiting in your draft: automatic ones, ones you start, and re-reviews. Off unless listed.
   auto_post: []

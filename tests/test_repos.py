@@ -163,6 +163,8 @@ def test_cap_toggle_says_it_is_for_your_own_prs(client):
 def test_cap_usage_by_repo_and_next_free_slot(client, store):
     import time
 
+    client.cfg.triggers.auto_start = True  # the cap is shown only for unattended reviews
+
     def auto(owner, repo, reason, hours_ago):
         rid = store.create_review(owner, repo, 1, "u", f"auto: {reason}")
         store.update_review(rid, created_at=time.time() - hours_ago * 3600)
@@ -204,5 +206,6 @@ def test_next_slot_when_the_cap_is_full_or_exceeded(store):
 
 def test_a_cap_of_zero_says_it_pauses_reviews(client):
     client.cfg.triggers.max_reviews_per_day = 0
+    client.cfg.triggers.auto_start = True
     page = client.get("/repos").text
     assert "<strong>0/0</strong>" in page and "a cap of 0 pauses" in page

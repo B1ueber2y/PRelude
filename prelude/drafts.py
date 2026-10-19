@@ -2,8 +2,8 @@
 
 Only the four GraphQL mutations below can be sent. A review is never submitted: no
 `event` is passed, and after each write the review is checked to still be PENDING. The one
-exception is `post_review`, for repos in triggers.auto_post: a COMMENT review, never an
-approval or a request for changes.
+exception is `post_review`, for repos in triggers.auto_post or a review you chose to post:
+a COMMENT review, never an approval or a request for changes.
 """
 
 from __future__ import annotations
@@ -143,13 +143,21 @@ class DraftWriter:
         return review["id"]
 
     def post_review(
-        self, owner: str, repo: str, number: int, commit: str, threads: list[dict], body: str | None = None
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        commit: str,
+        threads: list[dict],
+        body: str | None = None,
+        chosen: bool = False,
     ) -> tuple[str, list[str | None]]:
-        """Post a COMMENT review of these line comments, with review text only if given (triggers.auto_post repos only).
+        """Post a COMMENT review of these line comments, with review text only if given: in triggers.auto_post
+        repos, or where you chose to post this review (`chosen`).
 
         Returns the review id and each thread's comment id, in order.
         """
-        if not self.cfg.triggers.posts(f"{owner}/{repo}"):
+        if not (chosen or self.cfg.triggers.posts(f"{owner}/{repo}")):
             raise DraftError(f"{owner}/{repo} isn't set to post automatically")
         pr = self._pr(owner, repo, number)
         if any(r["viewerDidAuthor"] for r in pr["reviews"]["nodes"]):

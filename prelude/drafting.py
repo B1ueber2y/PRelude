@@ -125,10 +125,16 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
     return added, failed
 
 
-def posts(cfg: Config, owner: str, repo: str) -> bool:
-    """Reviews of this repo are posted (triggers.auto_post); nothing goes to your draft by itself there,
-    since GitHub allows one draft review per PR and it would block the next post."""
-    return cfg.drafts.enabled and cfg.triggers.posts(f"{owner}/{repo}")
+def repo_posts(cfg: Config, r) -> bool:
+    return cfg.triggers.posts(f"{r['owner']}/{r['repo']}")
+
+
+def posts(cfg: Config, r) -> bool:
+    """This review is posted: your choice for it, else triggers.auto_post. Nothing goes to your draft by
+    itself then, since GitHub allows one draft review per PR and it would block the next post."""
+    if not cfg.drafts.enabled:
+        return False
+    return bool(r["post"]) if r["post"] is not None else repo_posts(cfg, r)
 
 
 def auto_post(
@@ -136,12 +142,13 @@ def auto_post(
 ) -> list[int]:
     """Post a review's findings on the PR right away (triggers.auto_post). Returns those handled.
 
-    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude.
+    Only line comments of the chosen severities; the rest, or all of them if GitHub refuses, wait in PRelude
+    (or your draft, outside repos that post).
     With `clean_note`, a review that found nothing says so.
     """
     r = store.get_review(review_id)
     t = cfg.triggers
-    if not posts(cfg, r["owner"], r["repo"]):
+    if not posts(cfg, r):
         return []
     automatic = (r["trigger_reason"] or "").startswith("auto:")
     prefix = t.auto_post_prefix if automatic else (cfg.drafts.prefix if prefix_on(store) else "")
@@ -169,7 +176,8 @@ def auto_post(
         if f["start_line"]:
             thread.update(startLine=f["start_line"], startSide=f["side"])
         threads.append(thread)
-    result = _post(cfg, writer, r, threads, waiting="; its comments wait in PRelude")
+    waiting = "your draft" if cfg.drafts.auto and not repo_posts(cfg, r) else "PRelude"
+    result = _post(cfg, writer, r, threads, waiting=f"; its comments wait in {waiting}")
     if result is None:
         return []
     if result is _UNCERTAIN:  # may be on the PR already: leave them to review, not in a draft too
@@ -194,13 +202,15 @@ def _post(cfg: Config, writer: DraftWriter, r, threads: list[dict], body: str | 
     """Post a review, telling the reviewer if that fails. Returns GitHub's ids, None, or _UNCERTAIN."""
     where = notify.pr_prefix(cfg.notify, f"{r['owner']}/{r['repo']}#{r['number']}", r["title"])
     try:
-        return writer.post_review(r["owner"], r["repo"], r["number"], r["head_sha"], threads, body=body)
+        return writer.post_review(
+            r["owner"], r["repo"], r["number"], r["head_sha"], threads, body=body, chosen=bool(r["post"])
+        )
     except PostUncertain:
         log.warning("posting review %s automatically may have failed", r["id"], exc_info=True)
         notify.send(
             cfg.notify,
             "Check the PR",
-            where + f"posting the review may have failed{waiting}",
+            where + "posting the review may have failed" + ("; its comments wait in PRelude" if waiting else ""),
             path=f"/reviews/{r['id']}",
             tags="warning",
             link=r["url"],

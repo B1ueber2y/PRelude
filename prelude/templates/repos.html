@@ -5,13 +5,13 @@
 <div id="repos-body" hx-target="#repos-body" hx-select="#repos-body" hx-swap="outerHTML">
 <h1>Repos</h1>
 <p class="hint">
-  Automatic reviews are <strong>{{ 'on' if t.enabled else 'off' }}</strong>{% if not t.enabled %} (turn on <code>triggers.enabled</code> in config.yaml and restart){% endif %}.
-  Repos not listed: <strong>{{ t.default_mode | replace('_', ' ') }}</strong>. Cap: <strong>{{ cap_used }}/{{ t.max_reviews_per_day }}</strong> automatic reviews used in the last 24 hours{% if cap_used >= t.max_reviews_per_day %}; {% if t.max_reviews_per_day <= 0 %}a cap of 0 pauses the automatic reviews that count toward it{% else %}full{% if next_slot %}, the next slot frees up in {{ next_slot | until }}{% endif %}{% endif %}{% endif %}.
+  Finding PRs to review is <strong>{{ 'on' if t.enabled else 'off' }}</strong>{% if not t.enabled %} (turn on <code>triggers.enabled</code> in config.yaml and restart){% endif %}{% if not t.auto_start %}; each one waits for you to start its review{% endif %}.
+  Repos not listed: <strong>{{ t.default_mode | replace('_', ' ') }}</strong>.{% if t.auto_start %} Cap: <strong>{{ cap_used }}/{{ t.max_reviews_per_day }}</strong> automatic reviews used in the last 24 hours{% if cap_used >= t.max_reviews_per_day %}; {% if t.max_reviews_per_day <= 0 %}a cap of 0 pauses the automatic reviews that count toward it{% else %}full{% if next_slot %}, the next slot frees up in {{ next_slot | until }}{% endif %}{% endif %}{% endif %}.{% endif %}
 </p>
 <p class="hint">
   <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}{% if t.always %}, except requests from your always list{% endif %}.
   <strong>My PRs skip the cap</strong>: your own PRs there don't count toward the daily cap (others' still do).
-  <strong>Post automatically</strong>: every review there, automatic or started by you, goes on the PR right away, as you, instead of waiting in your draft. Each comment starts with <code>{{ t.auto_post_prefix }}</code> (reviews you start: your draft prefix) and its priority, like 🔴 [high priority] or ⚪ [nit]. With <strong>say when nothing is flagged</strong>, a review that finds nothing posts 🔍 Nothing flagged. This is not an approval.
+  <strong>Post automatically</strong>: every review there goes on the PR right away, as you, instead of waiting in your draft (you can choose otherwise when you start one). Each comment starts with your draft prefix{% if t.auto_start %} (unattended reviews: <code>{{ t.auto_post_prefix }}</code>){% endif %} and its priority, like 🔴 [high priority] or ⚪ [nit]. With <strong>say when nothing is flagged</strong>, a review that finds nothing posts 🔍 Nothing flagged. This is not an approval.
 </p>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
