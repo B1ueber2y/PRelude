@@ -18,12 +18,12 @@
       <button class="btn small primary" hx-post="/reviews/{{ r.id }}/start" hx-include="#post-{{ r.id }}, #effort-{{ r.id }}"
               hx-disabled-elt="this">Start review</button>
       {% if drafts_enabled %}
-      <select id="post-{{ r.id }}" name="post" class="effort" aria-label="Where comments go">
+      <select id="post-{{ r.id }}" hx-preserve name="post" class="effort" aria-label="Where comments go">
         {% if repo_posts(r.owner, r.repo) %}<option value="1">post</option><option value="0">draft</option>
         {% else %}<option value="0">draft</option><option value="1">post</option>{% endif %}
       </select>
       {% endif %}
-      <select id="effort-{{ r.id }}" name="effort" class="effort" aria-label="Effort">
+      <select id="effort-{{ r.id }}" hx-preserve name="effort" class="effort" aria-label="Effort">
         <option value="">{{ cfg_effort or 'default' }}</option>
         {% for e in efforts if e != cfg_effort %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
       </select>
