@@ -12,7 +12,7 @@ is not applicable.**
 </p>
 <h3 align="center">Phone</h3>
 <p align="center">
-  <img src="docs/images/phones.png" width="70%" alt="On a phone: the review list, a review with its first finding, and one finding with the code, why Claude flagged it and your wording">
+  <img src="docs/images/phones.png" width="70%" alt="On a phone: PRs waiting for you to start their review above the review list, a review with its first finding, and one finding with the code, why Claude flagged it and your wording">
 </p>
 
 AI reviewers are good at finding problems and bad at knowing which ones matter to *you*.
