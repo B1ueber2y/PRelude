@@ -23,8 +23,8 @@
         {% else %}<option value="0">draft</option><option value="1">post</option>{% endif %}
       </select>
       {% endif %}
-      <button class="btn small ghost danger dismiss" hx-post="/reviews/{{ r.id }}/delete" aria-label="Dismiss" title="Dismiss"
-              hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">✕</button>
+      <button class="btn small ghost danger dismiss" hx-post="/reviews/{{ r.id }}/delete"
+              hx-confirm="Dismiss this PR? PRelude won't bring it back by itself; you can still review it with its link.">Dismiss</button>
     </div>
   </li>
 {% endfor %}
