@@ -417,7 +417,7 @@ def test_start_a_review_that_waits_for_you(client, store, cfg):
     store.update_review(rid, status="waiting")
     assert "Start review" in client.get(f"/reviews/{rid}").text
     home = client.get("/reviews/rows").text
-    assert "Waiting for you" in home and f'hx-post="/reviews/{rid}/start"' in home and "Found" in home
+    assert "Waiting for you" in home and f'hx-post="/reviews/{rid}/start"' in home and "your PR · " in home
     assert "No reviews yet." in home  # only waiting ones so far
     client.post(f"/reviews/{rid}/start", data={"post": "1", "effort": "high"})
     for _ in range(50):

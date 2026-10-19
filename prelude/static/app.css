@@ -707,6 +707,8 @@ kbd { font: 0.72rem var(--mono); padding: 0 5px; border: 1px solid var(--border)
 .callout.waiting { flex-direction: column; gap: 4px; }
 .waiting-list { margin-bottom: 18px; }
 .waiting-link { display: block; color: inherit; text-decoration: none; }
-.waiting-actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.waiting-list .card { padding: 9px 12px; }
+.waiting-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.waiting-actions .btn.small, .waiting-actions select.effort { min-height: 28px; font-size: 0.82rem; }
 .waiting-actions .effort { min-width: 0; }
 .waiting-actions .dismiss { margin-left: auto; padding: 0 8px; }
