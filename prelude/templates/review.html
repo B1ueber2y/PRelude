@@ -16,7 +16,7 @@
   {%- set auto = r.trigger_reason.startswith('auto:') -%}
   {%- set found = r.trigger_reason.startswith('found:') -%}
   {%- set why = r.trigger_reason.split(':', 1)[1].strip() if auto or found else r.trigger_reason -%}
-  <div class="meta">{{ 'Found' if r.status == 'waiting' else 'Started' }}: {{ 'Auto' if auto else ('By PRelude, started by you' if found and r.status != 'waiting' else ('By PRelude' if found else 'Manual')) }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %}{% if r.effort %} · {{ r.effort }} effort{% endif %} · {{ why }}</div>
+  <div class="meta">{{ 'Found' if r.status == 'waiting' else 'Started' }}: {{ 'Auto' if auto else ('By PRelude, started by you' if found and r.status != 'waiting' else ('By PRelude' if found else 'Manual')) }}{% if r.reviewers and r.status != 'waiting' %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %}{% if r.effort %} · {{ r.effort }} effort{% endif %} · {{ why }}</div>
   {%- endif %}
 </section>
 

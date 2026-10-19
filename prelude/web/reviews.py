@@ -36,6 +36,8 @@ def _review_list(w: Web) -> dict:
         "latest_only": latest_only,
         "earlier": w.store.earlier_reviews() if latest_only else {},
         "unread": w.store.chat_unread(),
+        "drafts_enabled": w.cfg.drafts.enabled,
+        "repo_posts": lambda owner, repo: w.cfg.triggers.posts(f"{owner}/{repo}"),
     }
 
 
