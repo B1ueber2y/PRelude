@@ -15,7 +15,7 @@ from .config import Config
 from .db import Store
 from .github import GitHubReader, PrRef
 from .guard import RepoNotAllowed
-from .review import run_review, start_review
+from .review import FOUND, run_review, start_review
 from .triggers import Candidate, TriggerConfig, decide
 
 log = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class Poller:
         return pr, ok, reason, mine
 
     def poll_once(self) -> list[int]:
-        """Check GitHub once; returns the ids of reviews queued."""
+        """Check GitHub once; returns the ids of reviews queued, or left waiting for you."""
         t = self.cfg.triggers
         queued = []
         for (owner, repo, number), item in self.candidates().items():
@@ -153,19 +153,22 @@ class Poller:
                 if seen and seen["reviewed_sha"] and not again:
                     continue  # new commits on a reviewed PR: shown in the app, re-review is your call
                 latest = self.store.latest_review_for(owner, repo, number, done_only=False)
+                if latest and latest["status"] == "waiting":
+                    continue  # still waiting for you; you'll review the PR as it is then
                 if latest and latest["status"] in ("queued", "running"):
                     # Already being reviewed (e.g. by hand); it marks the PR reviewed when done. Look
                     # again next round in case it fails.
                     self.store.set_watched(owner, repo, number, updated_at=None, head_sha=None)
                     continue
-                if t.counts_toward_cap(ref.slug, reason) and self._capped_today() >= t.max_reviews_per_day:
+                ask = not t.auto_start  # you start it: the cap is for reviews no one started
+                if not ask and t.counts_toward_cap(ref.slug, reason) and self._capped_today() >= t.max_reviews_per_day:
                     log.info("daily cap reached; not reviewing %s", ref.slug)
                     continue
                 review_id = start_review(
                     self.store,
                     self.cfg,
                     ref,
-                    trigger_reason=f"auto: {reason}",
+                    trigger_reason=f"{FOUND} {reason}" if ask else f"auto: {reason}",
                     previous_review_id=again[0]["id"] if again else None,
                     mode="changes" if again else "full",
                 )
@@ -173,7 +176,19 @@ class Poller:
                     self.store.set_watched(owner, repo, number, request_used=again[2])
                 self.store.update_review(review_id, title=pr.title, author=pr.author)  # shown while queued
                 self.store.set_watched(owner, repo, number, reviewed_sha=pr.head_sha)
-                self.queue.put(review_id)
+                if ask:
+                    self.store.update_review(review_id, status="waiting")
+                    notify.send(
+                        self.cfg.notify,
+                        "Ready to review",
+                        notify.pr_prefix(self.cfg.notify, f"{ref.slug}#{number}", pr.title)
+                        + (reason if self.cfg.notify.details != "none" else "a PR waits for you"),
+                        path=f"/reviews/{review_id}",
+                        tags="eyes",
+                        sender=self.sender,
+                    )
+                else:
+                    self.queue.put(review_id)
                 queued.append(review_id)
             except RepoNotAllowed:
                 continue

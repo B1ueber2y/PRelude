@@ -406,3 +406,23 @@ def test_review_again_with_a_chosen_effort(client, done_review, store):
     assert "high effort" in client.get(f"/reviews/{new_id}").text
     r = client.post(f"/reviews/{done_review}/again", data={"mode": "full"})
     assert store.get_review(int(r.headers["HX-Redirect"].rsplit("/", 1)[1]))["effort"] is None  # config default
+
+
+def test_start_a_review_that_waits_for_you(client, store, cfg):
+    import time
+
+    from prelude import drafting
+
+    rid = store.create_review("B1ueber2y", "PRelude", 7, "u", "found: your PR")
+    store.update_review(rid, status="waiting")
+    assert "Start review" in client.get(f"/reviews/{rid}").text
+    client.post(f"/reviews/{rid}/start", data={"post": "1", "effort": "high"})
+    for _ in range(50):
+        if client.started:
+            break
+        time.sleep(0.01)
+    r = store.get_review(rid)
+    assert client.started == [rid] and (r["status"], r["post"], r["effort"]) == ("queued", 1, "high")
+    cfg.drafts.enabled = True
+    assert drafting.posts(cfg, r) and not cfg.triggers.posts("B1ueber2y/PRelude")  # your choice for this one
+    assert "waiting any more" in client.post(f"/reviews/{rid}/start").text  # started once

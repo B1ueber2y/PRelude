@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   base_sha TEXT,
   head_sha TEXT,
   merge_base TEXT,
-  status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed | skipped
+  status TEXT NOT NULL DEFAULT 'queued',   -- waiting (for you to start) | queued | running | done | failed | skipped
   progress TEXT,
   error TEXT,
   error_detail TEXT,                       -- full trace for the "Technical details" view
@@ -211,6 +211,7 @@ class Store:
                     "pr_comments": "TEXT",
                     "comment_status": "TEXT",
                     "effort": "TEXT",  # chosen for this review; NULL: claude.effort
+                    "post": "INTEGER",  # 1 post on the PR, 0 your draft; NULL: triggers.auto_post
                 },
             )
 
@@ -320,6 +321,15 @@ class Store:
                 "UPDATE reviews SET progress = ?, error = NULL, runner_pid = ?, updated_at = ?"
                 " WHERE id = ? AND status = 'done' AND progress IS NULL",
                 (progress, os.getpid(), time.time(), review_id),
+            )
+            return cur.rowcount == 1
+
+    def start_waiting(self, review_id: int) -> bool:
+        """Queue a review that waits for you; False if it isn't waiting (atomic)."""
+        with self.connect() as c:
+            cur = c.execute(
+                "UPDATE reviews SET status = 'queued', runner_pid = ?, updated_at = ? WHERE id = ? AND status = 'waiting'",
+                (os.getpid(), time.time(), review_id),
             )
             return cur.rowcount == 1
 
