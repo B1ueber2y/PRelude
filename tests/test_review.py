@@ -463,6 +463,12 @@ def test_auto_post_repos_post_every_review_and_draft_nothing(cfg, store, checkou
     ]
     assert set(quiet.reviews.values()) == {"COMMENTED"} and not quiet.comments
 
+    drafted = FakeGitHub()
+    rid = review.start_review(store, cfg, PrRef("B1ueber2y", "PRelude", 3), trigger_reason="found: your PR")
+    store.update_review(rid, post=0)  # "to my draft" in a repo that posts
+    review.run_review(store, cfg, rid, github=FakeReader(), writer=DraftWriter(cfg, transport=drafted))
+    assert not hasattr(drafted, "posted_bodies") and not drafted.reviews  # a drafted clean review posts nothing
+
     rid = review.start_review(store, cfg, ref, trigger_reason="manual", previous_review_id=rid, mode="changes")
     monkeypatch.setenv("FAKE_CLAUDE_STRUCTURED", json.dumps({"summary": "s", "findings": [FINDING]}))
     review.run_review(store, cfg, rid, github=FakeReader(), writer=writer)  # started by hand, a re-review: posted too
