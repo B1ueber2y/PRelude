@@ -356,7 +356,7 @@ def run_review(
         if pr.state == "open":
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
-            handled = drafting.auto_post(store, cfg, writer, review_id, ids)
+            handled = drafting.auto_post(store, cfg, writer, review_id, ids, clean_note=True)
             _auto_draft(
                 store, cfg, review_id, _unposted(cfg, store.get_review(review_id), ids, handled), writer, replace=True
             )

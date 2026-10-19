@@ -82,6 +82,7 @@ triggers:
   auto_post: []
   auto_post_severities: [high, medium, low, nit]
   auto_post_prefix: "AI review (auto triggered):"
+  clean_note: []                  # auto_post repos where a review that finds nothing posts "🔍 Nothing flagged"
 
 # Phone notifications via the ntfy app. Run `prelude notify-setup` to create a topic.
 notify:

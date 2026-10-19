@@ -11,7 +11,7 @@
 <p class="hint">
   <strong>all PRs</strong>: every new PR opened since the date · <strong>on request</strong>: when someone asks for your review{% if t.own_prs %}, plus your own PRs{% endif %} · <strong>never</strong>: {{ 'not even your own PRs' if t.own_prs else 'nothing' }}{% if t.always %}, except requests from your always list{% endif %}.
   <strong>My PRs skip the cap</strong>: your own PRs there don't count toward the daily cap (others' still do).
-  <strong>Post automatically</strong>: every review there goes on the PR right away, as you, instead of waiting in your draft (you can choose otherwise when you start one). Each comment starts with your draft prefix{% if t.auto_start %} (unattended reviews: <code>{{ t.auto_post_prefix }}</code>){% endif %} and its priority, like 🔴 [high priority] or ⚪ [nit].
+  <strong>Post automatically</strong>: every review there goes on the PR right away, as you, instead of waiting in your draft (you can choose otherwise when you start one). Each comment starts with your draft prefix{% if t.auto_start %} (unattended reviews: <code>{{ t.auto_post_prefix }}</code>){% endif %} and its priority, like 🔴 [high priority] or ⚪ [nit]. With <strong>say when nothing is flagged</strong>, a review that finds nothing posts 🔍 Nothing flagged. This is not an approval.
 </p>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
@@ -62,6 +62,13 @@
                hx-vals='js:{slug: "{{ r.slug }}", action: "post", post: event.target.checked ? "1" : "0"}'>
         post automatically
       </label>
+      {% if r.post %}
+      <label class="toggle" title="A review that finds nothing posts a one-line note saying so">
+        <input type="checkbox" {{ 'checked' if r.clean }} hx-post="/repos" hx-trigger="change"
+               hx-vals='js:{slug: "{{ r.slug }}", action: "clean", clean: event.target.checked ? "1" : "0"}'>
+        say when nothing is flagged
+      </label>
+      {% endif %}
     </div>
   </li>
 {% endfor %}
