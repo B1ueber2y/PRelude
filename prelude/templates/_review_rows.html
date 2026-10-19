@@ -27,6 +27,7 @@
             {%- else -%}Done{%- endif -%}
           {%- elif r.status == 'running' -%}Reviewing…
           {%- elif r.status == 'queued' -%}In line
+          {%- elif r.status == 'waiting' -%}Waiting for you
           {%- elif r.status == 'skipped' -%}Skipped
           {%- else -%}Failed{%- endif -%}
         </span>

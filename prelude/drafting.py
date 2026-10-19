@@ -125,10 +125,12 @@ def add_all(store: Store, cfg: Config, writer: DraftWriter, review_id: int) -> t
     return added, failed
 
 
-def posts(cfg: Config, owner: str, repo: str) -> bool:
-    """Reviews of this repo are posted (triggers.auto_post); nothing goes to your draft by itself there,
-    since GitHub allows one draft review per PR and it would block the next post."""
-    return cfg.drafts.enabled and cfg.triggers.posts(f"{owner}/{repo}")
+def posts(cfg: Config, r) -> bool:
+    """This review is posted: your choice for it, else triggers.auto_post. Nothing goes to your draft by
+    itself then, since GitHub allows one draft review per PR and it would block the next post."""
+    if not cfg.drafts.enabled:
+        return False
+    return bool(r["post"]) if r["post"] is not None else cfg.triggers.posts(f"{r['owner']}/{r['repo']}")
 
 
 def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, finding_ids: list[int]) -> list[int]:
@@ -138,7 +140,7 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
     """
     r = store.get_review(review_id)
     t = cfg.triggers
-    if not posts(cfg, r["owner"], r["repo"]):
+    if not posts(cfg, r):
         return []
     picked = [
         f
@@ -161,7 +163,9 @@ def auto_post(store: Store, cfg: Config, writer: DraftWriter, review_id: int, fi
             thread.update(startLine=f["start_line"], startSide=f["side"])
         threads.append(thread)
     try:
-        gh_review, comment_ids = writer.post_review(r["owner"], r["repo"], r["number"], r["head_sha"], threads)
+        gh_review, comment_ids = writer.post_review(
+            r["owner"], r["repo"], r["number"], r["head_sha"], threads, chosen=bool(r["post"])
+        )
     except PostUncertain:  # may be on the PR already: leave them to review, not in a draft too
         log.warning("posting review %s automatically may have failed", review_id, exc_info=True)
         notify.send(

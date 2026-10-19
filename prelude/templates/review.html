@@ -14,8 +14,9 @@
   {% endif %}
   {% if r.trigger_reason %}
   {%- set auto = r.trigger_reason.startswith('auto:') -%}
-  {%- set why = r.trigger_reason[5:].strip() if auto else r.trigger_reason -%}
-  <div class="meta">Started: {{ 'Auto' if auto else 'Manual' }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %}{% if r.effort %} · {{ r.effort }} effort{% endif %} · {{ why }}</div>
+  {%- set found = r.trigger_reason.startswith('found:') -%}
+  {%- set why = r.trigger_reason.split(':', 1)[1].strip() if auto or found else r.trigger_reason -%}
+  <div class="meta">{{ 'Found' if r.status == 'waiting' else 'Started' }}: {{ 'Auto' if auto else ('By PRelude, started by you' if found and r.status != 'waiting' else ('By PRelude' if found else 'Manual')) }}{% if r.reviewers %} ({{ r.reviewers }} reviewer{{ '' if r.reviewers == 1 else 's' }}{{ ' + meta-review' if r.reviewers > 1 }}){% endif %}{% if r.effort %} · {{ r.effort }} effort{% endif %} · {{ why }}</div>
   {%- endif %}
 </section>
 
@@ -86,6 +87,23 @@
 <div hx-get="/reviews/{{ r.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
   {% include "_review_status.html" %}
 </div>
+{% elif r.status == 'waiting' %}
+<section class="callout small waiting">
+  <p>PRelude found this PR; Claude hasn't looked at it yet. Starting the review checks the PR as it is now.</p>
+  <div class="again">
+    <button class="btn primary" hx-post="/reviews/{{ r.id }}/start" hx-include="#start-post, #start-effort" hx-disabled-elt="this">Start review</button>
+    <select id="start-post" name="post" class="effort" aria-label="Where comments go">
+      {% if repo_posts %}<option value="1">post on the PR</option><option value="0">to my draft</option>
+      {% else %}<option value="0">to my draft</option><option value="1">post on the PR</option>{% endif %}
+    </select>
+    <select id="start-effort" name="effort" class="effort" aria-label="Effort">
+      <option value="">{{ cfg_effort or 'default' }} effort</option>
+      {% for e in efforts if e != cfg_effort %}<option value="{{ e }}">{{ e }} effort</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn small ghost danger" hx-post="/reviews/{{ r.id }}/delete"
+          hx-confirm="Dismiss this PR? PRelude won't ask about it again unless your review is requested again.">Dismiss</button>
+</section>
 {% elif r.status == 'skipped' %}
 <p class="callout small">{{ r.error }}</p>
 {% elif r.status == 'failed' %}

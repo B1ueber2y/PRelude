@@ -37,6 +37,8 @@ from .workspace import Checkout, diff_between, prepare_checkout
 
 log = logging.getLogger(__name__)
 
+FOUND = "found:"  # trigger_reason prefix of a review the poller found and left for you to start
+
 
 def start_review(
     store: Store,
@@ -295,7 +297,7 @@ def run_review(
         store.update_review(review_id, progress="Reading the PR from GitHub")
         github = github or GitHubReader(cfg)
         pr = github.pull_request(ref)
-        if pr.state != "open" and (row["trigger_reason"] or "").startswith("auto:"):
+        if pr.state != "open" and (row["trigger_reason"] or "").startswith(("auto:", FOUND)):
             store.update_review(
                 review_id,
                 status="skipped",
@@ -347,7 +349,7 @@ def run_review(
             store.supersede_untouched(review_id)
             writer = writer or DraftWriter(cfg)
             drafting.auto_post(store, cfg, writer, review_id, ids)
-            to_draft = [] if drafting.posts(cfg, ref.owner, ref.repo) else ids
+            to_draft = [] if drafting.posts(cfg, store.get_review(review_id)) else ids
             _auto_draft(store, cfg, review_id, to_draft, writer, replace=True)
         # Reviewed: the poller won't start its own review of this PR (new commits are your call).
         store.set_watched(ref.owner, ref.repo, ref.number, reviewed_sha=pr.head_sha)
@@ -446,7 +448,7 @@ def add_reviewers(
         if pr.state == "open":
             writer = writer or DraftWriter(cfg)
             drafting.auto_post(store, cfg, writer, review_id, ids)
-            if not drafting.posts(cfg, ref.owner, ref.repo):
+            if not drafting.posts(cfg, store.get_review(review_id)):
                 _auto_draft(store, cfg, review_id, ids, writer, replace=False)
         store.update_review(
             review_id,

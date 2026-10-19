@@ -52,6 +52,7 @@ def _index(request: Request, w: Web, **extra) -> HTMLResponse:
             "last_poll": float(last_poll) if last_poll else None,
             "cap_used": reviews_toward_cap(w.store, w.cfg.triggers),
             "cap": w.cfg.triggers.max_reviews_per_day,
+            "auto_start": w.cfg.triggers.auto_start,
             "next_slot": next_cap_slot(w.store, w.cfg.triggers),
             "poll_error": w.store.setting(LAST_ERROR, ""),
             **extra,
@@ -116,6 +117,7 @@ def review_page(w: WebDep, request: Request, review_id: int, show: str | None = 
             "counts": counts,
             "efforts": EFFORTS,
             "cfg_effort": w.cfg.claude.effort,
+            "repo_posts": drafting.posts(w.cfg, r),
             "drafts_enabled": w.cfg.drafts.enabled,
             "drafts_auto": w.cfg.drafts.auto,
             "prefix_on": drafting.prefix_on(w.store),
@@ -207,6 +209,19 @@ def review_again(w: WebDep, review_id: int, mode: str = Form("full"), effort: st
         return w.flash(str(e))
     threading.Thread(target=w.run_review, args=(new_id,), daemon=True, name=f"review-{new_id}").start()
     return Response(status_code=204, headers={"HX-Redirect": f"/reviews/{new_id}"})
+
+
+@router.post("/reviews/{review_id}/start")
+def start_waiting(w: WebDep, review_id: int, post: str = Form(""), effort: str = Form("")):
+    """Start a review the poller left waiting for you: posted or drafted as chosen, else as the repo says."""
+    w.review_or_404(review_id)
+    if effort and effort not in EFFORTS:
+        return w.flash(f"unknown effort {effort!r}")
+    if not w.store.start_waiting(review_id):
+        return w.flash("This review isn't waiting any more.")
+    w.store.update_review(review_id, post={"1": 1, "0": 0}.get(post), effort=effort or None)
+    threading.Thread(target=w.run_review, args=(review_id,), daemon=True, name=f"review-{review_id}").start()
+    return Response(status_code=204, headers={"HX-Refresh": "true"})
 
 
 @router.post("/reviews/{review_id}/clear-leftovers")

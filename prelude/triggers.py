@@ -36,6 +36,7 @@ class TriggerConfig:
     max_reviews_per_day: int = 20
     cap_exempt: set[str] = field(default_factory=set)  # repos where your own PRs don't count toward the cap
     requests_since: str | None = None  # ISO date: ignore review requests on PRs opened before it
+    auto_start: bool = False  # start reviews of PRs found by polling; otherwise they wait for you
     auto_post: set[str] = field(default_factory=set)  # repos whose reviews are posted, not drafted
     auto_post_severities: tuple[str, ...] = SEVERITIES
     auto_post_prefix: str = "AI review (auto triggered):"
@@ -67,6 +68,7 @@ class TriggerConfig:
             max_reviews_per_day=int(raw.get("max_reviews_per_day", 20)),
             cap_exempt={str(x).lower() for x in raw.get("cap_exempt") or []},
             requests_since=str(raw["requests_since"]) if raw.get("requests_since") else None,
+            auto_start=bool(raw.get("auto_start", False)),
             auto_post={str(x).lower() for x in raw.get("auto_post") or []},
             auto_post_severities=tuple(  # [] posts nothing
                 str(x) for x in (SEVERITIES if raw.get("auto_post_severities") is None else raw["auto_post_severities"])
